@@ -53,3 +53,35 @@ schema in one file, read `api/migrations/` and `dashboards/*/migrations/`.
   goes through a dashboard-owned SQL view model in the API, which is what makes
   a tile number reproducible. Adding them here would create a second, unversioned
   query path around that.
+
+## The remote project, measured
+
+Region `ap-northeast-2` (Seoul), Postgres 17.6, reached over the transaction
+pooler at `aws-0-ap-northeast-2.pooler.supabase.com:6543`. The direct host
+`db.<ref>.supabase.co` resolves to IPv6 only, so the pooler is the practical
+route.
+
+The app's own migrations apply cleanly (`make migrate-remote`), and both real
+exports load through the API: 17,587 introducers in 4.7s, 227,199 applications
+in 25.6s. The read model returns figures **identical** to the local baseline --
+current year 2026, 7,037 in the book, 2,016 active deposits in the 2026 intake.
+
+**Region looks like the wrong choice.** Measured from this machine:
+
+| Region | TCP connect |
+|---|---|
+| `ap-northeast-2` Seoul — current | 196ms |
+| `ap-south-1` Mumbai | 67ms |
+| `ap-southeast-1` Singapore | 47ms |
+
+That matters because the overview takes ~7 round trips. On Supabase it runs in
+2.8s against 0.5s locally, and almost all of the difference is distance, not
+the database: `select 1` costs 124ms while counting all 227,199 rows costs
+147ms — about 23ms of actual compute.
+
+Two consequences:
+
+- Deployed next to the database this cost disappears, so the number to judge is
+  not the one measured from a laptop.
+- A Supabase project's region **cannot be changed after creation**. Moving means
+  a new project. Worth deciding before anything else is built on this one.

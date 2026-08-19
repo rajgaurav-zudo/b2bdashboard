@@ -20,7 +20,10 @@ services:
     build: ./api
     env_file: [.env]
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-b2b}:${POSTGRES_PASSWORD:-b2b}@db:5432/${POSTGRES_DB:-b2bdash}
+      # Local by default. Set DATABASE_URL in .env to point the stack somewhere
+      # else -- deliberately not SUPABASE_DATABASE_URL, so pointing the dev stack
+      # at production is a decision rather than a side effect of storing the string.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-b2b}:${POSTGRES_PASSWORD:-b2b}@db:5432/${POSTGRES_DB:-b2bdash}}
       DASHBOARDS_DIR: /srv/dashboards
       UPLOAD_DIR: /srv/data/uploads
       # colima's virtiofs mount does not emit inotify events; poll instead
