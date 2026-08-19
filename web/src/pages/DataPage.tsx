@@ -1,15 +1,17 @@
 import { useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 
-import { useActivateLoad, useLoads, useUpload } from "../api/client";
-import type { DashboardDetail, UploadResult } from "../api/types";
+import { useActivateLoad, useLoads, useUpload, useUploads } from "../api/client";
+import type { DashboardDetail, UploadResult, UploadRow } from "../api/types";
 import { n0, when } from "../format";
 import { Section, Spinner } from "../ui/Primitives";
 
 export function DataPage() {
   const dashboard = useOutletContext<DashboardDetail>();
   const loads = useLoads(dashboard.slug);
+  const uploads = useUploads(dashboard.slug);
   const activate = useActivateLoad(dashboard.slug);
+  const failed = (uploads.data ?? []).filter((u) => u.status === "failed");
 
   return (
     <>
@@ -30,6 +32,8 @@ export function DataPage() {
           ))}
         </div>
       </Section>
+
+      {failed.length > 0 ? <FailedUploads rows={failed} /> : null}
 
       <Section title="Current loads">
         <div className="card scroll">
@@ -95,6 +99,34 @@ export function DataPage() {
         </div>
       </Section>
     </>
+  );
+}
+
+/** Failures leave no load and no changelog entry, so without this the page would
+ *  show the previous file as current and give no hint that an import died. */
+function FailedUploads({ rows }: { rows: UploadRow[] }) {
+  return (
+    <Section title="Failed uploads" note="These never became a load. The dataset still serves the previous file.">
+      <div className="card scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Dataset</th><th>File</th><th>Attempted</th><th>Why it failed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td>{row.dataset}</td>
+                <td>{row.filename}</td>
+                <td>{when(row.started_at)}</td>
+                <td style={{ color: "var(--bad)" }}>{row.error ?? "unknown"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
   );
 }
 

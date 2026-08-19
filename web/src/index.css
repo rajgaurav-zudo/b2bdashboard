@@ -65,13 +65,17 @@ section{margin-top:32px}
 .tile{
   text-align:left; background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
   box-shadow:var(--shadow); padding:14px 15px; cursor:pointer; transition:transform .08s ease, border-color .12s ease;
+  /* a stretched <button> centres its own content, so short cards in a row sat
+     lower than tall ones. Column flex pins them to the top and lets the footer
+     rule line up across the row. */
+  display:flex; flex-direction:column; align-items:stretch;
 }
 .tile:hover{transform:translateY(-1px); border-color:rgba(21,32,28,.28)}
 .tile.on{border-color:var(--ink); box-shadow:0 0 0 1px var(--ink), var(--shadow)}
 .tile .name{font-size:13px; font-weight:600; color:var(--muted)}
-.tile .big{font-size:30px; font-weight:680; letter-spacing:-.03em; margin:2px 0 0; font-variant-numeric:tabular-nums}
-.tile .big .unit{font-size:12px; font-weight:550; color:var(--faint); letter-spacing:0; margin-left:6px}
-.tile .foot{margin-top:8px; padding-top:8px; border-top:1px solid var(--line-soft); display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--faint)}
+.tile .big{font-size:30px; font-weight:680; letter-spacing:-.03em; margin:2px 0 0; line-height:1.12; font-variant-numeric:tabular-nums}
+.tile .big .unit{display:block; font-size:12px; font-weight:550; color:var(--faint); letter-spacing:0; line-height:1.35; margin-top:3px}
+.tile .foot{margin-top:auto; padding-top:12px; border-top:1px solid var(--line-soft); display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--faint)}
 .tile .foot b{color:var(--muted); font-variant-numeric:tabular-nums}
 .tile.leak .big{color:var(--bad)}
 a.tile,a.tile:hover{color:inherit; text-decoration:none}   /* a card is not a hyperlink */

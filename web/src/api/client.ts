@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  LoadRow, Overview, TileDrilldown, UploadResult,
+  LoadRow, Overview, TileDrilldown, UploadResult, UploadRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
@@ -90,6 +90,13 @@ export function useLoads(slug: string) {
   });
 }
 
+export function useUploads(slug: string) {
+  return useQuery({
+    queryKey: ["uploads", slug],
+    queryFn: () => get<UploadRow[]>(`/dashboards/${slug}/uploads`),
+  });
+}
+
 export function useActivateLoad(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -107,6 +114,7 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>, slug: string
   void queryClient.invalidateQueries({ queryKey: ["view", slug] });
   void queryClient.invalidateQueries({ queryKey: ["changelog", slug] });
   void queryClient.invalidateQueries({ queryKey: ["loads", slug] });
+  void queryClient.invalidateQueries({ queryKey: ["uploads", slug] });
   void queryClient.invalidateQueries({ queryKey: ["dashboard", slug] });
 }
 

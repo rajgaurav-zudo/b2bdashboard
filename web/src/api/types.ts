@@ -74,6 +74,19 @@ export interface LoadRow {
   uploaded_by: string | null;
 }
 
+export interface UploadRow {
+  id: number;
+  dataset: string;
+  filename: string;
+  byte_size: number;
+  row_count: number | null;
+  status: "pending" | "parsing" | "loading" | "diffing" | "ready" | "failed" | "duplicate";
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+  uploaded_by: string | null;
+}
+
 export interface UploadResult {
   upload_id: number;
   status: string;

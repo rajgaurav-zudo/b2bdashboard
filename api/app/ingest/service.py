@@ -100,6 +100,33 @@ def _changed_fields(before: dict | None, after: dict | None) -> list[str]:
     return sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
 
 
+def reconcile_interrupted() -> int:
+    """Fail uploads left mid-flight by a crash.
+
+    The pipeline marks its own failures, but a hard kill -- OOM on a large file,
+    a container restart -- never reaches the handler, and the upload sits at
+    'parsing' forever while the UI reports it as still running. Nothing is
+    in-flight at startup, so anything unfinished is finished, badly.
+    """
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """update core.uploads set status = 'failed', finished_at = now(),
+                      error = coalesce(error, 'interrupted: the server restarted mid-import')
+               where status in ('pending', 'parsing', 'loading', 'diffing')
+               returning id""",
+        )
+        stranded = [row["id"] for row in cur.fetchall()]
+        if stranded:
+            # A load row can outlive its upload if the kill landed between the two.
+            # Never touch a current load: the dashboard is still serving from it.
+            cur.execute(
+                "delete from core.loads where upload_id = any(%s) and not is_current",
+                (stranded,),
+            )
+        conn.commit()
+    return len(stranded)
+
+
 def activate(dashboard: Dashboard, load_id: int) -> dict:
     """Make an existing load the current one again.
 

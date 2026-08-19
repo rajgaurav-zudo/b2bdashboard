@@ -56,7 +56,7 @@ GET /api/dashboards/{slug}/views/{view}?...
 Core never knows what a tile is. Adding a view to one dashboard cannot change another's,
 and a dashboard with no `metrics.py` simply has no views.
 
-The browser receives finished numbers. On a 230k-row applications file the overview query
+The browser receives finished numbers. On a 227k-row applications file the overview query
 takes ~0.5s and a grouped drill-down ~0.15s; the payload does not grow with the file,
 because drill-downs are grouped, sorted and capped server-side.
 
@@ -129,7 +129,7 @@ diffs get materially better** — it is picked up automatically by header matchi
   dashboard needs to scan tens of millions of rows per request.
 - **Migrations on API startup.** Convenient in dev; in production run `make migrate` as
   a release step and drop the call from `lifespan`.
-- **Sync ingest.** 230k rows takes ~7s end to end, inside one request. If uploads get
+- **Sync ingest.** 227k rows takes ~5.5s end to end, inside one request. If uploads get
   bigger or concurrent, move `ingest()` behind a queue — the status column and changelog
   already model an async lifecycle.
 - **`WATCHFILES_FORCE_POLLING`** is set because colima's virtiofs mount does not emit

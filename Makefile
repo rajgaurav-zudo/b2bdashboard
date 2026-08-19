@@ -24,7 +24,7 @@ migrate:       ## apply core + every dashboard migration
 	docker compose exec api python -m app.migrate
 
 test:
-	docker compose exec api pytest /srv/dashboards -q
+	docker compose exec api pytest /srv/api/tests /srv/dashboards -q
 
 typecheck:     ## tsc over the frontend
 	docker compose exec web npx tsc -b --noEmit

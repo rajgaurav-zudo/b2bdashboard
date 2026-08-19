@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import migrate, registry
 from .db import pool
+from .ingest.service import reconcile_interrupted
 from .routers import api
 
 
@@ -15,6 +16,8 @@ async def lifespan(_: FastAPI):
     migrate.run()                       # dev convenience; in prod run `make migrate` as a release step
     with pool.connection() as conn:
         registry.sync(conn)
+    if stranded := reconcile_interrupted():
+        print(f"marked {stranded} interrupted upload(s) as failed")
     yield
     pool.close()
 

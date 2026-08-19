@@ -91,6 +91,26 @@ async def upload(slug: str, dataset: str, file: UploadFile = File(...),
         raise HTTPException(404, str(exc)) from exc
 
 
+@router.get("/dashboards/{slug}/uploads")
+def uploads(slug: str, limit: int = Query(25, le=200)):
+    """Every upload attempt, including the ones that never became a load.
+
+    A failed import is otherwise invisible: it produces no load and no changelog
+    entry, so the dashboard just keeps serving the previous file and looks fine.
+    """
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """select u.id, ds.slug as dataset, u.filename, u.byte_size, u.row_count,
+                      u.status, u.error, u.started_at, u.finished_at, u.uploaded_by
+                 from core.uploads u
+                 join core.dashboards d on d.id = u.dashboard_id and d.slug = %s
+                 join core.datasets ds on ds.id = u.dataset_id
+                order by u.started_at desc limit %s""",
+            (slug, limit),
+        )
+        return cur.fetchall()
+
+
 @router.post("/dashboards/{slug}/loads/{load_id}/activate")
 def activate_load(slug: str, load_id: int):
     """Roll back to an earlier load. Nothing is deleted; the current flag moves."""

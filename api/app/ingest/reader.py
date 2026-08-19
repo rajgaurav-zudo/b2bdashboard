@@ -47,6 +47,38 @@ def _sniff_separator(head: bytes) -> str:
     return max([",", "\t", ";", "|"], key=lambda d: line.count(d))
 
 
+def normalize_newlines(content: bytes) -> bytes:
+    """Terminate every record with \n.
+
+    Excel for Mac and several CRM exporters end records with a lone CR. Polars
+    breaks rows on \n only, so such a file parses as one gigantic header: a
+    114MB, 227k-row export arrived as a 2,907-column header and exhausted
+    memory before a single row was read. Converting CRs inside quoted fields
+    too is harmless -- a newline there is ordinary text under either byte.
+    """
+    if b"\r" not in content:
+        return content
+    return content.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def count_records(content: bytes) -> int:
+    """Data rows in a newline-normalised csv, ignoring newlines inside quotes.
+
+    Splitting on the quote character alternates outside/inside segments, so the
+    even ones hold exactly the newlines that end a record.
+
+    This shares polars' view of quoting, so it will not catch a file both agree
+    to read wrongly. It is a tripwire on truncate_ragged_lines: that flag exists
+    to tolerate junk rows, and the day it starts dropping good ones instead, the
+    load fails loudly rather than serving a dashboard built on half the export.
+    """
+    trailing = 0                                     # blank lines at EOF are not records
+    while trailing < len(content) and content[len(content) - 1 - trailing] == 0x0A:
+        trailing += 1
+    outside = sum(segment.count(b"\n") for segment in content.split(b'"')[::2])
+    return max(outside - trailing, 0)                # the remaining header line cancels the last row
+
+
 def read_table(filename: str, content: bytes) -> pl.DataFrame:
     """Read csv/xls/xlsx into an all-strings frame. Never infers types."""
     name = (filename or "").lower()
@@ -56,6 +88,7 @@ def read_table(filename: str, content: bytes) -> pl.DataFrame:
         except Exception as exc:  # noqa: BLE001
             raise IngestError(f"could not read the workbook: {exc}") from exc
     else:
+        content = normalize_newlines(content)
         try:
             frame = pl.read_csv(
                 io.BytesIO(content),
@@ -68,6 +101,14 @@ def read_table(filename: str, content: bytes) -> pl.DataFrame:
             )
         except Exception as exc:  # noqa: BLE001
             raise IngestError(f"could not read the file as CSV: {exc}") from exc
+        # truncate_ragged_lines keeps junk rows from failing a good export, but it
+        # also means a misparse loses rows in silence. Refuse the load instead.
+        expected = count_records(content)
+        if frame.height != expected:
+            raise IngestError(
+                f"read {frame.height:,} of {expected:,} rows -- the file did not parse cleanly. "
+                "Check the delimiter and quoting, then re-export it."
+            )
     if frame.height == 0:
         raise IngestError("the file has a header but no rows")
     return frame.with_columns(pl.all().cast(pl.Utf8))

@@ -9,5 +9,9 @@ node_modules/
 dist/
 .DS_Store
 
+# core dumps: a killed parser drops one straight into the bind mount
+core
+core.*
+
 # vite/tsc build artefacts
 web/tsconfig.tsbuildinfo

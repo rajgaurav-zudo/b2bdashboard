@@ -44,7 +44,7 @@ GET /api/dashboards/{slug}/views/tile?id=dormant&group_by=country
 ```
 
 The browser receives finished numbers. Nothing is parsed or aggregated client-side, so a
-230k-row applications file renders in the same time as a 139-row one — the overview query
+227k-row applications file renders in the same time as a 139-row one — the overview query
 runs in about 0.5s and a drill-down in about 0.15s.
 
 Rolling back a bad export is a flag flip, not a re-import:
@@ -70,8 +70,9 @@ See [docs/architecture.md](docs/architecture.md) for the design and the decision
 | Piece | State |
 |---|---|
 | Postgres schema, registry, migrations | working |
-| Upload → parse → load → diff → changelog | working, 230k rows in ~7s |
+| Upload → parse → load → diff → changelog | working, 227k rows in ~5.5s |
 | Every load retained, rollback by flag | working |
+| File reading + column resolution | working, 13 tests |
 | Introducer ingest + tests | working, 14 tests |
 | Metrics API (tiles, funnel, drill-down) | working, 20 tests |
 | React + TypeScript frontend | working |
@@ -80,6 +81,17 @@ See [docs/architecture.md](docs/architecture.md) for the design and the decision
 `legacy/introducer-dashboard.html` is the original single-file version, kept as the
 provenance of the metric definitions. It parses both exports in the browser on every page
 load, which is what the React app exists to stop doing.
+
+## Exports that need handling
+
+- **Lone-CR line endings.** Excel for Mac and some CRM exporters end each record with `\r`
+  rather than `\n`. Polars breaks rows on `\n` only, so the whole file arrives as a single
+  header row: the 227k-row, 114MB applications export parsed as a 2,907-column header and
+  exhausted memory before a row was read. `read_table` normalises `\r\n` and `\r` to `\n`
+  before parsing, and every load is checked against an independent record count.
+- **Interrupted imports.** A crash mid-import cannot mark its own upload failed, so the row
+  sat at `parsing` forever while the dashboard quietly served the previous file. Startup
+  fails anything left in flight, and the Data page lists failed uploads with the reason.
 
 ## Deviations worth knowing
 
