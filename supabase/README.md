@@ -14,6 +14,23 @@ dashboard cannot block another, and each dashboard's SQL is written with
 unqualified names against its own schema. `supabase db push` is global and has
 no such notion, so moving the app schema here would quietly discard that.
 
+## What is here
+
+| Migration | Does |
+|---|---|
+| `20260819172134_uploads_bucket.sql` | Private `uploads` bucket for the raw CRM exports: 200MB limit, spreadsheet mime types, and deliberately no `storage.objects` policies so only the service role can reach it. |
+
+Not written yet, and why:
+
+- **Auth policies.** Waiting on one decision: does the browser query PostgREST
+  directly, or only ever the API? If only the API, RLS is defence in depth and
+  the JWT is verified in FastAPI. If direct, RLS becomes the actual access
+  control and has to be written per table before anything is exposed.
+- **A least-privilege API role.** The API would otherwise connect as `postgres`.
+  A dedicated owner role for `core` and `dash_*` is better, but its password
+  cannot live in a committed migration, so creating it here only half-does the
+  job.
+
 ## Do not run `supabase db pull`
 
 It dumps the *entire* live schema into a new migration here — `core`, every
