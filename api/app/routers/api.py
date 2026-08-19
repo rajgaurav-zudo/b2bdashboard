@@ -1,9 +1,9 @@
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
-from .. import registry
+from .. import registry, views
 from ..db import pool
 from ..ingest.reader import IngestError
-from ..ingest.service import ingest
+from ..ingest.service import activate, ingest
 
 router = APIRouter()
 
@@ -46,6 +46,7 @@ def get_dashboard(slug: str):
         "slug": dash.slug, "name": dash.name, "version": dash.version,
         "schema": dash.db_schema, "context_sha": dash.context_sha,
         "dimensions": dash.manifest.get("dimensions", []),
+        "views": views.available(dash),
         "datasets": [
             {"slug": ds.slug, "display_name": ds.display_name,
              "natural_key": ds.natural_key, "required_columns": ds.required_columns}
@@ -53,6 +54,21 @@ def get_dashboard(slug: str):
         ],
         "current_loads": current,
     }
+
+
+@router.get("/dashboards/{slug}/views/{view}")
+def view(slug: str, view: str, request: Request):
+    """Dashboard-owned read model. Query params are passed through untouched."""
+    try:
+        dash = registry.get(slug)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    try:
+        return views.render(dash, view, dict(request.query_params))
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except views.ViewError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post("/dashboards/{slug}/datasets/{dataset}/uploads")
@@ -71,6 +87,16 @@ async def upload(slug: str, dataset: str, file: UploadFile = File(...),
         return ingest(dash, dataset, file.filename or "upload.csv", content, uploaded_by)
     except IngestError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/dashboards/{slug}/loads/{load_id}/activate")
+def activate_load(slug: str, load_id: int):
+    """Roll back to an earlier load. Nothing is deleted; the current flag moves."""
+    try:
+        dash = registry.get(slug)
+        return activate(dash, load_id)
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
 

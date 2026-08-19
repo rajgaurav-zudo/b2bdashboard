@@ -165,6 +165,19 @@ def finalize(dataset: str, frame: pl.DataFrame) -> pl.DataFrame:
     raise KeyError(f"unknown dataset '{dataset}'")
 
 
+def stats(dataset: str, raw: pl.DataFrame, final: pl.DataFrame) -> dict:
+    """Counts that disappear once rows are collapsed, recorded on the load.
+
+    Everything else the data notes need is recoverable from the loaded rows;
+    these two are not, because the rows themselves are gone by then.
+    """
+    if dataset == "introducers":
+        named = raw.filter(clean(pl.col("partner_name")).is_not_null()).height
+        return {"input_rows": raw.height, "blank_name_rows": raw.height - named,
+                "duplicate_names": named - final.height}
+    return {"input_rows": raw.height}
+
+
 def _timestamp(col: str) -> pl.Expr:
     src = clean(pl.col(col))
     expr = pl.lit(None, dtype=pl.Datetime(time_unit="us"))

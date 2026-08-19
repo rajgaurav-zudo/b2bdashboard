@@ -1,10 +1,11 @@
-.PHONY: up down logs psql migrate test reset vm
+.PHONY: up down logs psql migrate test typecheck reset vm
 
 vm:            ## start the colima VM (4 cpu / 8 GB / 60 GB)
 	colima start --runtime docker --vm-type vz --cpu 4 --memory 8 --disk 60
 
-up:            ## build and start db + api
+up:            ## build and start db + api + web
 	docker compose up -d --build
+	@echo "app  http://localhost:$${WEB_PORT:-5173}"
 	@echo "api  http://localhost:$${API_PORT:-8000}/docs"
 
 down:
@@ -24,3 +25,6 @@ migrate:       ## apply core + every dashboard migration
 
 test:
 	docker compose exec api pytest /srv/dashboards -q
+
+typecheck:     ## tsc over the frontend
+	docker compose exec web npx tsc -b --noEmit

@@ -100,6 +100,56 @@ def _changed_fields(before: dict | None, after: dict | None) -> list[str]:
     return sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
 
 
+def activate(dashboard: Dashboard, load_id: int) -> dict:
+    """Make an existing load the current one again.
+
+    Every load is kept, so rolling back a bad export is a flag flip rather than a
+    re-import: the rows never left. The switch is recorded in the changelog so the
+    history still explains why the numbers moved.
+    """
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """select l.id, l.dataset_id, l.dashboard_id, l.row_count, l.is_current,
+                      ds.slug as dataset, ds.display_name, u.filename
+                 from core.loads l
+                 join core.datasets ds on ds.id = l.dataset_id
+                 join core.dashboards d on d.id = l.dashboard_id and d.slug = %s
+                 join core.uploads u on u.id = l.upload_id
+                where l.id = %s""",
+            (dashboard.slug, load_id),
+        )
+        target = cur.fetchone()
+        if target is None:
+            raise KeyError(f"{dashboard.slug} has no load {load_id}")
+        if target["is_current"]:
+            return {"load_id": load_id, "changed": False, "summary": "already the current load"}
+
+        cur.execute(
+            """update core.loads set is_current = false, superseded_at = now()
+               where dashboard_id = %s and dataset_id = %s and is_current
+               returning id""",
+            (target["dashboard_id"], target["dataset_id"]),
+        )
+        replaced = cur.fetchone()
+        cur.execute(
+            "update core.loads set is_current = true, superseded_at = null where id = %s",
+            (load_id,),
+        )
+        summary = (f"{target['display_name']}: rolled back to load {load_id} "
+                   f"({target['filename']}, {target['row_count']:,} rows)")
+        cur.execute(
+            """insert into core.changelog
+                 (dashboard_id, dataset_id, entity, summary, load_id, previous_load_id, details)
+               values (%s, %s, %s, %s, %s, %s, %s::jsonb)""",
+            (target["dashboard_id"], target["dataset_id"], target["dataset"], summary,
+             load_id, replaced["id"] if replaced else None,
+             json.dumps({"action": "activate", "replaced_load": replaced["id"] if replaced else None})),
+        )
+        conn.commit()
+        return {"load_id": load_id, "changed": True, "summary": summary,
+                "replaced_load": replaced["id"] if replaced else None}
+
+
 def ingest(dashboard: Dashboard, dataset_slug: str, filename: str, content: bytes,
            uploaded_by: str | None = None) -> dict:
     dataset = dashboard.dataset(dataset_slug)
@@ -158,6 +208,9 @@ def ingest(dashboard: Dashboard, dataset_slug: str, filename: str, content: byte
                 "missing required column(s): " + ", ".join(resolution.missing) + (f". {hint}" if hint else "")
             )
         prepared: pl.DataFrame = module.finalize(dataset_slug, resolution.frame)
+        # Optional, dashboard-owned: counts that only exist before rows are collapsed.
+        load_stats = module.stats(dataset_slug, resolution.frame, prepared) \
+            if hasattr(module, "stats") else {}
         prepared = prepared.with_columns(
             (
                 pl.concat_str(
@@ -174,9 +227,9 @@ def ingest(dashboard: Dashboard, dataset_slug: str, filename: str, content: byte
             with conn.cursor() as cur:
                 cur.execute("update core.uploads set status = 'loading' where id = %s", (upload_id,))
                 cur.execute(
-                    """insert into core.loads (dashboard_id, dataset_id, upload_id, row_count)
-                       values (%s, %s, %s, %s) returning id""",
-                    (dash_id, ds_id, upload_id, prepared.height),
+                    """insert into core.loads (dashboard_id, dataset_id, upload_id, row_count, stats)
+                       values (%s, %s, %s, %s, %s::jsonb) returning id""",
+                    (dash_id, ds_id, upload_id, prepared.height, json.dumps(load_stats)),
                 )
                 load_id = cur.fetchone()["id"]
                 _copy_frame(cur, table, prepared.with_columns(pl.lit(load_id).alias("load_id")))

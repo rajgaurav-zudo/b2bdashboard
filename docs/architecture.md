@@ -6,18 +6,23 @@ its spec. Nothing it does can reach another dashboard.
 ## Layout
 
 ```
-compose.yml              db + api, run by colima
-api/                     FastAPI service: registry, migrations, ingest, changelog
+compose.yml              db + api + web, run by colima
+api/                     FastAPI service: registry, migrations, ingest, changelog, views
   migrations/*.sql       core schema (scope: 'core')
   app/ingest/            file reading, column resolution, the upload pipeline
+  app/views.py           dispatch into a dashboard's own read model
 dashboards/<slug>/       one self-contained dashboard
   dashboard.yaml         id, schema name, datasets, natural keys, dimensions
   context.md             the spec; its sha256 is stored on core.dashboards
   migrations/*.sql       that dashboard's tables, applied in its own schema
   ingest.py              how its export columns map onto those tables
+  metrics.py             its read model: VIEWS = {name: fn}
   tests/                 its rules, asserted
 legacy/                  the original single-file browser dashboard
-web/                     React app (not built yet)
+web/                     React + TypeScript app (Vite)
+  src/ui/                the shared kit -- the one deliberate coupling
+  src/dashboards/<name>/ one dashboard's bespoke widgets
+  src/dashboards/registry.tsx   slug -> overview component
 ```
 
 ## Isolation
@@ -29,9 +34,37 @@ web/                     React app (not built yet)
 | Ingest rules | `dashboards/<slug>/ingest.py`, imported by path. No shared parsing rules beyond the generic reader. |
 | Grouping | `dimensions:` in that dashboard's manifest. |
 | Spec | `context.md` per dashboard, hashed into `core.dashboards.context_sha`. |
+| Metrics | `dashboards/<slug>/metrics.py`, imported by path. Core resolves the current loads and sets the search_path; the SQL inside is the dashboard's own. |
 
 The one deliberate coupling is the shared UI kit in `web/`. Keep it additive — that
 discipline replaces the isolation separate HTML files gave for free.
+
+## Read models
+
+Metrics are SQL, computed per request against the current load, and served through one
+generic endpoint:
+
+```
+GET /api/dashboards/{slug}/views/{view}?...
+  │
+  ├─ core: resolve the dashboard, find the current load id for every dataset
+  ├─ core: set search_path to dash_<slug>, open a read-only transaction
+  ├─ dashboard: metrics.VIEWS[view](ctx, params)
+  └─ core: roll back, return JSON
+```
+
+Core never knows what a tile is. Adding a view to one dashboard cannot change another's,
+and a dashboard with no `metrics.py` simply has no views.
+
+The browser receives finished numbers. On a 230k-row applications file the overview query
+takes ~0.5s and a grouped drill-down ~0.15s; the payload does not grow with the file,
+because drill-downs are grouped, sorted and capped server-side.
+
+**Definitions live in one place.** `pick_current_year`, the lifetime window, the scope
+rule and the thirteen tile predicates were ported from the browser build to
+`metrics.py`, and the assertions came with them — `tests/test_metrics.py` inserts
+synthetic rows under a throwaway load id, runs the real SQL, and rolls back, so the dev
+database is untouched and the rules are tested rather than the dictionaries.
 
 ## Upload pipeline
 
@@ -59,6 +92,14 @@ error. The previous load stays current, so a bad export cannot leave a dashboard
 Every load is kept. `core.loads.is_current` is a flag, not a deletion — so any past
 snapshot stays queryable, rollback is a flag flip, and the changelog always has both
 sides of a diff to point at. Growth is roughly the file size per upload.
+
+`POST /api/dashboards/{slug}/loads/{load_id}/activate` performs that flip and writes a
+changelog entry, so history still explains why the numbers moved. The Data tab exposes it
+as **make current** on every superseded load.
+
+`core.loads.stats` holds ingest-time counts that cannot be recovered from the loaded rows
+— how many input rows were blank or collapsed as duplicates. Each dashboard decides what
+goes in it via an optional `stats()` hook in its ingest module.
 
 ## Changelog
 
@@ -92,4 +133,11 @@ diffs get materially better** — it is picked up automatically by header matchi
   bigger or concurrent, move `ingest()` behind a queue — the status column and changelog
   already model an async lifecycle.
 - **`WATCHFILES_FORCE_POLLING`** is set because colima's virtiofs mount does not emit
-  inotify events, so `--reload` misses edits without it.
+  inotify events, so `--reload` misses edits without it. Vite needs the same treatment
+  (`server.watch.usePolling`).
+- **Metrics recomputed per request, not cached.** At current volumes the query is faster
+  than any invalidation scheme would be worth. If a dashboard grows past a second or two,
+  materialise per-load aggregates keyed on `load_id` — they are immutable once written.
+- **The frontend fetches through a Vite proxy** rather than an absolute API origin, so
+  the browser needs no CORS and no per-environment configuration. The API's CORS list
+  exists only for running `npm run dev` outside the container.

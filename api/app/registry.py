@@ -37,19 +37,29 @@ class Dashboard:
     datasets: dict[str, Dataset]
     context_sha: str | None
 
-    _module: ModuleType | None = None
+    _modules: dict[str, ModuleType] = field(default_factory=dict)
 
-    @property
-    def module(self) -> ModuleType:
-        if self._module is None:
-            path = self.dir / "ingest.py"
-            spec = importlib.util.spec_from_file_location(f"dashboards.{self.slug}.ingest", path)
+    def load_module(self, name: str) -> ModuleType:
+        """Import a python file from this dashboard's directory by path.
+
+        Dashboards are plain directories, not packages, so they are loaded by
+        location. Two dashboards may both define `metrics.py` without colliding.
+        """
+        if name not in self._modules:
+            path = self.dir / f"{name}.py"
+            if not path.exists():
+                raise FileNotFoundError(f"{self.slug} has no {name}.py")
+            spec = importlib.util.spec_from_file_location(f"dashboards.{self.slug}.{name}", path)
             if spec is None or spec.loader is None:
                 raise RuntimeError(f"{self.slug}: cannot import {path}")
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            self._module = mod
-        return self._module
+            self._modules[name] = mod
+        return self._modules[name]
+
+    @property
+    def module(self) -> ModuleType:
+        return self.load_module("ingest")
 
     def dataset(self, slug: str) -> Dataset:
         if slug not in self.datasets:

@@ -34,5 +34,18 @@ services:
       - ./data/uploads:/srv/data/uploads
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  web:
+    build: ./web
+    environment:
+      # the dev server proxies /api so the browser needs no CORS and no origin config
+      API_ORIGIN: http://api:8000
+    depends_on: [api]
+    ports: ["${WEB_PORT:-5173}:5173"]
+    volumes:
+      - ./web:/srv/web
+      - web_modules:/srv/web/node_modules      # keep the image's install, not the host's
+    command: npm run dev
+
 volumes:
   pgdata:
+  web_modules:
