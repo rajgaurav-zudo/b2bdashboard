@@ -1,11 +1,14 @@
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from .. import registry, views
+from ..auth import User, audit_actor, current_user
 from ..db import pool
 from ..ingest.reader import IngestError
 from ..ingest.service import activate, ingest
 
-router = APIRouter()
+# Applied to the whole router rather than per route: a new endpoint is then
+# protected by default, and forgetting to add a dependency cannot open a hole.
+router = APIRouter(dependencies=[Depends(current_user)])
 
 
 @router.get("/dashboards")
@@ -73,7 +76,8 @@ def view(slug: str, view: str, request: Request):
 
 @router.post("/dashboards/{slug}/datasets/{dataset}/uploads")
 async def upload(slug: str, dataset: str, file: UploadFile = File(...),
-                 uploaded_by: str | None = Query(default=None)):
+                 uploaded_by: str | None = Query(default=None),
+                 user: User | None = Depends(current_user)):
     try:
         dash = registry.get(slug)
     except KeyError as exc:
@@ -84,7 +88,9 @@ async def upload(slug: str, dataset: str, file: UploadFile = File(...),
     if not content:
         raise HTTPException(400, "empty file")
     try:
-        return ingest(dash, dataset, file.filename or "upload.csv", content, uploaded_by)
+        # the signed-in identity wins: who uploaded is not the client's to assert
+        return ingest(dash, dataset, file.filename or "upload.csv", content,
+                      audit_actor(user) or uploaded_by)
     except IngestError as exc:
         raise HTTPException(422, str(exc)) from exc
     except KeyError as exc:
@@ -112,11 +118,11 @@ def uploads(slug: str, limit: int = Query(25, le=200)):
 
 
 @router.post("/dashboards/{slug}/loads/{load_id}/activate")
-def activate_load(slug: str, load_id: int):
+def activate_load(slug: str, load_id: int, user: User | None = Depends(current_user)):
     """Roll back to an earlier load. Nothing is deleted; the current flag moves."""
     try:
         dash = registry.get(slug)
-        return activate(dash, load_id)
+        return activate(dash, load_id, audit_actor(user))
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
 

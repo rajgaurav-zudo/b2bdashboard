@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from . import migrate, registry
+from . import auth, migrate, registry
+from .config import settings
 from .db import pool
 from .ingest.service import reconcile_interrupted
 from .routers import api
@@ -19,6 +20,14 @@ async def lifespan(_: FastAPI):
         registry.sync(conn)
     if stranded := reconcile_interrupted():
         print(f"marked {stranded} interrupted upload(s) as failed")
+
+    # Misconfigured auth is worse than none: it looks protected. Refuse to boot.
+    if problems := auth.preflight():
+        raise RuntimeError("auth misconfigured -- " + "; ".join(problems))
+    if settings.auth_required:
+        print(f"auth: verifying Supabase tokens, {auth.warmup()}")
+    else:
+        print("auth: DISABLED (AUTH_REQUIRED=false) -- every endpoint is open")
     yield
     pool.close()
 

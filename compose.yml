@@ -26,6 +26,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-b2b}:${POSTGRES_PASSWORD:-b2b}@db:5432/${POSTGRES_DB:-b2bdash}}
       DASHBOARDS_DIR: /srv/dashboards
       UPLOAD_DIR: /srv/data/uploads
+      # Off for local work so development needs no Supabase account. The default
+      # in config.py is on, so anything that does not say this explicitly is
+      # protected -- and the API prints a loud line at boot when it is off.
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
       # colima's virtiofs mount does not emit inotify events; poll instead
       WATCHFILES_FORCE_POLLING: "true"
     depends_on:
@@ -42,6 +46,12 @@ services:
     environment:
       # the dev server proxies /api so the browser needs no CORS and no origin config
       API_ORIGIN: http://api:8000
+      # Vite only exposes VITE_-prefixed vars to the bundle. Both are public by
+      # design: the anon key alone reaches the login endpoints and nothing else,
+      # because every data route verifies the resulting token server-side.
+      VITE_SUPABASE_URL: ${SUPABASE_URL:-}
+      VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      VITE_AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
     depends_on: [api]
     ports: ["${WEB_PORT:-5173}:5173"]
     volumes:

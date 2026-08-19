@@ -147,3 +147,33 @@ diffs get materially better** — it is picked up automatically by header matchi
 - **The frontend fetches through a Vite proxy** rather than an absolute API origin, so
   the browser needs no CORS and no per-environment configuration. The API's CORS list
   exists only for running `npm run dev` outside the container.
+
+## Auth
+
+The browser signs in with Supabase Auth and sends the resulting JWT to the API,
+which verifies it against the project's published JWKS (ES256 -- the API holds a
+public key and nothing that could mint a token). PostgREST stays switched off:
+`core` and `dash_*` are not in `api.schemas`, so the dashboard-owned SQL view
+models remain the only way to read the data, and RLS is defence in depth rather
+than the access control itself.
+
+**Authentication is not authorization.** A Supabase project takes public
+sign-ups by default, so a valid signature proves only that someone found the
+sign-up form. `AUTH_ALLOWED_DOMAINS` / `AUTH_ALLOWED_EMAILS` decide who actually
+gets in, and the API refuses to start with auth on and neither set -- looking
+protected while admitting everyone is the worst of the three states.
+
+Three settings hold that up together, and all three are needed:
+
+| Where | Setting | Why |
+|---|---|---|
+| API | allow-list, checked per request | The only one enforced right now |
+| Supabase | `enable_signup = false` | Nobody uncertain gets a token at all |
+| Supabase | `enable_confirmations = true` | The allow-list trusts the `email` claim, so the address must be proven |
+
+`config.toml` governs the local stack; the live project needs the same settings
+applied in the dashboard, or with `supabase config push`.
+
+Auth is off in local development (`AUTH_REQUIRED=false` in compose.yml) so the
+stack runs without an account. The default in `config.py` is on, and the API
+prints a conspicuous line at boot when it is off.

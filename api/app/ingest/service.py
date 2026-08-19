@@ -127,7 +127,7 @@ def reconcile_interrupted() -> int:
     return len(stranded)
 
 
-def activate(dashboard: Dashboard, load_id: int) -> dict:
+def activate(dashboard: Dashboard, load_id: int, actor: str | None = None) -> dict:
     """Make an existing load the current one again.
 
     Every load is kept, so rolling back a bad export is a flag flip rather than a
@@ -170,7 +170,8 @@ def activate(dashboard: Dashboard, load_id: int) -> dict:
                values (%s, %s, %s, %s, %s, %s, %s::jsonb)""",
             (target["dashboard_id"], target["dataset_id"], target["dataset"], summary,
              load_id, replaced["id"] if replaced else None,
-             json.dumps({"action": "activate", "replaced_load": replaced["id"] if replaced else None})),
+             json.dumps({"action": "activate", "actor": actor,
+                         "replaced_load": replaced["id"] if replaced else None})),
         )
         conn.commit()
         return {"load_id": load_id, "changed": True, "summary": summary,

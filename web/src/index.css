@@ -77,6 +77,27 @@ button.chip:hover{color:var(--ink);border-color:var(--ink)}
 .drop .req{display:block;font-size:11px;color:var(--faint);margin-top:4px}
 .drop.busy{opacity:.6;pointer-events:none}
 
+/* ---------- sign in ---------- */
+.signin{max-width:420px;margin:56px auto;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:26px 24px;box-shadow:var(--shadow)}
+.signin h2{margin:0 0 6px;font-size:17px;font-weight:600}
+.signin p{margin:0 0 18px;font-size:13px;color:var(--muted);line-height:1.55}
+.signin label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 5px}
+.signin input{width:100%;font:inherit;font-size:14px;padding:9px 11px;margin-bottom:14px;
+  border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+.signin input:focus{outline:2px solid var(--info);outline-offset:1px;border-color:transparent}
+.signin .btn,.btn{display:inline-block;font:inherit;font-size:13px;font-weight:500;background:var(--ink);
+  color:var(--paper);border:0;border-radius:8px;padding:9px 16px;cursor:pointer}
+.signin .btn{width:100%}
+.btn:hover:not(:disabled){background:#0c1512}
+.btn:disabled{opacity:.55;cursor:default}
+.signin code{font-family:'IBM Plex Mono',monospace;font-size:12px;background:rgba(21,32,28,.05);
+  padding:1px 5px;border-radius:4px}
+.whoami{margin:8px 0 0;font-size:12px;color:var(--faint);display:flex;align-items:center;gap:10px}
+.signout{font:inherit;font-size:12px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);
+  background:transparent;color:var(--muted);cursor:pointer}
+.signout:hover{color:var(--ink);border-color:var(--ink)}
+
 /* ---------- empty state ---------- */
 .empty{margin:64px auto;max-width:640px;text-align:center;color:var(--muted)}
 .empty h2{color:var(--ink);font-size:18px;font-weight:600;margin:0 0 10px}

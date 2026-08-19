@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { accessToken } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
   LoadRow, Overview, TileMembers, UploadResult, UploadRow,
@@ -7,6 +8,15 @@ import type {
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
 const BASE = "/api";
+
+/** Every request carries the Supabase token when there is one. Read per request
+ *  rather than cached: supabase-js rotates it before expiry. */
+async function authHeaders(extra?: HeadersInit): Promise<Headers> {
+  const headers = new Headers(extra);
+  const token = await accessToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return headers;
+}
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -19,7 +29,7 @@ async function get<T>(path: string, params?: Record<string, string | number | un
   for (const [k, v] of Object.entries(params ?? {})) {
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   }
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: await authHeaders() });
   if (!res.ok) throw new ApiError(await detail(res), res.status);
   return res.json() as Promise<T>;
 }
@@ -99,7 +109,8 @@ export function useActivateLoad(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (loadId: number) => {
-      const res = await fetch(`${BASE}/dashboards/${slug}/loads/${loadId}/activate`, { method: "POST" });
+      const res = await fetch(`${BASE}/dashboards/${slug}/loads/${loadId}/activate`,
+        { method: "POST", headers: await authHeaders() });
       if (!res.ok) throw new ApiError(await detail(res), res.status);
       return res.json() as Promise<{ load_id: number; changed: boolean; summary: string }>;
     },
@@ -122,8 +133,9 @@ export function useUpload(slug: string) {
     mutationFn: async ({ dataset, file }: { dataset: string; file: File }) => {
       const body = new FormData();
       body.append("file", file);
+      // no Content-Type header: the browser must set the multipart boundary itself
       const res = await fetch(`${BASE}/dashboards/${slug}/datasets/${dataset}/uploads`, {
-        method: "POST", body,
+        method: "POST", body, headers: await authHeaders(),
       });
       if (!res.ok) throw new ApiError(await detail(res), res.status);
       return res.json() as Promise<UploadResult>;
