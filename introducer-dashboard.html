@@ -1,0 +1,1534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Introducer Performance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --paper:#F5F6F3; --ink:#15201C; --card:#FFFFFF;
+  --good:#1D7A5F; --warn:#C08018; --bad:#B7502F; --info:#3B6FA8; --purple:#5B47A0;
+  /* chart series: validated for CVD against the #F5F6F3 surface */
+  --s-good:#0F8A5F; --s-bad:#C0491F; --s-info:#3B6FA8; --s-warn:#C08018;
+  --muted:#5F6E68; --faint:#8C9793;
+  --line:rgba(21,32,28,.13); --line-soft:rgba(21,32,28,.07);
+  --shadow:0 1px 2px rgba(21,32,28,.05), 0 8px 24px -16px rgba(21,32,28,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.mono,.num{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px 96px}
+a{color:var(--info)}
+
+/* ---------- masthead ---------- */
+header.top{border-bottom:1px solid var(--line);background:var(--paper);position:relative;z-index:5}
+.top-in{max-width:1180px;margin:0 auto;padding:26px 24px 22px}
+h1{font-size:23px;font-weight:600;letter-spacing:-.015em;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13.5px;max-width:70ch;margin:0}
+.uploads{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;align-items:flex-start}
+.up{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:270px;flex:1 1 270px;box-shadow:var(--shadow)}
+.up.ok{border-color:rgba(29,122,95,.45);background:linear-gradient(0deg,rgba(29,122,95,.05),rgba(29,122,95,.05)),var(--card)}
+.up.err{border-color:rgba(183,80,47,.5);background:linear-gradient(0deg,rgba(183,80,47,.05),rgba(183,80,47,.05)),var(--card)}
+.up-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.up-t{font-weight:600;font-size:13.5px}
+.up-hint{color:var(--faint);font-size:11.5px}
+.up-s{font-size:12px;color:var(--muted);margin-top:6px;min-height:16px}
+.up.ok .up-s{color:var(--good)} .up.err .up-s{color:var(--bad)}
+label.btn,button.btn{
+  display:inline-block;margin-top:10px;font:inherit;font-size:12.5px;font-weight:500;
+  background:var(--ink);color:var(--paper);border:0;border-radius:7px;padding:7px 13px;cursor:pointer;
+}
+label.btn:hover,button.btn:hover{background:#0c1512}
+button.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+button.btn.ghost:hover{background:rgba(21,32,28,.04);color:var(--ink)}
+input[type=file]{display:none}
+
+/* ---------- empty state ---------- */
+.empty{margin:64px auto;max-width:640px;text-align:center;color:var(--muted)}
+.empty h2{color:var(--ink);font-size:18px;font-weight:600;margin:0 0 10px}
+.empty ol{text-align:left;display:inline-block;margin:18px 0 0;padding-left:20px;font-size:13.5px;line-height:1.9}
+.empty code{font-family:'IBM Plex Mono',monospace;font-size:12px;background:rgba(21,32,28,.05);padding:1px 5px;border-radius:4px}
+
+/* ---------- sections ---------- */
+section{margin-top:52px}
+.sec-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:20px}
+.sec-h h2{font-size:16px;font-weight:600;margin:0;letter-spacing:-.01em}
+.sec-h p{margin:0;color:var(--muted);font-size:12.5px}
+
+/* ---------- tiles ---------- */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.tile{
+  position:relative;text-align:left;font:inherit;color:inherit;cursor:pointer;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 16px 13px;
+  box-shadow:var(--shadow);transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
+  display:flex;flex-direction:column;min-height:172px;
+}
+.tile:hover{transform:translateY(-2px);border-color:rgba(21,32,28,.28);box-shadow:0 2px 4px rgba(21,32,28,.06),0 16px 30px -20px rgba(21,32,28,.5)}
+.tile:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.tile .metric{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:34px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.tile .metric-l{font-size:11.5px;color:var(--muted);margin-top:6px;letter-spacing:.02em}
+.tile .name{font-weight:600;font-size:14.5px;margin-top:12px}
+.tile .def{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45;flex:1}
+.tile .foot{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:11px;padding-top:9px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted)}
+.tile .foot b{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+.tile .contract{color:var(--faint)}
+.tile .drill{position:absolute;top:14px;right:14px;font-size:11px;color:var(--faint);opacity:0;transition:opacity .12s}
+.tile:hover .drill{opacity:1}
+.tile.inv{background:var(--purple);border-color:var(--purple);color:#fff}
+.tile.inv .metric-l,.tile.inv .def,.tile.inv .foot{color:rgba(255,255,255,.78)}
+.tile.inv .contract{color:rgba(255,255,255,.6)}
+.tile.inv .foot{border-top-color:rgba(255,255,255,.22)}
+.tile.inv .foot b{color:#fff}
+.tile.inv .drill{color:rgba(255,255,255,.7)}
+.tile.wide{grid-column:span 1}
+.tile .tag{display:inline-block;margin-top:9px;font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(59,111,168,.1);color:var(--info);font-weight:500}
+
+/* ---------- callouts ---------- */
+.band{border-radius:10px;padding:13px 15px;font-size:13px;line-height:1.55;border:1px solid;display:flex;gap:11px;align-items:flex-start}
+.band .ic{font-size:14px;line-height:1.3}
+.band.warn{background:rgba(192,128,24,.07);border-color:rgba(192,128,24,.32);color:#7a5210}
+.band.info{background:rgba(59,111,168,.06);border-color:rgba(59,111,168,.28);color:#274a70}
+.band b{font-weight:600}
+
+/* ---------- charts ---------- */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.chart-card h3{margin:0;font-size:13.5px;font-weight:600}
+.chart-card p.cap{margin:3px 0 12px;font-size:11.5px;color:var(--muted)}
+.chart-box{position:relative;height:260px}
+
+/* ---------- tables ---------- */
+.tbl-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin-top:18px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:9px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line-soft)}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;background:rgba(21,32,28,.02);position:sticky;top:0;z-index:1}
+tbody tr:last-child td{border-bottom:0}
+tfoot td{font-weight:600;border-top:1px solid var(--line);background:rgba(21,32,28,.02)}
+td.num,th.num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--ink)}
+th.sortable .ar{opacity:.35;font-size:9px;margin-left:3px}
+th.sorted{color:var(--ink)}
+th.sorted .ar{opacity:1}
+ #funnelTable{font-size:12.5px}
+#funnelTable th,#funnelTable td{padding:8px 9px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card)}
+.seg button{font:inherit;font-size:11.5px;padding:5px 11px;border:0;background:transparent;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+
+/* ---------- critique / notes ---------- */
+.prose{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;box-shadow:var(--shadow)}
+.prose h3{font-size:13.5px;margin:22px 0 6px;font-weight:600}
+.prose h3:first-child{margin-top:0}
+.prose p{margin:0 0 10px;font-size:13.5px;line-height:1.62;color:#2a3833;max-width:82ch}
+.prose ul{margin:0 0 10px;padding-left:19px;font-size:13.5px;line-height:1.62;color:#2a3833;max-width:82ch}
+.prose li{margin-bottom:5px}
+.prose .k{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+.verdict{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:99px;margin-left:8px;vertical-align:2px}
+.verdict.bad{background:rgba(183,80,47,.12);color:var(--bad)}
+.verdict.ok{background:rgba(29,122,95,.12);color:var(--good)}
+.notes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:18px}
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:9px;padding:13px 15px}
+.note b{display:block;font-size:12.5px;margin-bottom:3px}
+.note>span{font-size:12.5px;color:var(--muted);line-height:1.5;display:block}
+.note .fig{display:inline;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+
+/* ---------- side pane ---------- */
+.scrim{position:fixed;inset:0;background:rgba(21,32,28,.32);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.pane{
+  position:fixed;top:0;right:0;bottom:0;width:min(940px,86vw);background:var(--paper);
+  border-left:1px solid var(--line);box-shadow:-24px 0 60px -30px rgba(21,32,28,.6);
+  transform:translateX(102%);transition:transform .22s cubic-bezier(.4,0,.2,1);z-index:41;
+  display:flex;flex-direction:column;
+}
+.pane.on{transform:none}
+.pane-h{padding:18px 22px 0;border-bottom:1px solid var(--line);background:var(--card)}
+.pane-h .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.pane-h h2{margin:0;font-size:17px;font-weight:600}
+.pane-h .pdef{margin:4px 0 0;font-size:12.5px;color:var(--muted);max-width:74ch}
+.x{border:0;background:transparent;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:0 2px}
+.x:hover{color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
+.chip{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:3px 9px;background:var(--paper);color:var(--muted)}
+.chip b{color:var(--ink);font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.chip.alert{border-color:rgba(183,80,47,.4);color:var(--bad)}
+.tabs{display:flex;gap:2px;margin-top:14px;overflow-x:auto}
+.tabs button{font:inherit;font-size:12.5px;padding:8px 13px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.pane-body{flex:1;overflow:auto;padding:0 0 40px}
+.pane-body table{background:var(--card)}
+.pane-body thead th{background:#EFF1ED}
+.msort{display:none;padding:10px 16px;gap:8px;align-items:center;background:var(--card);border-bottom:1px solid var(--line)}
+.msort select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink)}
+tr.grp{cursor:pointer}
+tr.grp:hover{background:rgba(21,32,28,.028)}
+tr.grp td:first-child{font-weight:600}
+.car{display:inline-block;width:12px;color:var(--faint);font-size:9px;transition:transform .15s}
+tr.grp.open .car{transform:rotate(90deg)}
+tr.kid td{background:rgba(21,32,28,.018);font-size:12.5px}
+tr.kid td:first-child{padding-left:30px}
+tr.kid.head td{background:rgba(21,32,28,.045);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;padding-top:6px;padding-bottom:6px}
+.who{display:block;font-size:11px;color:var(--faint);margin-top:2px;font-weight:400}
+.flagstage{color:var(--bad);font-weight:600}
+.pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:6px;font-weight:600;letter-spacing:.02em;vertical-align:1px}
+.pill.live{background:rgba(59,111,168,.12);color:var(--info)}
+.pill.cold{background:rgba(21,32,28,.06);color:var(--faint)}
+.amber{color:var(--warn);font-weight:600}
+.red{color:var(--bad);font-weight:600}
+.dim{color:var(--faint)}
+.empty-pane{padding:40px 22px;color:var(--muted);font-size:13.5px}
+footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:11.5px;line-height:1.7}
+
+@media (max-width:1000px){
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .charts{grid-template-columns:1fr}
+  .notes-grid{grid-template-columns:1fr}
+}
+@media (max-width:700px){
+  .wrap,.top-in{padding-left:16px;padding-right:16px}
+  .tiles{grid-template-columns:1fr}
+  .tile{min-height:0}
+  .pane{width:100vw;border-left:0}
+  .msort{display:flex}
+  .pane-body thead{display:none}
+  .pane-body table,.pane-body tbody,.pane-body tr,.pane-body td{display:block;width:100%}
+  .pane-body tr{border-bottom:1px solid var(--line-soft);padding:9px 16px}
+  .pane-body tr.kid.head{display:none}
+  .pane-body td{border:0;padding:1px 0;text-align:left;white-space:normal}
+  .pane-body td:first-child{font-weight:600;font-size:13.5px;padding-bottom:5px}
+  .pane-body tr.kid td:first-child{padding-left:12px}
+  .pane-body td[data-l]:not(:first-child):before{
+    content:attr(data-l) " ";color:var(--faint);font-family:'IBM Plex Sans',sans-serif;
+    font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;
+  }
+  .pane-body td[data-l]:not(:first-child){display:inline-block;width:50%;font-size:12px}
+  .tbl-wrap table{font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <h1>Introducer performance</h1>
+    <p class="sub">Which recruitment partners used to pay us and stopped &mdash; and who to call first to win them back. Deposit counts are the revenue proxy; commission value is not in either export.</p>
+    <div class="uploads">
+      <div class="up" id="upA">
+        <div class="up-h"><span class="up-t">1 &middot; Introducers master</span><span class="up-hint">.csv .xls .xlsx</span></div>
+        <div class="up-s" id="statA">One row per partner. Needs <span class="mono">Partner Name</span> + <span class="mono">Lifecycle Stage</span>.</div>
+        <label class="btn" for="fileA">Choose file</label>
+        <input type="file" id="fileA" accept=".csv,.xls,.xlsx,text/csv">
+      </div>
+      <div class="up" id="upB">
+        <div class="up-h"><span class="up-t">2 &middot; Applications</span><span class="up-hint">.csv .xls .xlsx</span></div>
+        <div class="up-s" id="statB">One row per application. Needs <span class="mono">Application Introducer Name</span> + deposit status.</div>
+        <label class="btn" for="fileB">Choose file</label>
+        <input type="file" id="fileB" accept=".csv,.xls,.xlsx,text/csv">
+      </div>
+      <div class="up" style="flex:0 0 auto;min-width:0;border-style:dashed;box-shadow:none;background:transparent">
+        <div class="up-h"><span class="up-t">Privacy</span></div>
+        <div class="up-s" style="max-width:22ch">Everything is parsed in this browser tab. Nothing is uploaded anywhere.</div>
+        <button class="btn ghost" id="resetBtn" type="button">Reset</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="empty" id="emptyState">
+    <h2>Load both exports to build the report</h2>
+    <p>The dashboard joins them on partner name and recomputes every figure in the browser.</p>
+    <ol>
+      <li>Introducers master &mdash; the partner list with lifecycle stage, country and SRM owner.</li>
+      <li>Applications &mdash; one row per application, <code>2022</code> onward, with deposit status and intake.</li>
+    </ol>
+  </div>
+
+  <div id="report" hidden>
+
+    <div class="band info" id="scopeBand" style="margin-top:34px"></div>
+
+    <section id="secActive">
+      <div class="sec-h"><h2>Active introducers</h2><p id="activeSubhead"></p></div>
+      <div class="tiles" id="tilesActive"></div>
+    </section>
+
+    <section id="secLeak">
+      <div class="sec-h"><h2>Leaking revenue</h2><p>Partners who paid before and don't now, plus effort that never converted.</p></div>
+      <div class="tiles" id="tilesLeak"></div>
+      <div class="band info" id="winbackBand" style="margin-top:14px"></div>
+    </section>
+
+    <section id="secQuality">
+      <div class="sec-h"><h2>Quality</h2><p>Where applications and deposits are being lost. Read alongside country &mdash; see the critique below.</p></div>
+      <div class="tiles" id="tilesQuality"></div>
+    </section>
+
+    <section id="secFunnel">
+      <div class="sec-h">
+        <h2>Conversion funnel</h2>
+        <p>By intake cycle year. Nov&ndash;Dec roll into the following January.</p>
+        <span style="margin-left:auto" class="seg" id="funnelScope">
+          <button type="button" data-fs="scope" aria-pressed="true">In-scope introducers</button>
+          <button type="button" data-fs="all" aria-pressed="false">All attributed</button>
+        </span>
+      </div>
+      <div class="band warn" id="inflightBand"></div>
+      <div class="charts">
+        <div class="chart-card">
+          <h3>Deposits by intake year</h3>
+          <p class="cap">Paid deposits split by whether the application later closed lost.</p>
+          <div class="chart-box"><canvas id="chartVol"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Conversion rates by intake year</h3>
+          <p class="cap">Visa and enrolment rates are only meaningful for closed intakes. Future-dated intakes are excluded from both charts.</p>
+          <div class="chart-box"><canvas id="chartRate"></canvas></div>
+        </div>
+      </div>
+      <div class="tbl-wrap"><table id="funnelTable"></table></div>
+      <p style="font-size:11.5px;color:var(--muted);margin-top:8px" id="funnelNote"></p>
+    </section>
+
+    <section id="secCritique">
+      <div class="sec-h"><h2>Critique of the metric definitions</h2><p>Thresholds tested against this file, not assumed.</p></div>
+      <div class="prose" id="critique"></div>
+    </section>
+
+    <section id="secNotes">
+      <div class="sec-h"><h2>Data notes</h2><p>Everything below is measured from the files you loaded. It changes what the numbers can be used for.</p></div>
+      <div class="notes-grid" id="notes"></div>
+    </section>
+
+    <footer id="foot"></footer>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="pane" id="pane" aria-hidden="true" role="dialog" aria-label="Drill-down">
+  <div class="pane-h">
+    <div class="row1">
+      <div>
+        <h2 id="paneTitle">&nbsp;</h2>
+        <p class="pdef" id="paneDef"></p>
+      </div>
+      <button class="x" id="paneClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="chips" id="paneChips"></div>
+    <div class="tabs" id="paneTabs" role="tablist"></div>
+  </div>
+  <div class="msort" id="msort">
+    <span style="font-size:11.5px;color:var(--muted)">Sort by</span>
+    <select id="msortSel"></select>
+    <button class="btn ghost" id="msortDir" type="button" style="margin-top:0;padding:5px 9px">&darr;</button>
+  </div>
+  <div class="pane-body" id="paneBody"></div>
+</aside>
+
+<script>
+(function(){
+'use strict';
+
+/* ==========================================================================
+   0 · small helpers
+   ========================================================================== */
+var $ = function(id){ return document.getElementById(id); };
+var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+var n0 = function(v){ return (v==null||isNaN(v))?'--':Math.round(v).toLocaleString('en-US'); };
+var pct = function(num,den,dp){ if(!den) return '--'; return (100*num/den).toFixed(dp==null?1:dp)+'%'; };
+var pctv = function(num,den){ return den? 100*num/den : 0; };
+var plural = function(n, one, many){ return n0(n) + ' ' + (n === 1 ? one : (many || one + 's')); };
+var median = function(arr){
+  if(!arr.length) return 0;
+  var a = arr.slice().sort(function(x,y){return x-y;}), m = a.length>>1;
+  return a.length%2 ? a[m] : (a[m-1]+a[m])/2;
+};
+
+/* Header text arrives mangled: curly quotes, mojibake from a bad decode, stray
+   whitespace. Normalise hard, then match on tokens rather than exact strings. */
+function normHeader(s){
+  return String(s==null?'':s)
+    .replace(/[‘’ʼ′`´]/g,"'")
+    .replace(/[“”″]/g,'"')
+    .replace(/[^\x20-\x7E]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim().toLowerCase();
+}
+/* Resolve a column index by exact normalised name, then substring, then tokens. */
+function resolveCol(heads, exact, tokens){
+  var i, want = normHeader(exact||'');
+  if(want) for(i=0;i<heads.length;i++) if(heads[i]===want) return i;
+  if(want) for(i=0;i<heads.length;i++) if(heads[i].indexOf(want)>=0) return i;
+  if(tokens && tokens.length){
+    for(i=0;i<heads.length;i++){
+      var h = heads[i], ok = true;
+      for(var t=0;t<tokens.length;t++) if(h.indexOf(tokens[t])<0){ ok=false; break; }
+      if(ok) return i;
+    }
+  }
+  return -1;
+}
+
+/* ==========================================================================
+   1 · file reading — hand-rolled CSV (fast, low memory) + SheetJS for Excel
+   ========================================================================== */
+function detectDelim(text){
+  var line = text.slice(0, 20000).split(/\r?\n/)[0] || '';
+  var best = ',', bestN = -1;
+  [',','\t',';','|'].forEach(function(d){
+    var n = line.split(d).length;
+    if(n > bestN){ bestN = n; best = d; }
+  });
+  return best;
+}
+/* Streams rows to cb() so the full grid is never held in memory. */
+function iterateCSV(text, cb){
+  if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  var D = detectDelim(text).charCodeAt(0), n = text.length, i = 0, row = [], c;
+  while(i < n){
+    var val;
+    if(text.charCodeAt(i) === 34){                 // quoted field
+      i++; var buf = '';
+      for(;;){
+        var q = text.indexOf('"', i);
+        if(q < 0){ buf += text.slice(i); i = n; break; }
+        if(text.charCodeAt(q+1) === 34){ buf += text.slice(i, q+1); i = q+2; continue; }
+        buf += text.slice(i, q); i = q+1; break;
+      }
+      val = buf;
+      while(i < n){ c = text.charCodeAt(i); if(c===D||c===10||c===13) break; i++; }
+    } else {                                       // bare field
+      var j = i;
+      while(j < n){ c = text.charCodeAt(j); if(c===D||c===10||c===13) break; j++; }
+      val = text.slice(i, j); i = j;
+    }
+    row.push(val);
+    if(i >= n){ cb(row); break; }
+    c = text.charCodeAt(i);
+    if(c === D){ i++; continue; }
+    i++;                                            // CR and/or LF
+    if(c === 13 && text.charCodeAt(i) === 10) i++;
+    cb(row); row = [];
+  }
+}
+/* Excel path: SheetJS -> array of arrays, then replay through the same callback. */
+function iterateSheet(buf, cb){
+  if(typeof XLSX === 'undefined') throw new Error('The Excel reader (SheetJS) did not load. Export the file as CSV, or check the network/CDN.');
+  var wb = XLSX.read(buf, {type:'array', cellDates:false, cellNF:false, cellStyles:false, raw:false});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+  for(var i=0;i<rows.length;i++) cb(rows[i]);
+}
+/* Reads either kind and calls onHeader(headsNormalised) then onRow(fields) per row. */
+function readFile(file, onHeader, onRow){
+  var name = (file.name||'').toLowerCase();
+  var isExcel = /\.xlsx?$/.test(name) || /\.xlsb$/.test(name);
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onerror = function(){ rej(new Error('Could not read the file.')); };
+    fr.onload = function(){
+      try{
+        var first = true;
+        var route = function(fields){
+          if(first){ first = false; onHeader(fields.map(normHeader)); return; }
+          onRow(fields);
+        };
+        if(isExcel) iterateSheet(new Uint8Array(fr.result), route);
+        else iterateCSV(fr.result, route);
+        if(first) throw new Error('The file appears to be empty.');
+        res();
+      }catch(e){ rej(e); }
+    };
+    if(isExcel) fr.readAsArrayBuffer(file); else fr.readAsText(file, 'utf-8');
+  });
+}
+
+/* ==========================================================================
+   2 · domain constants
+   ========================================================================== */
+var MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+var CYCLES = ['January','May','September'];
+/* Nov & Dec roll into the FOLLOWING year's January intake. */
+function cycleOf(monthRaw, year){
+  if(!year) return null;
+  var m = null, s = String(monthRaw||'').trim().toLowerCase();
+  if(/^\d+$/.test(s)) m = parseInt(s,10);
+  else if(s.length >= 3) m = MONTHS[s.slice(0,3)] || null;
+  if(!m || m < 1 || m > 12) return {year:year, ci:-1};      // year known, cycle not
+  if(m === 11 || m === 12) return {year:year+1, ci:0};
+  if(m <= 3) return {year:year, ci:0};
+  if(m <= 7) return {year:year, ci:1};
+  return {year:year, ci:2};
+}
+function cycleLabel(key){                                    // key = year*10 + ci
+  if(!key) return '--';
+  var y = Math.floor(key/10), ci = key%10;
+  return (ci>=0 && ci<3 ? CYCLES[ci].slice(0,3) : '?') + ' ' + y;
+}
+function yearOfDate(v){
+  if(v == null) return null;
+  var s = String(v).trim();
+  if(!s) return null;
+  if(/^\d+(\.\d+)?$/.test(s)){                               // Excel serial date
+    var num = parseFloat(s);
+    if(num > 20000 && num < 80000) return new Date(Date.UTC(1899,11,30) + num*864e5).getUTCFullYear();
+    if(num >= 1990 && num <= 2100) return Math.round(num);
+    return null;
+  }
+  var m = s.match(/(19|20)\d{2}/);
+  if(m) return parseInt(m[0],10);
+  var d = new Date(s);
+  return isNaN(d) ? null : d.getFullYear();
+}
+var YES = function(v){ return String(v||'').trim().toLowerCase() === 'yes'; };
+var FILLED = function(v){ var s = String(v==null?'':v).trim(); return !!s && s !== '-' && s.toLowerCase() !== 'null'; };
+
+/* ==========================================================================
+   3 · ingest
+   ========================================================================== */
+var RAW = { master:null, apps:null };
+
+function ingestMaster(file){
+  var C = {}, out = {
+    byName: new Map(), rows:0, dupes:0, blankBecame:0, noContract:0,
+    stages: new Map(), usedFallback:0
+  };
+  var head = function(h){
+    C.name  = resolveCol(h,'partner name',['partner','name']);
+    C.stage = resolveCol(h,'lifecycle stage',['lifecycle']);
+    C.contr = resolveCol(h,'latest contract status',['contract','status']);
+    C.ctry  = resolveCol(h,'country',['country']);
+    C.team  = resolveCol(h,'partner managed by team(srm)',['managed','team']);
+    C.srm   = resolveCol(h,'partner managed by user(srm)',['managed','user']);
+    C.becam = resolveCol(h,'became customer date',['became','customer']);
+    C.creat = resolveCol(h,'created at',['created']);
+    C.comm  = resolveCol(h,'org commission',['org','commission']);
+    C.ctype = resolveCol(h,'contract commission type',['commission','type']);
+    if(C.name < 0 || C.stage < 0){
+      var hint = resolveCol(h,'application introducer name',['introducer','name']) >= 0
+        ? ' This looks like the applications export &mdash; load it in box 2.' : '';
+      throw new Error('Missing "Partner Name" and/or "Lifecycle Stage".' + hint);
+    }
+  };
+  var get = function(r,i){ return i<0 ? '' : String(r[i]==null?'':r[i]).trim(); };
+  var row = function(r){
+    var nm = get(r,C.name);
+    if(!nm) return;
+    out.rows++;
+    if(out.byName.has(nm)){ out.dupes++; return; }               // keep the first row
+    var bY = yearOfDate(get(r,C.becam)), fb = false;
+    if(!bY){ out.blankBecame++; bY = yearOfDate(get(r,C.creat)); fb = !!bY; if(fb) out.usedFallback++; }
+    var contr = get(r,C.contr);
+    if(!contr) out.noContract++;
+    var st = get(r,C.stage) || 'Unknown';
+    out.stages.set(st, (out.stages.get(st)||0)+1);
+    out.byName.set(nm, {
+      stage: st, contract: contr, country: get(r,C.ctry) || 'Unknown',
+      team: get(r,C.team) || 'Unassigned', srm: get(r,C.srm) || 'Unassigned',
+      becameY: bY, becameFallback: fb,
+      comm: get(r,C.comm), commType: get(r,C.ctype)
+    });
+  };
+  return readFile(file, head, row).then(function(){ return out; });
+}
+
+function ingestApps(file){
+  var C = {}, out = {
+    intro: new Map(), rows:0, blankIntro:0, yearHist: new Map(),
+    contradictions:0, noYear:0, blankIntroDeposits:0
+  };
+  var head = function(h){
+    C.intro = resolveCol(h,'application introducer name',['introducer','name']);
+    C.dep   = resolveCol(h,'deposit paid status',['deposit','paid']);
+    C.lost  = resolveCol(h,'application closed lost',['closed','lost']);
+    C.mon   = resolveCol(h,'actual intake month',['intake','month']);
+    C.year  = resolveCol(h,'actual intake year',['intake','year']);
+    C.sub   = resolveCol(h,'application sub-status',['sub','status']);
+    C.stat  = resolveCol(h,'application status',[]);
+    if(C.stat < 0 || C.stat === C.sub){                          // avoid colliding with sub-status
+      C.stat = -1;
+      for(var i=0;i<h.length;i++) if(i!==C.sub && h[i].indexOf('status')>=0 && h[i].indexOf('sub')<0
+        && h[i].indexOf('deposit')<0 && h[i].indexOf('closed')<0 && h[i].indexOf('timestamp')<0){ C.stat=i; break; }
+    }
+    C.visa  = resolveCol(h,"timestamp of 'visa| granted' status",['timestamp','visa','granted']);
+    C.enrol = resolveCol(h,"timestamp of 'enrolled' status",['timestamp','enrolled']);
+    if(C.intro < 0 || C.dep < 0){
+      var hint = resolveCol(h,'lifecycle stage',['lifecycle']) >= 0
+        ? ' This looks like the introducers master &mdash; load it in box 1.' : '';
+      throw new Error('Missing "Application Introducer Name" and/or "Deposit Paid Status".' + hint);
+    }
+  };
+  var get = function(r,i){ return i<0 ? '' : String(r[i]==null?'':r[i]).trim(); };
+  var blank = function(){ return {apps:{},act:{},clos:{},enrAll:{},enrDep:{},vgDep:{},vrej:{},coe:{},dkey:{},cycles:{},n:0}; };
+  var bump = function(o,y){ o[y] = (o[y]||0)+1; };
+  var row = function(r){
+    if(!r || r.length < 2) return;
+    out.rows++;
+    var paid   = get(r,C.dep).toLowerCase().replace(/\s+/g,'') === 'fullypaid';
+    var lost   = YES(get(r,C.lost));
+    var yRaw   = parseInt(get(r,C.year),10);
+    var cyc    = cycleOf(get(r,C.mon), isNaN(yRaw)?null:yRaw);
+    var y      = cyc ? cyc.year : null;
+    var enrol  = FILLED(get(r,C.enrol));
+    var visaG  = FILLED(get(r,C.visa));
+    var stat   = get(r,C.stat).toLowerCase();
+    var sub    = get(r,C.sub).toLowerCase();
+    if(lost && enrol) out.contradictions++;
+    if(y == null) out.noYear++; else out.yearHist.set(y, (out.yearHist.get(y)||0)+1);
+
+    var nm = get(r,C.intro);
+    if(!nm){ out.blankIntro++; if(paid) out.blankIntroDeposits++; return; }
+
+    var a = out.intro.get(nm);
+    if(!a){ a = blank(); out.intro.set(nm, a); }
+    a.n++;
+    var yk = (y == null) ? 'x' : y;
+    bump(a.apps, yk);
+    if(paid && !lost){
+      bump(a.act, yk);
+      if(y != null && cyc.ci >= 0){
+        var k = y*10+cyc.ci; if(!a.dkey[y] || a.dkey[y] < k) a.dkey[y] = k;
+        bump(a.cycles, cyc.ci);
+      }
+      if(visaG) bump(a.vgDep, yk);
+      if(enrol) bump(a.enrDep, yk);
+    } else if(paid && lost){ bump(a.clos, yk); }
+    if(enrol) bump(a.enrAll, yk);
+    if(lost && stat === 'visa' && sub === 'applied') bump(a.vrej, yk);
+    if(lost && stat.indexOf('coe') === 0 && (stat === 'coe received' || stat.indexOf('receiv') > 0)) bump(a.coe, yk);
+  };
+  return readFile(file, head, row).then(function(){ return out; });
+}
+
+/* ==========================================================================
+   4 · model
+   ========================================================================== */
+var MODEL = null;
+
+function sumScored(map, CUR){                 /* lifetime = every year up to CUR, plus year-less rows */
+  var t = 0;
+  for(var k in map){ if(k === 'x' || +k <= CUR) t += map[k]; }
+  return t;
+}
+function sumRange(map, lo, hi){
+  var t = 0;
+  for(var k in map){ if(k !== 'x' && +k >= lo && +k <= hi) t += map[k]; }
+  return t;
+}
+function sumAll(map){ var t=0; for(var k in map) t += map[k]; return t; }
+
+function pickCurrentYear(hist){
+  /* NOT max(year): Nov/Dec roll forward, so the newest year is a barely-started
+     future intake. Take the newest year holding >= 10% of the peak year. */
+  var years = Array.from(hist.keys()).filter(function(y){ return y > 1990 && y < 2100; }).sort(function(a,b){return a-b;});
+  if(!years.length) return null;
+  var peak = 0;
+  years.forEach(function(y){ if(hist.get(y) > peak) peak = hist.get(y); });
+  var cur = years[0];
+  years.forEach(function(y){ if(hist.get(y) >= 0.10*peak) cur = y; });
+  return cur;
+}
+
+function build(){
+  var M = RAW.master, A = RAW.apps;
+  var CUR = pickCurrentYear(A.yearHist);
+  if(CUR == null) throw new Error('No usable intake years found in the applications file.');
+  var PREV = CUR - 1;
+
+  var book = [], byName = new Map();
+  var mk = function(nm, m, a){
+    var I = {
+      name: nm,
+      stage: m ? (m.stage || 'Unknown') : 'Not in CRM',
+      inCRM: !!m,
+      contract: m ? m.contract : '',
+      country: m ? m.country : 'Unknown',
+      team: m ? m.team : 'Unassigned',
+      srm: m ? m.srm : 'Unassigned',
+      becameY: m ? m.becameY : null,
+      becameFallback: m ? m.becameFallback : false,
+      comm: m ? m.comm : '', commType: m ? m.commType : '',
+      apps: a ? a.apps : {}, act: a ? a.act : {}, clos: a ? a.clos : {},
+      enrAll: a ? a.enrAll : {}, enrDep: a ? a.enrDep : {}, vgDep: a ? a.vgDep : {},
+      vrej: a ? a.vrej : {}, coe: a ? a.coe : {}, cycles: a ? a.cycles : {},
+      inApps: !!a
+    };
+    I.appsLife = sumScored(I.apps, CUR); I.appsCur = I.apps[CUR] || 0;
+    I.actLife  = sumScored(I.act,  CUR); I.actCur  = I.act[CUR]  || 0;
+    I.closLife = sumScored(I.clos, CUR); I.closCur = I.clos[CUR] || 0;
+    I.enrLife  = sumScored(I.enrAll, CUR);
+    I.enrDepLife = sumScored(I.enrDep, CUR);
+    I.vgDepLife  = sumScored(I.vgDep,  CUR);
+    I.vrejLife = sumScored(I.vrej, CUR); I.vrejCur = I.vrej[CUR] || 0;
+    I.coeLife  = sumScored(I.coe,  CUR); I.coeCur  = I.coe[CUR]  || 0;
+    I.actPrev   = I.act[PREV] || 0;
+    I.actBefore = sumRange(I.act, -9999, PREV - 1);
+    I.lastKey = 0;
+    if(a) for(var y in a.dkey){ if(+y <= CUR && a.dkey[y] > I.lastKey) I.lastKey = a.dkey[y]; }
+    I.closePct = I.actLife ? I.closLife / I.actLife : (I.closLife ? Infinity : 0);
+    I.enrRate  = I.appsLife ? I.enrLife / I.appsLife : 0;
+    return I;
+  };
+
+  A.intro.forEach(function(a, nm){
+    var m = M.byName.get(nm);
+    var hasDeposit = sumAll(a.act) + sumAll(a.clos) > 0;
+    /* Scope: Customer stage, OR any paid deposit at any stage — including names
+       that never made it into the master file. */
+    if(!( (m && m.stage === 'Customer') || hasDeposit )) return;
+    var I = mk(nm, m, a); book.push(I); byName.set(nm, I);
+  });
+  M.byName.forEach(function(m, nm){
+    if(m.stage !== 'Customer' || byName.has(nm)) return;
+    var I = mk(nm, m, null); book.push(I); byName.set(nm, I);   /* Customer, zero applications */
+  });
+
+  /* --- flags --- */
+  book.forEach(function(I){
+    I.isActive      = I.actCur > 0;
+    I.isResurrected = I.actCur > 0 && I.actPrev === 0 && I.actBefore > 0;
+    I.isDormant     = I.actCur === 0 && I.actLife > 0;
+    I.isSquanderer  = I.appsLife > 1 && (I.actLife + I.closLife) === 0;
+    I.isSlacker     = I.stage === 'Customer' && !I.inApps;
+    I.isBadEnrol    = I.appsLife >= 10 && I.enrRate < 0.10;
+    I.isBadClose    = I.actLife >= 3 && I.closLife > 0.30 * I.actLife;
+    I.hasVisaRej    = I.vrejLife > 0;
+    I.hasCoe        = I.coeLife > 0;
+    I.cohort        = I.becameY;
+    I.stillApplying = I.appsCur > 0;
+  });
+
+  /* --- funnel by intake year, two scopes --- */
+  var funnel = function(list){
+    var m = new Map();
+    var row = function(y){
+      if(!m.has(y)) m.set(y, {y:y, apps:0, act:0, clos:0, vg:0, enr:0});
+      return m.get(y);
+    };
+    list.forEach(function(I){
+      for(var k in I.apps){ if(k !== 'x') row(+k).apps += I.apps[k]; }
+      for(var k2 in I.act){ if(k2 !== 'x') row(+k2).act += I.act[k2]; }
+      for(var k3 in I.clos){ if(k3 !== 'x') row(+k3).clos += I.clos[k3]; }
+      for(var k4 in I.vgDep){ if(k4 !== 'x') row(+k4).vg += I.vgDep[k4]; }
+      for(var k5 in I.enrDep){ if(k5 !== 'x') row(+k5).enr += I.enrDep[k5]; }
+    });
+    return Array.from(m.values()).sort(function(a,b){ return a.y - b.y; });
+  };
+  var allAttributed = [];
+  A.intro.forEach(function(a, nm){
+    var I = byName.get(nm);
+    allAttributed.push(I || mk(nm, M.byName.get(nm), a));
+  });
+
+  var totals = {
+    actLife:0, closLife:0, appsLife:0, actCur:0, closCur:0, enrLife:0
+  };
+  book.forEach(function(I){
+    totals.actLife += I.actLife; totals.closLife += I.closLife; totals.appsLife += I.appsLife;
+    totals.actCur += I.actCur; totals.closCur += I.closCur; totals.enrLife += I.enrLife;
+  });
+
+  /* Recruitment cadence differs by market: some run a single annual September
+     cycle, others spread across all three. Flattening that mislabels the steadiest
+     partners as lapsed. */
+  var cadence = new Map();
+  book.forEach(function(I){
+    var tot = (I.cycles[0]||0) + (I.cycles[1]||0) + (I.cycles[2]||0);
+    if(!tot) return;
+    var c = cadence.get(I.country);
+    if(!c){ c = {country:I.country, n:0, act:0, jan:0, may:0, sep:0}; cadence.set(I.country, c); }
+    c.n++; c.act += tot;
+    c.jan += (I.cycles[0]||0); c.may += (I.cycles[1]||0); c.sep += (I.cycles[2]||0);
+  });
+  var cadList = Array.from(cadence.values()).filter(function(c){ return c.act >= 20; });
+  cadList.forEach(function(c){
+    c.sepShare = c.sep / c.act;
+    c.top = Math.max(c.jan, c.may, c.sep) / c.act;
+  });
+
+  var byStage = new Map();
+  book.forEach(function(I){
+    var s = byStage.get(I.stage);
+    if(!s){ s = {stage:I.stage, n:0, act:0, clos:0, actCur:0}; byStage.set(I.stage, s); }
+    s.n++; s.act += I.actLife; s.clos += I.closLife; s.actCur += I.actCur;
+  });
+
+  MODEL = {
+    CUR:CUR, PREV:PREV, book:book, byName:byName, totals:totals,
+    funnelScope: funnel(book), funnelAll: funnel(allAttributed),
+    byStage: Array.from(byStage.values()).sort(function(a,b){ return b.act - a.act; }),
+    cadence: cadList,
+    notInCRM: book.filter(function(I){ return !I.inCRM; }),
+    raw:{ master:M, apps:A }
+  };
+  return MODEL;
+}
+
+/* ==========================================================================
+   5 · tile definitions
+   ========================================================================== */
+var METRICS = {
+  act:  {label:'active deposits',  short:'active dep.',  life:function(I){return I.actLife;},  cur:function(I){return I.actCur;}},
+  clos: {label:'closed deposits',  short:'closed dep.',  life:function(I){return I.closLife;}, cur:function(I){return I.closCur;}},
+  apps: {label:'applications',     short:'applications', life:function(I){return I.appsLife;}, cur:function(I){return I.appsCur;}},
+  vrej: {label:'visa-stage losses',short:'visa losses',  life:function(I){return I.vrejLife;}, cur:function(I){return I.vrejCur;}},
+  coe:  {label:'CoE-stage losses', short:'CoE losses',   life:function(I){return I.coeLife;},  cur:function(I){return I.coeCur;}},
+  none: {label:'introducers',      short:'--',           life:function(){return 0;},           cur:function(){return 0;}}
+};
+
+function tileDefs(){
+  var C = MODEL.CUR, P = MODEL.PREV;
+  var cohort = function(y, label, def){
+    return {id:'coh'+y, sec:'active', name:label, def:def, metric:'act', head:'cur',
+      member:function(I){ return I.isActive && I.becameY === y; }};
+  };
+  return [
+    {id:'active', sec:'active', name:'Active', metric:'act', head:'cur',
+     def:'At least one active deposit in the '+C+' intake year.',
+     member:function(I){ return I.isActive; }},
+    cohort(C,   'Became customer '+C,   'Active, and first became a customer in '+C+'.'),
+    cohort(P,   'Became customer '+P,   'Active, and became a customer in '+P+'.'),
+    cohort(C-2, 'Became customer '+(C-2), 'Active, and became a customer in '+(C-2)+'.'),
+    {id:'cohOld', sec:'active', name:'Became customer ≤'+(C-3), metric:'act', head:'cur',
+     def:'Active, and became a customer in '+(C-3)+' or earlier.',
+     member:function(I){ return I.isActive && I.becameY != null && I.becameY <= C-3; }},
+    {id:'resurrected', sec:'active', name:'Resurrected', metric:'act', head:'cur', inv:true,
+     def:'Deposits in '+C+', none in '+P+', but deposits before that. Win-backs that landed.',
+     member:function(I){ return I.isResurrected; }},
+
+    {id:'dormant', sec:'leak', name:'Dormant', metric:'act', head:'life',
+     def:'Paid deposits in an earlier year, none in '+C+'. This is the call list.',
+     member:function(I){ return I.isDormant; }},
+    {id:'squanderers', sec:'leak', name:'Squanderers', metric:'apps', head:'life',
+     def:'More than one application, never a paid deposit of any kind. See the naming critique below.',
+     member:function(I){ return I.isSquanderer; }},
+    {id:'slackers', sec:'leak', name:'Slackers', metric:'none', head:'count',
+     def:'Customer-stage partners with no applications on record, ever.',
+     member:function(I){ return I.isSlacker; }},
+
+    {id:'badEnrol', sec:'quality', name:'Bad converters — enrolment', metric:'apps', head:'life',
+     def:'10+ applications and under 10% of them reach enrolment. This threshold is miscalibrated — see below.',
+     member:function(I){ return I.isBadEnrol; }},
+    {id:'badClose', sec:'quality', name:'Bad converters — closures', metric:'clos', head:'life',
+     def:'3+ active deposits, with closed deposits above 30% of them.',
+     member:function(I){ return I.isBadClose; }},
+    {id:'visaRej', sec:'quality', name:'Visa rejected', metric:'vrej', head:'life',
+     def:'Applications closed lost at status Visa · Applied.',
+     member:function(I){ return I.hasVisaRej; }},
+    {id:'coeLost', sec:'quality', name:'CoE closed lost', metric:'coe', head:'life',
+     def:'Applications closed lost after the CoE was received.',
+     member:function(I){ return I.hasCoe; }}
+  ];
+}
+
+function tileStats(t){
+  var list = MODEL.book.filter(t.member), m = METRICS[t.metric];
+  var life = 0, cur = 0, ca = 0, ce = 0;
+  list.forEach(function(I){
+    life += m.life(I); cur += m.cur(I);
+    var c = String(I.contract||'').toLowerCase();
+    if(c === 'active') ca++; else if(c === 'expired') ce++;
+  });
+  return {list:list, n:list.length, life:life, cur:cur, cActive:ca, cExpired:ce};
+}
+
+/* ==========================================================================
+   6 · tiles render
+   ========================================================================== */
+var TILES = null, TSTATS = {};
+
+function renderTiles(){
+  TILES = tileDefs();
+  var buckets = {active:[], leak:[], quality:[]};
+  TILES.forEach(function(t){
+    var s = tileStats(t); TSTATS[t.id] = s;
+    var m = METRICS[t.metric];
+    var headline, headLabel;
+    if(t.head === 'count'){ headline = s.n; headLabel = 'customer-stage introducers'; }
+    else if(t.head === 'cur'){ headline = s.cur; headLabel = m.label + ' · ' + MODEL.CUR; }
+    else { headline = s.life; headLabel = m.label + ' · lifetime'; }
+    var foot = '<span><b>'+n0(s.n)+'</b> '+(s.n===1?'introducer':'introducers')+'</span>';
+    if(t.head !== 'count') foot += '<span><b>'+n0(s.cur)+'</b> in '+MODEL.CUR+'</span>';
+    foot += '<span class="contract">'+n0(s.cActive)+' active · '+n0(s.cExpired)+' expired</span>';
+    var extra = '';
+    if(t.id === 'dormant'){
+      var live = s.list.filter(function(I){ return I.stillApplying; }).length;
+      extra = '<span class="tag">'+n0(live)+' still submitting applications</span>';
+    }
+    buckets[t.sec].push(
+      '<button class="tile'+(t.inv?' inv':'')+'" data-tile="'+t.id+'" type="button">'+
+        '<span class="drill">drill down →</span>'+
+        '<div class="metric">'+n0(headline)+'</div>'+
+        '<div class="metric-l">'+esc(headLabel)+'</div>'+
+        '<div class="name">'+esc(t.name)+'</div>'+
+        '<div class="def">'+t.def+'</div>'+ extra +
+        '<div class="foot">'+foot+'</div>'+
+      '</button>');
+  });
+  $('tilesActive').innerHTML  = buckets.active.join('');
+  $('tilesLeak').innerHTML    = buckets.leak.join('');
+  $('tilesQuality').innerHTML = buckets.quality.join('');
+
+  var a = TSTATS.active, r = TSTATS.resurrected, d = TSTATS.dormant;
+  $('activeSubhead').innerHTML = n0(a.n)+' introducers produced '+n0(a.cur)+' active deposits in the '+
+    MODEL.CUR+' intake. Cohort tiles split them by the year they became a customer.';
+  var liveD = d.list.filter(function(I){ return I.stillApplying; }).length;
+  $('winbackBand').innerHTML = '<span class="ic">→</span><div><b>Where to start.</b> '+
+    n0(liveD)+' of the '+n0(d.n)+' dormant introducers are <b>still submitting applications</b> in '+MODEL.CUR+
+    ' — they have not left, they have stopped converting. That is a pipeline problem and far cheaper to fix than a cold reactivation. '+
+    'The other '+n0(d.n-liveD)+' have gone quiet entirely and need a relationship rebuilt. '+
+    'For comparison, win-backs currently landing: <b>'+n0(r.n)+'</b> resurrected introducers, '+n0(r.cur)+' deposits.'+
+    '</div>';
+
+  document.querySelectorAll('.tile').forEach(function(el){
+    el.addEventListener('click', function(){ openPane(el.getAttribute('data-tile')); });
+  });
+}
+
+/* ==========================================================================
+   7 · drill-down pane
+   ========================================================================== */
+var PANE = { tile:null, tab:'team', sort:{c:'life', d:-1}, kidSort:{}, open:{} };
+var TABS = [['team','Team'],['country','Country'],['srm','SRM'],['stage','Stage'],['introducer','Introducer']];
+
+function paneCols(){
+  var m = METRICS[PANE.tile.metric];
+  return [
+    {k:'name', l:PANE.tab === 'introducer' ? 'Introducer' : TABS.filter(function(x){return x[0]===PANE.tab;})[0][1]},
+    {k:'act',  l:'Active dep.'},
+    {k:'clos', l:'Closed dep.'},
+    {k:'cpct', l:'Closed %'},
+    {k:'last', l:'Last deposit'},
+    {k:'cur',  l:MODEL.CUR + ' ' + m.short},
+    {k:'life', l:'Lifetime ' + m.short}
+  ];
+}
+function cmpBy(c, d){
+  return function(a, b){
+    var va, vb;
+    if(c === 'name'){
+      va = a.label.toLowerCase(); vb = b.label.toLowerCase();
+      return va < vb ? -d : va > vb ? d : 0;
+    }
+    if(c === 'cpct'){
+      va = a.act ? a.clos/a.act : (a.clos ? 1e9 : -1);
+      vb = b.act ? b.clos/b.act : (b.clos ? 1e9 : -1);
+    } else { va = a[c]; vb = b[c]; }
+    if(va === vb) return a.label < b.label ? -1 : 1;
+    return (va - vb) * d;
+  };
+}
+function rowFor(I){
+  var m = METRICS[PANE.tile.metric];
+  return {label:I.name, I:I, n:1, act:I.actLife, clos:I.closLife,
+          cur:m.cur(I), life:m.life(I), last:I.lastKey};
+}
+function buildRows(){
+  var list = TSTATS[PANE.tile.id].list;
+  if(PANE.tab === 'introducer') return {flat:list.map(rowFor)};
+  var g = new Map();
+  list.forEach(function(I){
+    var k = (I[PANE.tab] || '').trim() || (PANE.tab === 'stage' ? 'Unknown' : 'Unassigned');
+    var o = g.get(k);
+    if(!o){ o = {label:k, n:0, act:0, clos:0, cur:0, life:0, last:0, kids:[]}; g.set(k, o); }
+    var r = rowFor(I);
+    o.n++; o.act += r.act; o.clos += r.clos; o.cur += r.cur; o.life += r.life;
+    if(r.last > o.last) o.last = r.last;
+    o.kids.push(r);
+  });
+  return {groups:Array.from(g.values())};
+}
+function closeCell(act, clos){
+  if(!act && !clos) return '<span class="dim">--</span>';
+  if(!act) return '<span class="red">no active</span>';
+  var p = 100*clos/act;
+  var cls = p > 40 ? 'red' : (p > 30 ? 'amber' : '');
+  return '<span class="'+cls+'">'+p.toFixed(0)+'%</span>';
+}
+function cells(r, cols, isKid){
+  var m = METRICS[PANE.tile.metric], none = PANE.tile.metric === 'none';
+  var out = '';
+  var name;
+  if(isKid){
+    var I = r.I, bits = [I.team, I.srm, I.country].filter(function(x){ return x && x !== 'Unassigned' && x !== 'Unknown'; });
+    name = esc(I.name);
+    if(I.stage !== 'Customer') name += ' <span class="flagstage">' + esc(I.stage) + '</span>';
+    if(PANE.tile.id === 'dormant') name += I.stillApplying
+      ? ' <span class="pill live">still applying</span>' : ' <span class="pill cold">gone quiet</span>';
+    if(bits.length) name += '<span class="who">' + esc(bits.join(' · ')) + '</span>';
+  } else {
+    name = '<span class="car">▶</span> ' + esc(r.label) +
+           ' <span class="dim" style="font-weight:400">(' + n0(r.n) + ')</span>';
+  }
+  out += '<td data-l="">' + name + '</td>';
+  out += '<td class="num" data-l="Active dep.">' + n0(r.act) + '</td>';
+  out += '<td class="num" data-l="Closed dep.">' + n0(r.clos) + '</td>';
+  out += '<td class="num" data-l="Closed %">' + closeCell(r.act, r.clos) + '</td>';
+  out += '<td class="num" data-l="Last deposit">' + (r.last ? cycleLabel(r.last) : '<span class="dim">--</span>') + '</td>';
+  out += '<td class="num" data-l="' + esc(MODEL.CUR + ' ' + m.short) + '">' + (none ? '<span class="dim">--</span>' : n0(r.cur)) + '</td>';
+  out += '<td class="num" data-l="Lifetime ' + esc(m.short) + '"><b>' + (none ? '<span class="dim">--</span>' : n0(r.life)) + '</b></td>';
+  return out;
+}
+function renderPaneBody(){
+  var cols = paneCols(), data = buildRows(), html = [];
+  var arrow = function(k, s){ return '<span class="ar">' + (s.c === k ? (s.d > 0 ? '▲' : '▼') : '▼') + '</span>'; };
+
+  html.push('<table><thead><tr>');
+  cols.forEach(function(c){
+    html.push('<th class="sortable' + (PANE.sort.c === c.k ? ' sorted' : '') + '" data-sort="' + c.k + '">' +
+      esc(c.l) + arrow(c.k, PANE.sort) + '</th>');
+  });
+  html.push('</tr></thead><tbody>');
+
+  var tot = {act:0, clos:0, cur:0, life:0};
+  var addTot = function(r){ tot.act += r.act; tot.clos += r.clos; tot.cur += r.cur; tot.life += r.life; };
+
+  if(data.flat){
+    var rows = data.flat.slice().sort(cmpBy(PANE.sort.c, PANE.sort.d));
+    rows.forEach(function(r){ addTot(r); html.push('<tr class="kid">' + cells(r, cols, true) + '</tr>'); });
+    if(!rows.length) html.push('<tr><td colspan="7" class="dim" style="padding:26px 14px">No introducers in this group.</td></tr>');
+  } else {
+    var groups = data.groups.slice().sort(cmpBy(PANE.sort.c, PANE.sort.d));
+    groups.forEach(function(g){
+      addTot(g);
+      var open = !!PANE.open[g.label];
+      html.push('<tr class="grp' + (open ? ' open' : '') + '" data-g="' + esc(g.label) + '">' + cells(g, cols, false) + '</tr>');
+      if(open){
+        var ks = PANE.kidSort[g.label] || PANE.sort;
+        html.push('<tr class="kid head" data-kg="' + esc(g.label) + '">');
+        cols.forEach(function(c){
+          html.push('<td data-k="' + c.k + '">' + esc(c.k === 'name' ? 'Introducer' : c.l) + arrow(c.k, ks) + '</td>');
+        });
+        html.push('</tr>');
+        g.kids.slice().sort(cmpBy(ks.c, ks.d)).forEach(function(r){
+          html.push('<tr class="kid">' + cells(r, cols, true) + '</tr>');
+        });
+      }
+    });
+    if(!groups.length) html.push('<tr><td colspan="7" class="dim" style="padding:26px 14px">No introducers match this tile.</td></tr>');
+  }
+  html.push('</tbody>');
+  var m = METRICS[PANE.tile.metric], none = PANE.tile.metric === 'none';
+  html.push('<tfoot><tr>' +
+    '<td data-l="">Total · ' + plural(TSTATS[PANE.tile.id].n, 'introducer') + '</td>' +
+    '<td class="num" data-l="Active dep.">' + n0(tot.act) + '</td>' +
+    '<td class="num" data-l="Closed dep.">' + n0(tot.clos) + '</td>' +
+    '<td class="num" data-l="Closed %">' + closeCell(tot.act, tot.clos) + '</td>' +
+    '<td></td>' +
+    '<td class="num" data-l="' + esc(MODEL.CUR + ' ' + m.short) + '">' + (none ? '--' : n0(tot.cur)) + '</td>' +
+    '<td class="num" data-l="Lifetime ' + esc(m.short) + '">' + (none ? '--' : n0(tot.life)) + '</td>' +
+    '</tr></tfoot></table>');
+  $('paneBody').innerHTML = html.join('');
+
+  var sel = $('msortSel');
+  if(sel.getAttribute('data-for') !== PANE.tile.id + PANE.tab){
+    sel.innerHTML = cols.map(function(c){ return '<option value="' + c.k + '">' + esc(c.l) + '</option>'; }).join('');
+    sel.setAttribute('data-for', PANE.tile.id + PANE.tab);
+  }
+  sel.value = PANE.sort.c;
+  $('msortDir').innerHTML = PANE.sort.d > 0 ? '&uarr;' : '&darr;';
+}
+function renderPaneHead(){
+  var t = PANE.tile, s = TSTATS[t.id], m = METRICS[t.metric];
+  $('paneTitle').textContent = t.name;
+  $('paneDef').innerHTML = t.def + ' <b>' + n0(s.n) + '</b> ' + (s.n===1?'introducer':'introducers') + ' · <b>' +
+    (t.metric === 'none' ? '--' : n0(s.life) + ' ' + m.label) + '</b> lifetime' +
+    (t.metric === 'none' ? '' : ' · <b>' + n0(s.cur) + '</b> in ' + MODEL.CUR) + '.';
+
+  var byStage = new Map();
+  s.list.forEach(function(I){
+    var o = byStage.get(I.stage);
+    if(!o){ o = {n:0, act:0, clos:0}; byStage.set(I.stage, o); }
+    o.n++; o.act += I.actLife; o.clos += I.closLife;
+  });
+  var chips = Array.from(byStage.entries()).sort(function(a,b){ return b[1].n - a[1].n; }).map(function(e){
+    var alert = e[0] !== 'Customer';
+    return '<span class="chip' + (alert ? ' alert' : '') + '">' + esc(e[0]) + ' <b>' + n0(e[1].n) + '</b>' +
+      (e[1].act || e[1].clos ? ' · <b>' + n0(e[1].act) + '</b> active / <b>' + n0(e[1].clos) + '</b> closed dep.' : '') + '</span>';
+  });
+  $('paneChips').innerHTML = chips.join('');
+  $('paneTabs').innerHTML = TABS.map(function(x){
+    return '<button role="tab" data-tab="' + x[0] + '" aria-selected="' + (PANE.tab === x[0]) + '">' + x[1] + '</button>';
+  }).join('');
+}
+function openPane(id){
+  PANE.tile = TILES.filter(function(t){ return t.id === id; })[0];
+  if(!PANE.tile) return;
+  PANE.open = {}; PANE.kidSort = {};
+  PANE.sort = PANE.tile.metric === 'none' ? {c:'name', d:1} : {c:'life', d:-1};
+  renderPaneHead(); renderPaneBody();
+  $('pane').classList.add('on'); $('pane').setAttribute('aria-hidden','false');
+  $('scrim').classList.add('on');
+  document.body.style.overflow = 'hidden';
+  $('paneBody').scrollTop = 0;
+}
+function closePane(){
+  $('pane').classList.remove('on'); $('pane').setAttribute('aria-hidden','true');
+  $('scrim').classList.remove('on'); document.body.style.overflow = '';
+}
+$('paneClose').addEventListener('click', closePane);
+$('scrim').addEventListener('click', closePane);
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closePane(); });
+$('paneTabs').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-tab]'); if(!b) return;
+  PANE.tab = b.getAttribute('data-tab');
+  PANE.open = {}; PANE.kidSort = {};
+  if(PANE.sort.c === 'name' && PANE.tile.metric !== 'none') PANE.sort = {c:'life', d:-1};
+  renderPaneHead(); renderPaneBody();
+});
+$('paneBody').addEventListener('click', function(e){
+  var th = e.target.closest('th[data-sort]');
+  if(th){
+    var k = th.getAttribute('data-sort');
+    PANE.sort = (PANE.sort.c === k) ? {c:k, d:-PANE.sort.d} : {c:k, d:(k === 'name' ? 1 : -1)};
+    renderPaneBody(); return;
+  }
+  var kh = e.target.closest('tr.kid.head');
+  if(kh){
+    var td = e.target.closest('td[data-k]'); if(!td) return;
+    var g = kh.getAttribute('data-kg'), kk = td.getAttribute('data-k');
+    var cur = PANE.kidSort[g] || PANE.sort;
+    PANE.kidSort[g] = (cur.c === kk) ? {c:kk, d:-cur.d} : {c:kk, d:(kk === 'name' ? 1 : -1)};
+    renderPaneBody(); return;
+  }
+  var gr = e.target.closest('tr.grp');
+  if(gr){
+    var key = gr.getAttribute('data-g');
+    if(PANE.open[key]) delete PANE.open[key]; else PANE.open[key] = 1;
+    renderPaneBody();
+  }
+});
+$('msortSel').addEventListener('change', function(){ PANE.sort = {c:this.value, d:PANE.sort.d}; renderPaneBody(); });
+$('msortDir').addEventListener('click', function(){ PANE.sort = {c:PANE.sort.c, d:-PANE.sort.d}; renderPaneBody(); });
+
+/* ==========================================================================
+   8 · funnel table + charts
+   ========================================================================== */
+var FSCOPE = 'scope', FSORT = {c:'y', d:1}, CHARTS = {};
+var FCOLS = [
+  {k:'y',    l:'Intake year'},
+  {k:'apps', l:'Applications'},
+  {k:'paid', l:'Deposits paid'},
+  {k:'act',  l:'Active'},
+  {k:'clos', l:'Closed'},
+  {k:'cpct', l:'Closed %'},
+  {k:'r1',   l:'App → active'},
+  {k:'r2',   l:'App → any dep.'},
+  {k:'r3',   l:'Dep → visa granted'},
+  {k:'r4',   l:'Dep → enrolled'}
+];
+function funnelRows(){
+  var src = FSCOPE === 'scope' ? MODEL.funnelScope : MODEL.funnelAll;
+  return src.map(function(r){
+    return {
+      y:r.y, apps:r.apps, paid:r.act + r.clos, act:r.act, clos:r.clos,
+      cpct: pctv(r.clos, r.act + r.clos),
+      r1: pctv(r.act, r.apps), r2: pctv(r.act + r.clos, r.apps),
+      r3: pctv(r.vg, r.act), r4: pctv(r.enr, r.act),
+      future: r.y > MODEL.CUR
+    };
+  });
+}
+function renderFunnelTable(){
+  var rows = funnelRows().slice().sort(function(a, b){
+    var v = (a[FSORT.c] - b[FSORT.c]) * FSORT.d;
+    return v || (a.y - b.y);
+  });
+  var tot = {apps:0, act:0, clos:0};
+  rows.forEach(function(r){ tot.apps += r.apps; tot.act += r.act; tot.clos += r.clos; });
+  var h = ['<thead><tr>'];
+  FCOLS.forEach(function(c){
+    h.push('<th class="sortable' + (FSORT.c === c.k ? ' sorted' : '') + '" data-f="' + c.k + '">' + esc(c.l) +
+      '<span class="ar">' + (FSORT.c === c.k ? (FSORT.d > 0 ? '▲' : '▼') : '▼') + '</span></th>');
+  });
+  h.push('</tr></thead><tbody>');
+  rows.forEach(function(r){
+    var tag = r.future ? ' <span class="pill cold">future intake</span>' :
+              (r.y === MODEL.CUR ? ' <span class="pill live">in flight</span>' : '');
+    h.push('<tr' + (r.future ? ' style="opacity:.6"' : '') + '>' +
+      '<td class="num" data-l="Year"><b>' + r.y + '</b>' + tag + '</td>' +
+      '<td class="num" data-l="Applications">' + n0(r.apps) + '</td>' +
+      '<td class="num" data-l="Deposits paid">' + n0(r.paid) + '</td>' +
+      '<td class="num" data-l="Active">' + n0(r.act) + '</td>' +
+      '<td class="num" data-l="Closed">' + n0(r.clos) + '</td>' +
+      '<td class="num" data-l="Closed %">' + r.cpct.toFixed(1) + '%</td>' +
+      '<td class="num" data-l="App → active">' + r.r1.toFixed(2) + '%</td>' +
+      '<td class="num" data-l="App → any dep.">' + r.r2.toFixed(2) + '%</td>' +
+      '<td class="num" data-l="Dep → visa">' + r.r3.toFixed(1) + '%</td>' +
+      '<td class="num" data-l="Dep → enrolled">' + r.r4.toFixed(1) + '%</td>' +
+      '</tr>');
+  });
+  h.push('</tbody><tfoot><tr><td>All years</td><td class="num">' + n0(tot.apps) + '</td><td class="num">' +
+    n0(tot.act + tot.clos) + '</td><td class="num">' + n0(tot.act) + '</td><td class="num">' + n0(tot.clos) +
+    '</td><td class="num">' + pct(tot.clos, tot.act + tot.clos) + '</td><td class="num">' + pct(tot.act, tot.apps, 2) +
+    '</td><td class="num">' + pct(tot.act + tot.clos, tot.apps, 2) + '</td><td></td><td></td></tr></tfoot>');
+  $('funnelTable').innerHTML = h.join('');
+}
+$('funnelTable').addEventListener('click', function(e){
+  var th = e.target.closest('th[data-f]'); if(!th) return;
+  var k = th.getAttribute('data-f');
+  FSORT = (FSORT.c === k) ? {c:k, d:-FSORT.d} : {c:k, d:-1};
+  renderFunnelTable();
+});
+$('funnelScope').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-fs]'); if(!b) return;
+  FSCOPE = b.getAttribute('data-fs');
+  Array.prototype.forEach.call(this.children, function(x){
+    x.setAttribute('aria-pressed', String(x === b));
+  });
+  renderFunnelTable(); renderCharts();
+});
+
+/* direct labels at the end of each line — text in ink, identity from a small swatch */
+var endLabels = {
+  id:'endLabels',
+  afterDatasetsDraw:function(ch){
+    var cx = ch.ctx;
+    cx.save();
+    cx.font = '500 11px "IBM Plex Sans", sans-serif';
+    cx.textBaseline = 'middle';
+    var items = [];
+    ch.data.datasets.forEach(function(ds, i){
+      var meta = ch.getDatasetMeta(i);
+      if(meta.hidden) return;
+      var pts = meta.data; if(!pts || !pts.length) return;
+      var p = pts[pts.length - 1];
+      if(!p || p.x == null) return;
+      items.push({x:p.x + 8, y:p.y, label:ds.label, color:ds.borderColor});
+    });
+    /* nudge labels apart so converging lines stay readable */
+    items.sort(function(a, b){ return a.y - b.y; });
+    var gap = 15, area = ch.chartArea;
+    for(var i2 = 1; i2 < items.length; i2++)
+      if(items[i2].y - items[i2-1].y < gap) items[i2].y = items[i2-1].y + gap;
+    var over = items.length ? items[items.length-1].y - area.bottom : 0;
+    if(over > 0) items.forEach(function(it){ it.y -= over; });
+    items.forEach(function(it){
+      cx.fillStyle = it.color;
+      cx.fillRect(it.x, it.y - 3, 6, 6);
+      cx.fillStyle = '#5F6E68';
+      cx.fillText(it.label, it.x + 10, it.y);
+    });
+    cx.restore();
+  }
+};
+function renderCharts(){
+  if(typeof Chart === 'undefined') return;
+  Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = '#5F6E68';
+  var rows = funnelRows().sort(function(a, b){ return a.y - b.y; });
+  var peak = 0; rows.forEach(function(r){ if(r.apps > peak) peak = r.apps; });
+  /* future intakes stay in the table but out of the charts: a barely-started
+     year reads as a rate collapse, not as the artefact it is. */
+  var shown = rows.filter(function(r){ return r.y <= MODEL.CUR && r.apps >= 0.01 * peak; });
+  var labels = shown.map(function(r){ return String(r.y); });
+  var grid = {color:'rgba(21,32,28,.07)', drawTicks:false};
+  var border = {display:false};
+
+  if(CHARTS.vol) CHARTS.vol.destroy();
+  CHARTS.vol = new Chart($('chartVol'), {
+    type:'bar',
+    data:{ labels:labels, datasets:[
+      {label:'Active deposits', data:shown.map(function(r){ return r.act; }),
+       backgroundColor:'#0F8A5F', borderColor:'#FFFFFF', borderWidth:{top:2}, borderSkipped:false,
+       maxBarThickness:46},
+      {label:'Closed lost', data:shown.map(function(r){ return r.clos; }),
+       backgroundColor:'#C0491F', borderRadius:{topLeft:4, topRight:4}, borderSkipped:'bottom',
+       maxBarThickness:46}
+    ]},
+    options:{
+      maintainAspectRatio:false, responsive:true,
+      interaction:{mode:'index', intersect:false},
+      scales:{
+        x:{stacked:true, grid:{display:false}, border:border},
+        y:{stacked:true, grid:grid, border:border, ticks:{precision:0}}
+      },
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:9, boxHeight:9, usePointStyle:true, pointStyle:'rect', padding:14}},
+        tooltip:{
+          backgroundColor:'#15201C', padding:10, cornerRadius:6, displayColors:true, boxWidth:8, boxHeight:8,
+          callbacks:{ footer:function(items){
+            var r = shown[items[0].dataIndex];
+            return 'paid ' + n0(r.paid) + ' of ' + n0(r.apps) + ' applications (' + r.r2.toFixed(2) + '%)';
+          }}
+        }
+      }
+    }
+  });
+
+  if(CHARTS.rate) CHARTS.rate.destroy();
+  var mk = function(label, key, color, dash){
+    return {label:label, data:shown.map(function(r){ return +r[key].toFixed(2); }),
+      borderColor:color, backgroundColor:color, borderWidth:2, borderDash:dash || [],
+      pointRadius:4, pointHoverRadius:6, pointBorderColor:'#FFFFFF', pointBorderWidth:2, tension:.25};
+  };
+  CHARTS.rate = new Chart($('chartRate'), {
+    type:'line',
+    data:{ labels:labels, datasets:[
+      mk('Dep → enrolled', 'r4', '#3B6FA8'),
+      mk('Dep → visa', 'r3', '#C08018'),
+      mk('App → any dep.', 'r2', '#0F8A5F'),
+      mk('App → active', 'r1', '#C0491F', [5,4])
+    ]},
+    options:{
+      maintainAspectRatio:false, responsive:true,
+      layout:{padding:{right:96}},
+      interaction:{mode:'index', intersect:false},
+      scales:{
+        x:{grid:{display:false}, border:border},
+        y:{grid:grid, border:border, beginAtZero:true,
+           ticks:{callback:function(v){ return v + '%'; }}}
+      },
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:9, boxHeight:9, usePointStyle:true, pointStyle:'rect', padding:14}},
+        tooltip:{backgroundColor:'#15201C', padding:10, cornerRadius:6, boxWidth:8, boxHeight:8,
+          callbacks:{label:function(c){ return c.dataset.label + ': ' + c.parsed.y.toFixed(2) + '%'; }}}
+      }
+    },
+    plugins:[endLabels]
+  });
+}
+
+/* ==========================================================================
+   9 · bands, critique, data notes
+   ========================================================================== */
+function renderBands(){
+  var T = MODEL.totals, S = MODEL.byStage, A = MODEL.raw.apps;
+  var stageBits = S.map(function(s){
+    return '<b>' + n0(s.n) + '</b> ' + esc(s.stage) + ' (' + n0(s.act) + ' active dep.)';
+  }).join(' · ');
+  $('scopeBand').innerHTML = '<span class="ic">◆</span><div><b>Scope.</b> ' +
+    n0(MODEL.book.length) + ' introducers are in scope — every partner at <i>Customer</i> stage, plus anyone with a paid deposit at any stage. ' +
+    'Together they hold <b>' + n0(T.actLife) + ' active</b> and <b>' + n0(T.closLife) + ' closed</b> deposits, ' +
+    n0(T.actCur) + ' of them active in the ' + MODEL.CUR + ' intake. ' + stageBits + '. ' +
+    'A strict <i>Customer</i>-only filter would drop ' + n0(T.actLife - (S.filter(function(s){return s.stage==='Customer';})[0] || {act:0}).act) +
+    ' active deposits. ' + n0(A.blankIntro) + ' applications (' + pct(A.blankIntro, A.rows) +
+    ') carry no introducer name and are excluded from every introducer-level figure — these totals will not tie to overall revenue reporting.' +
+    '</div>';
+
+  var f = MODEL.funnelScope, cur = null, prev = null;
+  f.forEach(function(r){ if(r.y === MODEL.CUR) cur = r; if(r.y === MODEL.PREV) prev = r; });
+  var band = '<span class="ic">▲</span><div><b>The ' + MODEL.CUR + ' intake is still in flight.</b> ';
+  if(cur && prev){
+    band += 'Visa and enrolment ratios are only meaningful for closed intakes: ' + MODEL.CUR + ' shows <b>' +
+      pct(cur.enr, cur.act) + '</b> deposit&rarr;enrolled against <b>' + pct(prev.enr, prev.act) + '</b> for ' + MODEL.PREV +
+      ', and <b>' + pct(cur.vg, cur.act) + '</b> vs <b>' + pct(prev.vg, prev.act) + '</b> for visas. ' +
+      'That gap is students not having reached those stages yet — not a collapse in quality. ';
+  }
+  band += 'Treat every ' + MODEL.CUR + ' figure as a <b>floor</b>: deposits keep landing after the export date. ' +
+    'Rows dated after ' + MODEL.CUR + ' appear in the table below but are excluded from all tile scoring, so a single ' +
+    'future-dated deposit cannot flip an introducer out of dormant.</div>';
+  $('inflightBand').innerHTML = band;
+
+  $('funnelNote').innerHTML = 'Intake cycle: Nov &amp; Dec roll into the following January; Apr&ndash;Jul fold to May; Aug&ndash;Oct to September. ' +
+    '<b>In-scope</b> counts only introducers in the book above; <b>all attributed</b> adds every named introducer, including those with ' +
+    'applications but no deposits and no Customer record. Both exclude the ' + pct(MODEL.raw.apps.blankIntro, MODEL.raw.apps.rows) +
+    ' of applications with no introducer name.' +
+    (MODEL.raw.apps.noYear ? ' ' + n0(MODEL.raw.apps.noYear) + ' applications have no usable intake year and sit outside this table.' : '');
+}
+
+function renderCritique(){
+  var book = MODEL.book, T = MODEL.totals;
+  var qE = book.filter(function(I){ return I.appsLife >= 10; });
+  var rates = qE.map(function(I){ return I.enrRate; });
+  var under = function(p){ return qE.filter(function(I){ return I.enrRate < p; }).length; };
+  var orgRate = pctv(T.enrLife, T.appsLife);
+  var medE = median(rates) * 100;
+
+  var qC = book.filter(function(I){ return I.actLife >= 3; });
+  var ratios = qC.map(function(I){ return I.closLife / I.actLife; });
+  var over = function(p){ return qC.filter(function(I){ return I.closLife / I.actLife > p; }).length; };
+  var medC = median(ratios) * 100;
+
+  var vTop = new Map();
+  book.forEach(function(I){
+    if(!I.vrejLife) return;
+    var o = vTop.get(I.country) || {n:0, apps:0};
+    o.n += I.vrejLife; o.apps += I.appsLife; vTop.set(I.country, o);
+  });
+  var vList = Array.from(vTop.entries()).sort(function(a, b){ return b[1].n - a[1].n; }).slice(0, 4)
+    .map(function(e){ return esc(e[0]) + ' <span class="k">' + n0(e[1].n) + '</span>'; }).join(' · ');
+
+  /* measured recruitment cadence: strongest single-cycle markets vs the most spread */
+  var cad = MODEL.cadence.slice();
+  var annual = cad.filter(function(c){ return c.top >= 0.55; }).sort(function(a,b){ return b.top - a.top; }).slice(0,5);
+  var spread = cad.filter(function(c){ return c.top < 0.45; }).sort(function(a,b){ return a.top - b.top; }).slice(0,5);
+  var cadName = function(c){
+    var peak = (c.sep >= c.jan && c.sep >= c.may) ? 'Sep' : (c.jan >= c.may ? 'Jan' : 'May');
+    return esc(c.country) + ' <span class="k">' + Math.round(100*c.top) + '% ' + peak + '</span>';
+  };
+  var cadenceHtml = '<p>Measured across the ' + n0(cad.length) + ' markets with 20+ active deposits: ' +
+    (annual.length
+      ? '<b>' + n0(annual.length) + '</b> concentrate more than 55% of their deposits in a single intake — ' +
+        annual.map(cadName).join(' · ') + '. '
+      : 'no market concentrates more than 55% of its deposits in one intake. ') +
+    (spread.length
+      ? 'The most spread markets sit close to an even three-way split — ' + spread.map(cadName).join(' · ') + '. '
+      : '') +
+    'For a single-cycle market one missed September costs a full year, not a third of one, so the same dormancy rule flags its steadiest partners first. ' +
+    'Check the <b>Country</b> tab of any drill-down before acting on a call list.</p>';
+
+  var verdict = function(bad, txt){ return '<span class="verdict ' + (bad ? 'bad' : 'ok') + '">' + txt + '</span>'; };
+  var eBad = under(0.10) > 0.5 * qE.length, cBad = over(0.30) > 0.4 * qC.length;
+
+  $('critique').innerHTML =
+    '<h3>App-to-enrolment below 10%' + verdict(eBad, eBad ? 'miscalibrated' : 'holds up') + '</h3>' +
+    '<p>The threshold catches <span class="k">' + n0(under(0.10)) + '</span> of <span class="k">' + n0(qE.length) +
+    '</span> qualifying introducers — <span class="k">' + pct(under(0.10), qE.length, 0) + '</span> of the base. ' +
+    'Org-wide enrolment conversion is <span class="k">' + orgRate.toFixed(2) + '%</span> and the median qualifying introducer sits at <span class="k">' +
+    medE.toFixed(1) + '%</span>. ' + (eBad
+      ? 'A rule that flags most of the population describes the business; it does not isolate a problem group.'
+      : 'On this file the rule stays selective enough to be actionable.') + '</p>' +
+    '<ul><li>Below 5% catches <span class="k">' + n0(under(0.05)) + '</span>.</li>' +
+    '<li>Below 3% catches <span class="k">' + n0(under(0.03)) + '</span>.</li>' +
+    '<li>Better still: benchmark each introducer against the median of <b>their own market</b>, not one global number. ' +
+    'Enrolment rates are set as much by destination-country visa regimes as by partner quality.</li></ul>' +
+
+    '<h3>Closed deposits above 30%' + verdict(cBad, cBad ? 'miscalibrated' : 'holds up') + '</h3>' +
+    '<p>The median introducer with 3+ active deposits closes <span class="k">' + medC.toFixed(1) +
+    '%</span> of them, so a 30% line sits almost exactly on the middle of the distribution and splits the base in half rather than isolating outliers. ' +
+    'It currently flags <span class="k">' + n0(over(0.30)) + '</span> of <span class="k">' + n0(qC.length) + '</span>.</p>' +
+    '<ul><li>Above 50% catches <span class="k">' + n0(over(0.50)) + '</span>.</li>' +
+    '<li>Above 100% catches <span class="k">' + n0(over(1.00)) + '</span> — introducers whose closed deposits <i>outnumber</i> their active ones. ' +
+    'That last group is the real signal.</li></ul>' +
+
+    '<h3>"Squanderer" / "resource waster" as a label' + verdict(true, 'not supported by the data') + '</h3>' +
+    '<p>The label is a judgement the data cannot carry. An introducer whose students are repeatedly visa-refused is not wasting resources — their market is. ' +
+    'Visa-stage losses concentrate by geography: ' + (vList || 'no visa losses recorded') + '. ' +
+    'Read visa and closure metrics alongside country, never as a partner scorecard, and do not let them drive commission decisions.</p>' +
+
+    '<h3>What the deposit count cannot tell you</h3>' +
+    '<p>Commission value is absent from both exports, so deposit <i>count</i> stands in for revenue. Partners differ in commission rate and contract type, ' +
+    'so the leaderboard here is a volume ranking, not a value ranking. Joining <span class="k">Org Commission</span> would reshuffle it.</p>' +
+
+    '<h3>Cadence: do not measure every market against three intakes</h3>' + cadenceHtml;
+}
+
+function renderNotes(){
+  var M = MODEL.raw.master, A = MODEL.raw.apps, notCRM = MODEL.notInCRM;
+  var ncAct = 0, ncClos = 0;
+  notCRM.forEach(function(I){ ncAct += I.actLife; ncClos += I.closLife; });
+  var years = Array.from(A.yearHist.keys()).sort(function(a, b){ return a - b; });
+  var newest = years[years.length - 1];
+  var newestN = A.yearHist.get(newest) || 0;
+
+  var curNote = newest > MODEL.CUR
+    ? 'The newest intake year in this file is <span class="fig">' + newest + '</span>, holding just <span class="fig">' + n0(newestN) +
+      '</span> applications — a phantom created by Nov/Dec rolling forward. Current year is taken as the newest year holding at least 10% of the peak year, giving <span class="fig">CUR = ' +
+      MODEL.CUR + '</span>. Taking max(year) instead would zero every tile.'
+    : 'The newest intake year, <span class="fig">' + newest + '</span>, holds <span class="fig">' + n0(newestN) +
+      '</span> applications and clears the 10%-of-peak floor on its own, so <span class="fig">CUR = ' + MODEL.CUR +
+      '</span>. The floor exists because Nov/Dec roll forward and can otherwise invent a barely-started future intake.';
+  var notes = [
+    ['Current intake year is chosen, not assumed', curNote],
+    ['Became Customer Date is mostly blank',
+     '<span class="fig">' + n0(M.blankBecame) + '</span> of <span class="fig">' + n0(M.byName.size) + '</span> partners (' +
+     pct(M.blankBecame, M.byName.size, 0) + ') have no Became Customer Date. <span class="fig">' + n0(M.usedFallback) +
+     '</span> fell back to Created At; the rest have no cohort year at all. Cohort tiles are built partly on that fallback.'],
+    ['Contract status is not a reliable filter',
+     '<span class="fig">' + n0(M.noContract) + '</span> partners (' + pct(M.noContract, M.byName.size, 0) +
+     ') have no contract status recorded. The active/expired split on each tile covers only those that do.'],
+    ['Revenue invisible to the CRM',
+     '<span class="fig">' + n0(notCRM.length) + '</span> introducer names appear in applications but not in the master file, holding <span class="fig">' +
+     n0(ncAct) + '</span> active and <span class="fig">' + n0(ncClos) + '</span> closed deposits. They are shown here as <i>Not in CRM</i> rather than dropped.'],
+    ['Unattributed applications',
+     '<span class="fig">' + n0(A.blankIntro) + '</span> applications (' + pct(A.blankIntro, A.rows, 0) +
+     ') have no introducer name, including <span class="fig">' + n0(A.blankIntroDeposits) +
+     '</span> paid deposits. They are direct or unattributed business and are excluded from every introducer-level figure.'],
+    ['Contradictory closure records',
+     '<span class="fig">' + n0(A.contradictions) + '</span> applications are marked Closed Lost = Yes yet carry an Enrolled timestamp. ' +
+     'They count as closed deposits here. Worth raising with whoever owns CRM hygiene.'],
+    ['Deposit count is the revenue proxy',
+     'Neither export carries commission value, so every "revenue" figure on this page is a deposit count. Partners with different commission rates are being compared as if they were identical.'],
+    ['Duplicates and unusable rows',
+     '<span class="fig">' + n0(M.dupes) + '</span> duplicate partner names were collapsed to their first row. <span class="fig">' +
+     n0(A.noYear) + '</span> applications have no usable intake year and fall out of every year-based figure.']
+  ];
+  $('notes').innerHTML = notes.map(function(x){
+    return '<div class="note"><b>' + x[0] + '</b><span>' + x[1] + '</span></div>';
+  }).join('');
+}
+
+/* ==========================================================================
+   10 · wiring
+   ========================================================================== */
+var FILES = {A:null, B:null};
+function setStatus(which, msg, cls){
+  var box = $('up' + which), st = $('stat' + which);
+  box.classList.remove('ok', 'err');
+  if(cls) box.classList.add(cls);
+  st.innerHTML = msg;
+}
+function renderAll(){
+  build();
+  renderTiles();
+  renderBands();
+  renderFunnelTable();
+  renderCharts();
+  renderCritique();
+  renderNotes();
+  $('foot').innerHTML = 'Introducers: <b>' + n0(MODEL.raw.master.byName.size) + '</b> partners (' + esc(FILES.A.name) + ')' +
+    ' · Applications: <b>' + n0(MODEL.raw.apps.rows) + '</b> rows (' + esc(FILES.B.name) + ')' +
+    ' · Current intake year <b>' + MODEL.CUR + '</b>, previous <b>' + MODEL.PREV + '</b>' +
+    ' · Built ' + new Date().toLocaleString() + ' entirely in this browser tab.';
+  $('emptyState').hidden = true;
+  $('report').hidden = false;
+}
+function tryRender(){
+  if(!RAW.master || !RAW.apps) return;
+  try{ renderAll(); }
+  catch(e){ setStatus('B', 'Could not build the report: ' + esc(e.message), 'err'); }
+}
+function hook(which, input, ingest, label){
+  input.addEventListener('change', function(){
+    var f = input.files && input.files[0];
+    if(!f) return;
+    FILES[which] = f;
+    setStatus(which, 'Reading ' + esc(f.name) + '…');
+    setTimeout(function(){
+      ingest(f).then(function(out){
+        if(which === 'A'){
+          RAW.master = out;
+          setStatus('A', '<b>' + n0(out.byName.size) + '</b> partners read from ' + esc(f.name) +
+            (out.dupes ? ' · ' + n0(out.dupes) + ' duplicate names collapsed' : ''), 'ok');
+        } else {
+          RAW.apps = out;
+          setStatus('B', '<b>' + n0(out.rows) + '</b> applications read from ' + esc(f.name) +
+            ' · ' + n0(out.intro.size) + ' named introducers', 'ok');
+        }
+        tryRender();
+      }).catch(function(e){
+        setStatus(which, (e && e.message ? e.message : 'Could not read this file.'), 'err');
+      });
+    }, 20);
+  });
+}
+hook('A', $('fileA'), ingestMaster, 'Introducers');
+hook('B', $('fileB'), ingestApps, 'Applications');
+$('resetBtn').addEventListener('click', function(){
+  RAW.master = RAW.apps = null; MODEL = null; FILES = {A:null, B:null};
+  $('fileA').value = ''; $('fileB').value = '';
+  setStatus('A', 'One row per partner. Needs <span class="mono">Partner Name</span> + <span class="mono">Lifecycle Stage</span>.');
+  setStatus('B', 'One row per application. Needs <span class="mono">Application Introducer Name</span> + deposit status.');
+  $('report').hidden = true; $('emptyState').hidden = false;
+  closePane();
+});
+})();
+</script>
+</body>
+</html>
