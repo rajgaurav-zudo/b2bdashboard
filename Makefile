@@ -1,4 +1,4 @@
-.PHONY: up down logs psql migrate test typecheck reset vm
+.PHONY: up down logs psql migrate test typecheck reset vm supabase-link supabase-push
 
 vm:            ## start the colima VM (4 cpu / 8 GB / 60 GB)
 	colima start --runtime docker --vm-type vz --cpu 4 --memory 8 --disk 60
@@ -28,3 +28,24 @@ test:
 
 typecheck:     ## tsc over the frontend
 	docker compose exec web npx tsc -b --noEmit
+
+# --- Supabase ----------------------------------------------------------------
+# Secrets come from .env, which is gitignored. Passing them as command-line flags
+# would put them in the process table, so they go through the environment and are
+# never echoed.
+
+supabase-link: ## authenticate the CLI and link the remote project
+	@set -a; . ./.env; set +a; \
+	if [ -z "$$SUPABASE_ACCESS_TOKEN" ]; then \
+	  echo "SUPABASE_ACCESS_TOKEN is not set in .env."; \
+	  echo "Create one at https://supabase.com/dashboard/account/tokens"; \
+	  echo "(or just run: supabase login)"; exit 1; \
+	fi; \
+	if [ -z "$$SUPABASE_DB_PASSWORD" ]; then \
+	  echo "SUPABASE_DB_PASSWORD is not set in .env (Settings > Database)."; exit 1; \
+	fi; \
+	supabase login --token "$$SUPABASE_ACCESS_TOKEN" --name b2bdash >/dev/null && \
+	supabase link --project-ref "$$SUPABASE_PROJECT_REF"
+
+supabase-push: ## apply supabase/migrations to the linked project
+	@set -a; . ./.env; set +a; supabase db push
