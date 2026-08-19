@@ -9,6 +9,15 @@ class Settings(BaseSettings):
     # diffs get stored per entry so one bad export cannot write millions of rows
     changelog_row_limit: int = 10_000
 
+    # --- connection behaviour -------------------------------------------------
+    # Off by default because a transaction-mode pooler cannot keep server-side
+    # prepared statements alive between transactions. See db.py.
+    disable_prepared_statements: bool = True
+    db_pool_min: int = 1
+    # Supabase counts pooler clients against the project's limit, so an API
+    # replica should not hold more than it needs.
+    db_pool_max: int = 10
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
