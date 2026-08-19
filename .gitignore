@@ -1,0 +1,10 @@
+.env
+data/uploads/*
+!data/uploads/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+.DS_Store

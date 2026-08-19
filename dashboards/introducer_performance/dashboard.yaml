@@ -1,0 +1,21 @@
+slug: introducer_performance
+name: Introducer performance
+version: 1
+schema: dash_introducer_performance
+
+# Grouping dimensions for this dashboard only. Changing them changes nothing elsewhere.
+dimensions: [srm_team, srm_owner, country, lifecycle_stage]
+
+datasets:
+  introducers:
+    display_name: Introducers master
+    table: introducers
+    natural_key: [partner_name]
+    required_columns: ["Partner Name", "Lifecycle Stage"]
+  applications:
+    display_name: Applications
+    table: applications
+    # app_uid is the application id when the export has one, otherwise a stable
+    # content hash plus occurrence index -- see ingest.py
+    natural_key: [app_uid]
+    required_columns: ["Application Introducer Name", "Deposit Paid Status"]
