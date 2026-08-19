@@ -15,9 +15,9 @@ export function DataPage() {
 
   return (
     <>
-      <div className="head">
-        <h1>Data</h1>
-        <p>
+      <div style={{ paddingTop: 30 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Data</h2>
+        <p className="sub" style={{ marginTop: 6 }}>
           Every upload is kept. The newest load for each dataset is the one every figure is built
           from; the others stay queryable, so a bad export can be rolled back rather than re-imported.
         </p>
@@ -36,21 +36,21 @@ export function DataPage() {
       {failed.length > 0 ? <FailedUploads rows={failed} /> : null}
 
       <Section title="Current loads">
-        <div className="card scroll">
+        <div className="tbl-wrap">
           <table>
             <thead>
               <tr>
-                <th>Dataset</th><th>File</th><th className="num">Rows</th>
-                <th>Loaded</th><th>Status</th>
+                <th className="txt">Dataset</th><th className="txt">File</th><th className="num">Rows</th>
+                <th className="txt">Loaded</th><th className="txt">Status</th>
               </tr>
             </thead>
             <tbody>
               {dashboard.current_loads.map((load) => (
                 <tr key={load.dataset}>
-                  <td>{load.dataset}</td>
-                  <td>{load.filename ?? <span className="dim">nothing loaded</span>}</td>
+                  <td className="txt">{load.dataset}</td>
+                  <td className="txt">{load.filename ?? <span className="dim">nothing loaded</span>}</td>
                   <td className="num">{load.row_count == null ? "--" : n0(load.row_count)}</td>
-                  <td>{when(load.created_at)}</td>
+                  <td className="txt">{when(load.created_at)}</td>
                   <td>{load.load_id ? <span style={{ color: "var(--good)" }}>current</span> : "--"}</td>
                 </tr>
               ))}
@@ -66,27 +66,27 @@ export function DataPage() {
         {loads.isLoading ? <Spinner /> : null}
         {activate.error ? <p className="status err">{(activate.error as Error).message}</p> : null}
         {activate.data ? <p className="status ok">{activate.data.summary}</p> : null}
-        <div className="card scroll">
+        <div className="tbl-wrap">
           <table>
             <thead>
               <tr>
-                <th className="num">Load</th><th>Dataset</th><th>File</th>
-                <th className="num">Rows</th><th>Created</th><th>Superseded</th><th>Current</th><th />
+                <th className="num">Load</th><th className="txt">Dataset</th><th className="txt">File</th>
+                <th className="num">Rows</th><th className="txt">Created</th><th className="txt">Superseded</th><th className="txt">Current</th><th />
               </tr>
             </thead>
             <tbody>
               {loads.data?.map((load) => (
                 <tr key={load.id}>
                   <td className="num">{load.id}</td>
-                  <td>{load.dataset}</td>
-                  <td>{load.filename}</td>
+                  <td className="txt">{load.dataset}</td>
+                  <td className="txt">{load.filename}</td>
                   <td className="num">{n0(load.row_count)}</td>
-                  <td>{when(load.created_at)}</td>
-                  <td>{load.superseded_at ? when(load.superseded_at) : <span className="dim">--</span>}</td>
-                  <td>{load.is_current ? <span style={{ color: "var(--good)" }}>yes</span> : <span className="dim">no</span>}</td>
-                  <td>
+                  <td className="txt">{when(load.created_at)}</td>
+                  <td className="txt">{load.superseded_at ? when(load.superseded_at) : <span className="dim">--</span>}</td>
+                  <td className="txt">{load.is_current ? <span style={{ color: "var(--good)" }}>yes</span> : <span className="dim">no</span>}</td>
+                  <td className="act">
                     {load.is_current ? null : (
-                      <button type="button" className="chip" disabled={activate.isPending}
+                      <button type="button" disabled={activate.isPending}
                               onClick={() => activate.mutate(load.id)}>
                         make current
                       </button>
@@ -107,20 +107,20 @@ export function DataPage() {
 function FailedUploads({ rows }: { rows: UploadRow[] }) {
   return (
     <Section title="Failed uploads" note="These never became a load. The dataset still serves the previous file.">
-      <div className="card scroll">
+      <div className="tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th>Dataset</th><th>File</th><th>Attempted</th><th>Why it failed</th>
+              <th className="txt">Dataset</th><th className="txt">File</th><th className="txt">Attempted</th><th className="txt">Why it failed</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td>{row.dataset}</td>
-                <td>{row.filename}</td>
-                <td>{when(row.started_at)}</td>
-                <td style={{ color: "var(--bad)" }}>{row.error ?? "unknown"}</td>
+                <td className="txt">{row.dataset}</td>
+                <td className="txt">{row.filename}</td>
+                <td className="txt">{when(row.started_at)}</td>
+                <td className="txt" style={{ color: "var(--bad)" }}>{row.error ?? "unknown"}</td>
               </tr>
             ))}
           </tbody>

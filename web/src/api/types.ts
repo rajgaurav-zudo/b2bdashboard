@@ -206,6 +206,16 @@ export interface IntroducerRow {
   is_resurrected: boolean;
 }
 
+export interface TileMembers {
+  current_year: number;
+  previous_year: number;
+  tile: Tile;
+  by_stage: { stage: string; n: number; act: number; clos: number }[];
+  rows: IntroducerRow[];
+}
+
+/** Server-side grouped drill-down (`/views/tile`). The pane groups locally from
+ *  `TileMembers` instead; this stays for consumers that want a capped payload. */
 export interface TileDrilldown {
   current_year: number;
   previous_year: number;

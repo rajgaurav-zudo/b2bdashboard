@@ -8,39 +8,32 @@ export function HomePage() {
 
   return (
     <>
-      <header className="topbar">
-        <div className="topbar-in">
-          <div className="brand">
-            Dashboards
-            <small>Edvoy B2B</small>
-          </div>
-        </div>
-      </header>
-      <main className="shell">
-        <div className="head">
+      <header className="top">
+        <div className="top-in">
+          <p className="eyebrow">Edvoy B2B</p>
           <h1>Dashboards</h1>
-          <p>
+          <p className="sub">
             Each dashboard owns its own Postgres schema, its own file contracts and its own
             changelog. Uploading to one cannot change what another shows.
           </p>
         </div>
+      </header>
+      <div className="wrap">
         {isLoading ? <Spinner /> : null}
         {error ? <Empty title="Cannot reach the API">Is the api container running?</Empty> : null}
         {data?.length === 0 ? <Empty title="No dashboards registered" /> : null}
-        <div className="tiles" style={{ marginTop: 16 }}>
+        <div className="cards">
           {data?.map((dashboard) => (
-            <Link key={dashboard.slug} to={`/d/${dashboard.slug}`} className="tile" style={{ display: "block" }}>
-              <div className="name">{dashboard.db_schema}</div>
-              <p className="big" style={{ fontSize: 20 }}>{dashboard.name}</p>
-              <div className="foot">
-                {dashboard.datasets.map((dataset) => (
-                  <span key={dataset.slug}><b>{dataset.display_name}</b></span>
-                ))}
+            <Link key={dashboard.slug} to={`/d/${dashboard.slug}`} className="card-link">
+              <h2>{dashboard.name}</h2>
+              <p className="mono" style={{ fontSize: 11.5 }}>{dashboard.db_schema}</p>
+              <div className="meta">
+                {dashboard.datasets.map((dataset) => dataset.display_name).join(" · ")}
               </div>
             </Link>
           ))}
         </div>
-      </main>
+      </div>
     </>
   );
 }

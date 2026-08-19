@@ -14,8 +14,8 @@ export function ChangelogPage() {
 
   return (
     <>
-      <div className="head">
-        <h1>Changelog</h1>
+      <div style={{ paddingTop: 30 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Changelog</h2>
         <p>
           What each upload changed, computed by comparing the new load against the one it replaced on
           the dataset's natural key. Counts are always exact; the row-level diffs below them are
@@ -26,31 +26,31 @@ export function ChangelogPage() {
       <Section title="Uploads">
         {isLoading ? <Spinner /> : null}
         {data?.length === 0 ? <Empty title="Nothing uploaded yet" /> : null}
-        <div className="card scroll">
+        <div className="tbl-wrap">
           <table>
             <thead>
               <tr>
-                <th>When</th><th>Dataset</th><th>Summary</th>
+                <th className="txt">When</th><th className="txt">Dataset</th><th className="txt">Summary</th>
                 <th className="num">+</th><th className="num">~</th><th className="num">−</th>
-                <th>File</th><th />
+                <th className="txt">File</th><th />
               </tr>
             </thead>
             <tbody>
               {data?.map((entry) => (
                 <tr key={entry.id}>
-                  <td>{when(entry.occurred_at)}</td>
-                  <td>{entry.entity}</td>
-                  <td style={{ whiteSpace: "normal" }}>{entry.summary}</td>
+                  <td className="txt">{when(entry.occurred_at)}</td>
+                  <td className="txt">{entry.entity}</td>
+                  <td className="txt" style={{ whiteSpace: "normal" }}>{entry.summary}</td>
                   <td className="num" style={{ color: "var(--good)" }}>{n0(entry.rows_added ?? 0)}</td>
                   <td className="num" style={{ color: "var(--warn)" }}>{n0(entry.rows_changed ?? 0)}</td>
                   <td className="num" style={{ color: "var(--bad)" }}>{n0(entry.rows_removed ?? 0)}</td>
-                  <td>
+                  <td className="txt">
                     {entry.filename}{" "}
                     {entry.status === "duplicate" ? <Pill>duplicate</Pill> : null}
                   </td>
-                  <td>
+                  <td className="act">
                     {entry.rows_sampled ? (
-                      <button type="button" className="chip"
+                      <button type="button"
                               onClick={() => setOpen(open === entry.id ? null : entry.id)}>
                         {open === entry.id ? "hide" : `${n0(entry.rows_sampled)} row diffs`}
                       </button>
@@ -66,7 +66,7 @@ export function ChangelogPage() {
       {open ? (
         <Section title="Row-level diffs">
           {rows.isLoading ? <Spinner /> : null}
-          <div className="card scroll">
+          <div className="tbl-wrap">
             <table>
               <thead>
                 <tr><th>Change</th><th>Key</th><th>Fields</th><th>Before → after</th></tr>

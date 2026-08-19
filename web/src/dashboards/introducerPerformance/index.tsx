@@ -1,23 +1,25 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { useOverview } from "../../api/client";
 import type { Overview, Tile } from "../../api/types";
 import { n0, pct } from "../../format";
-import { Band, Empty, Section, Spinner } from "../../ui/Primitives";
+import { Band, Empty, Section, Seg, Spinner } from "../../ui/Primitives";
 import { Critique } from "./Critique";
-import { DrillDown } from "./DrillDown";
 import { Funnel } from "./Funnel";
 import { Notes } from "./Notes";
+import { SidePane } from "./SidePane";
 import { Tiles } from "./Tiles";
 
 export function IntroducerPerformance({ slug }: { slug: string }) {
   const { data, isLoading, error } = useOverview(slug);
   // in the URL rather than in state: a call list is something people send to each other
   const [params, setParams] = useSearchParams();
+  const [scope, setScope] = useState<"scope" | "all">("scope");
   const selected = params.get("tile");
   const setSelected = (id: string | null) => {
     const next = new URLSearchParams(params);
-    if (id === null || id === selected) next.delete("tile");
+    if (id === null) next.delete("tile");
     else next.set("tile", id);
     setParams(next, { replace: true });
   };
@@ -40,77 +42,84 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
 
   return (
     <>
-      <div className="head">
-        <h1>Which introducers used to pay us, and stopped</h1>
-        <p>
-          Every figure below is a deposit count for the {data.current_year} intake year or earlier.
-          Start with <b>Dormant</b> — that is the call list.
-        </p>
-      </div>
-
       <ScopeBand overview={data} />
-      <InFlightBand overview={data} />
 
       <Section
-        title="Active"
+        title="Active introducers"
         note={`${n0(active.stats.n)} introducers produced ${n0(active.stats.cur)} active deposits in the ${data.current_year} intake. Cohort tiles split them by the year they became a customer.`}
       >
-        <Tiles tiles={data.tiles} section="active" currentYear={data.current_year}
-               selected={selected} onSelect={setSelected} />
+        <Tiles tiles={data.tiles} section="active" currentYear={data.current_year} onOpen={setSelected} />
       </Section>
 
-      <Band icon="→">
-        <b>Where to start.</b>{" "}
-        {n0(data.dormant_still_applying)} of the {n0(dormant.stats.n)} dormant introducers are{" "}
-        <b>still submitting applications</b> in {data.current_year} — they have not left, they have
-        stopped converting. That is a pipeline problem and far cheaper to fix than a cold
-        reactivation. The other {n0(dormant.stats.n - data.dormant_still_applying)} have gone quiet
-        entirely and need a relationship rebuilt. For comparison, win-backs currently landing:{" "}
-        <b>{n0(resurrected.stats.n)}</b> resurrected introducers, {n0(resurrected.stats.cur)} deposits.
-      </Band>
-
-      <Section title="Leakage" note="Revenue that used to arrive, or never did.">
+      <Section title="Leaking revenue" note="Partners who paid before and don't now, plus effort that never converted.">
         <Tiles
-          tiles={data.tiles} section="leak" currentYear={data.current_year}
-          selected={selected} onSelect={setSelected}
+          tiles={data.tiles} section="leak" currentYear={data.current_year} onOpen={setSelected}
           extra={(tile) => tile.id === "dormant"
             ? `${n0(data.dormant_still_applying)} still submitting applications`
             : null}
         />
+        <div className="band info" style={{ marginTop: 14 }}>
+          <span className="ic">→</span>
+          <div>
+            <b>Where to start.</b>{" "}
+            {n0(data.dormant_still_applying)} of the {n0(dormant.stats.n)} dormant introducers are{" "}
+            <b>still submitting applications</b> in {data.current_year} — they have not left, they
+            have stopped converting. That is a pipeline problem and far cheaper to fix than a cold
+            reactivation. The other {n0(dormant.stats.n - data.dormant_still_applying)} have gone
+            quiet entirely and need a relationship rebuilt. For comparison, win-backs currently
+            landing: <b>{n0(resurrected.stats.n)}</b> resurrected introducers,{" "}
+            {n0(resurrected.stats.cur)} deposits.
+          </div>
+        </div>
       </Section>
-
-      <Section title="Quality" note="Read these alongside country. See the critique below.">
-        <Tiles tiles={data.tiles} section="quality" currentYear={data.current_year}
-               selected={selected} onSelect={setSelected} />
-      </Section>
-
-      {selected ? (
-        <DrillDown slug={slug} tileId={selected} onClose={() => setSelected(null)} />
-      ) : null}
 
       <Section
-        title="Conversion funnel by intake year"
-        note={
-          <>
-            Intake cycle: Nov &amp; Dec roll into the following January; Apr–Jul fold to May; Aug–Oct
-            to September. Both scopes exclude the{" "}
-            {pct(data.data.blank_intro, data.data.app_rows)} of applications with no introducer name.
-            {data.data.no_year
-              ? ` ${n0(data.data.no_year)} applications have no usable intake year and sit outside this table.`
-              : null}
-          </>
-        }
+        title="Quality"
+        note="Where applications and deposits are being lost. Read alongside country — see the critique below."
       >
-        <Funnel overview={data} />
+        <Tiles tiles={data.tiles} section="quality" currentYear={data.current_year} onOpen={setSelected} />
       </Section>
 
-      <Section title="What these thresholds actually measure">
+      <Section
+        title="Conversion funnel"
+        note="By intake cycle year. Nov–Dec roll into the following January."
+        aside={
+          <Seg
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: "scope", label: "In-scope introducers" },
+              { value: "all", label: "All attributed" },
+            ]}
+          />
+        }
+      >
+        <InFlightBand overview={data} />
+        <Funnel overview={data} scope={scope} />
+        <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>
+          Intake cycle: Nov &amp; Dec roll into the following January; Apr–Jul fold to May; Aug–Oct
+          to September. <b>In-scope</b> counts only introducers in the book above; <b>all
+          attributed</b> adds every named introducer, including those with applications but no
+          deposits and no Customer record. Both exclude the{" "}
+          {pct(data.data.blank_intro, data.data.app_rows)} of applications with no introducer name.
+          {data.data.no_year
+            ? ` ${n0(data.data.no_year)} applications have no usable intake year and sit outside this table.`
+            : null}
+        </p>
+      </Section>
+
+      <Section title="Critique of the metric definitions" note="Thresholds tested against this file, not assumed.">
         <Critique overview={data} />
       </Section>
 
-      <Section title="Data notes">
+      <Section
+        title="Data notes"
+        note="Everything below is measured from the files you loaded. It changes what the numbers can be used for."
+      >
         <Notes overview={data} />
       </Section>
+
+      <SidePane slug={slug} tileId={selected} onClose={() => setSelected(null)} />
     </>
   );
 }
@@ -119,22 +128,25 @@ function ScopeBand({ overview }: { overview: Overview }) {
   const customerStage = overview.by_stage.find((s) => s.stage === "Customer");
   const droppedByStrictFilter = overview.totals.act_life - (customerStage?.act ?? 0);
   return (
-    <Band>
-      <b>Scope.</b> {n0(overview.book_size)} introducers are in scope — every partner at{" "}
-      <i>Customer</i> stage, plus anyone with a paid deposit at any stage. Together they hold{" "}
-      <b>{n0(overview.totals.act_life)} active</b> and <b>{n0(overview.totals.clos_life)} closed</b>{" "}
-      deposits, {n0(overview.totals.act_cur)} of them active in the {overview.current_year} intake.{" "}
-      {overview.by_stage.map((s, i) => (
-        <span key={s.stage}>
-          {i ? " · " : ""}<b>{n0(s.n)}</b> {s.stage} ({n0(s.act)} active dep.)
-        </span>
-      ))}
-      . A strict <i>Customer</i>-only filter would drop {n0(droppedByStrictFilter)} active deposits.{" "}
-      {n0(overview.data.blank_intro)} applications (
-      {pct(overview.data.blank_intro, overview.data.app_rows)}) carry no introducer name and are
-      excluded from every introducer-level figure — these totals will not tie to overall revenue
-      reporting.
-    </Band>
+    <div className="band info" style={{ marginTop: 34 }}>
+      <span className="ic">◆</span>
+      <div>
+        <b>Scope.</b> {n0(overview.book_size)} introducers are in scope — every partner at{" "}
+        <i>Customer</i> stage, plus anyone with a paid deposit at any stage. Together they hold{" "}
+        <b>{n0(overview.totals.act_life)} active</b> and <b>{n0(overview.totals.clos_life)} closed</b>{" "}
+        deposits, {n0(overview.totals.act_cur)} of them active in the {overview.current_year} intake.{" "}
+        {overview.by_stage.map((s, i) => (
+          <span key={s.stage}>
+            {i ? " · " : ""}<b>{n0(s.n)}</b> {s.stage} ({n0(s.act)} active dep.)
+          </span>
+        ))}
+        . A strict <i>Customer</i>-only filter would drop {n0(droppedByStrictFilter)} active
+        deposits. {n0(overview.data.blank_intro)} applications (
+        {pct(overview.data.blank_intro, overview.data.app_rows)}) carry no introducer name and are
+        excluded from every introducer-level figure — these totals will not tie to overall revenue
+        reporting.
+      </div>
+    </div>
   );
 }
 
@@ -154,7 +166,7 @@ function InFlightBand({ overview }: { overview: Overview }) {
         </>
       ) : null}
       Treat every {overview.current_year} figure as a <b>floor</b>: deposits keep landing after the
-      export date. Rows dated after {overview.current_year} appear in the funnel table but are
+      export date. Rows dated after {overview.current_year} appear in the table below but are
       excluded from all tile scoring, so a single future-dated deposit cannot flip an introducer out
       of dormant.
     </Band>

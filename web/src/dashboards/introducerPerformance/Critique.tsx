@@ -17,7 +17,7 @@ export function Critique({ overview }: { overview: Overview }) {
     `${c.country} ${Math.round(100 * c.top)}% ${c.peak}`;
 
   return (
-    <div className="card pad critique">
+    <div className="prose">
       <h3>
         App-to-enrolment below 10%
         <Verdict bad={enrolment.miscalibrated}>

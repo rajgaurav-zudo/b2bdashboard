@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from . import migrate, registry
 from .db import pool
@@ -23,6 +24,9 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="B2B dashboards", version="0.1.0", lifespan=lifespan)
+# drill-downs ship the whole member list so the pane can regroup without a
+# round trip; the largest is ~1.7MB of very repetitive JSON.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

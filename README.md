@@ -75,12 +75,14 @@ See [docs/architecture.md](docs/architecture.md) for the design and the decision
 | File reading + column resolution | working, 13 tests |
 | Introducer ingest + tests | working, 14 tests |
 | Metrics API (tiles, funnel, drill-down) | working, 20 tests |
+| Drill-down side pane (group / sort / expand) | working, client-side from `/views/members` |
 | React + TypeScript frontend | working |
 | Auth, object storage, deployment | not started, deliberately last |
 
 `legacy/introducer-dashboard.html` is the original single-file version, kept as the
-provenance of the metric definitions. It parses both exports in the browser on every page
-load, which is what the React app exists to stop doing.
+provenance of both the metric definitions and the visual design. It parses both exports in
+the browser on every page load, which is what the React app exists to stop doing; the
+stylesheet and the drill-down pane are ports of it, not reinterpretations.
 
 ## Exports that need handling
 

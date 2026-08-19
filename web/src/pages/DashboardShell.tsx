@@ -6,29 +6,35 @@ import { Empty, Spinner } from "../ui/Primitives";
 export function DashboardShell() {
   const { slug = "" } = useParams();
   const { data, isLoading, error } = useDashboard(slug);
-
-  const tab = ({ isActive }: { isActive: boolean }) => `tab${isActive ? " on" : ""}`;
+  const link = ({ isActive }: { isActive: boolean }) => (isActive ? "on" : "");
 
   return (
     <>
-      <header className="topbar">
-        <div className="topbar-in">
-          <div className="brand">
-            <Link to="/" style={{ color: "inherit" }}>{data?.name ?? slug}</Link>
-            <small>Edvoy B2B · {slug}</small>
+      <header className="top">
+        <div className="top-in">
+          <div className="row">
+            <div>
+              <Link to="/" className="back">← All dashboards</Link>
+              <h1>{data?.name ?? slug}</h1>
+              <p className="sub">
+                Which recruitment partners used to pay us and stopped — and who to call first to win
+                them back. Deposit counts are the revenue proxy; commission value is not in either
+                export.
+              </p>
+            </div>
+            <nav className="nav">
+              <NavLink end to={`/d/${slug}`} className={link}>Overview</NavLink>
+              <NavLink to={`/d/${slug}/data`} className={link}>Data</NavLink>
+              <NavLink to={`/d/${slug}/changelog`} className={link}>Changelog</NavLink>
+            </nav>
           </div>
-          <nav className="tabs">
-            <NavLink end to={`/d/${slug}`} className={tab}>Overview</NavLink>
-            <NavLink to={`/d/${slug}/data`} className={tab}>Data</NavLink>
-            <NavLink to={`/d/${slug}/changelog`} className={tab}>Changelog</NavLink>
-          </nav>
         </div>
       </header>
-      <main className="shell">
+      <div className="wrap">
         {isLoading ? <Spinner /> : null}
         {error ? <Empty title="Unknown dashboard">Nothing is registered under “{slug}”.</Empty> : null}
         {data ? <Outlet context={data} /> : null}
-      </main>
+      </div>
     </>
   );
 }

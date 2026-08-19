@@ -11,7 +11,7 @@ export function Notes({ overview }: { overview: Overview }) {
   const duplicates = d.intro_stats?.duplicate_names ?? null;
 
   return (
-    <div className="notes">
+    <div className="notes-grid">
       <Note title="Current intake year is chosen, not assumed">
         {newest && newest.y > overview.current_year ? (
           <>

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  LoadRow, Overview, TileDrilldown, UploadResult, UploadRow,
+  LoadRow, Overview, TileMembers, UploadResult, UploadRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
@@ -55,19 +55,6 @@ export function useOverview(slug: string) {
   });
 }
 
-export function useTile(
-  slug: string,
-  tileId: string | null,
-  params: { group_by: string; sort: string; dir: string },
-) {
-  return useQuery({
-    queryKey: ["view", slug, "tile", tileId, params],
-    queryFn: () => get<TileDrilldown>(`/dashboards/${slug}/views/tile`, { id: tileId!, ...params }),
-    enabled: tileId !== null,
-    placeholderData: (previous) => previous,      // keep the table on screen while re-sorting
-  });
-}
-
 export function useChangelog(slug: string) {
   return useQuery({
     queryKey: ["changelog", slug],
@@ -87,6 +74,17 @@ export function useLoads(slug: string) {
   return useQuery({
     queryKey: ["loads", slug],
     queryFn: () => get<LoadRow[]>(`/dashboards/${slug}/loads`),
+  });
+}
+
+export function useTileMembers(slug: string, tileId: string | null) {
+  return useQuery({
+    queryKey: ["view", slug, "members", tileId],
+    queryFn: () => get<TileMembers>(
+      `/dashboards/${slug}/views/members?id=${encodeURIComponent(tileId!)}`),
+    enabled: tileId !== null,
+    // the pane regroups and re-sorts locally, so the payload is fetched once per tile
+    staleTime: 5 * 60 * 1000,
   });
 }
 

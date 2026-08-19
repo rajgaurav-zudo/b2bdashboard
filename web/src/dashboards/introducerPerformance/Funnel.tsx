@@ -27,7 +27,7 @@ function toRows(source: FunnelRow[], currentYear: number): Row[] {
 }
 
 const COLUMNS: { key: keyof Row; label: string }[] = [
-  { key: "y", label: "Year" },
+  { key: "y", label: "Intake year" },
   { key: "apps", label: "Applications" },
   { key: "paid", label: "Deposits paid" },
   { key: "act", label: "Active" },
@@ -35,12 +35,11 @@ const COLUMNS: { key: keyof Row; label: string }[] = [
   { key: "cpct", label: "Closed %" },
   { key: "r1", label: "App → active" },
   { key: "r2", label: "App → any dep." },
-  { key: "r3", label: "Dep → visa" },
+  { key: "r3", label: "Dep → visa granted" },
   { key: "r4", label: "Dep → enrolled" },
 ];
 
-export function Funnel({ overview }: { overview: Overview }) {
-  const [scope, setScope] = useState<"scope" | "all">("scope");
+export function Funnel({ overview, scope }: { overview: Overview; scope: "scope" | "all" }) {
   const [sort, setSort] = useState<keyof Row>("y");
   const [dir, setDir] = useState<1 | -1>(1);
 
@@ -143,37 +142,45 @@ export function Funnel({ overview }: { overview: Overview }) {
   }, [labels, shown]);
 
   const header = (key: keyof Row, label: string) => (
-    <th key={key} className="num" onClick={() => {
-      if (key === sort) setDir(dir === 1 ? -1 : 1);
-      else { setSort(key); setDir(key === "y" ? 1 : -1); }
-    }}>
-      {label}{sort === key ? <span className="dir"> {dir === 1 ? "▲" : "▼"}</span> : null}
+    <th
+      key={key}
+      className={`sortable${sort === key ? " sorted" : ""}`}
+      onClick={() => {
+        if (key === sort) setDir(dir === 1 ? -1 : 1);
+        else { setSort(key); setDir(-1); }
+      }}
+    >
+      {label}<span className="ar">{sort === key ? (dir === 1 ? "▲" : "▼") : "▼"}</span>
     </th>
   );
 
   return (
     <>
-      <div className="pane-bar card" style={{ borderRadius: "var(--radius)", marginBottom: 12 }}>
-        <label>Scope</label>
-        <button type="button" className={`chip${scope === "scope" ? " on" : ""}`}
-                onClick={() => setScope("scope")}>In scope</button>
-        <button type="button" className={`chip${scope === "all" ? " on" : ""}`}
-                onClick={() => setScope("all")}>All attributed</button>
-        <span style={{ fontSize: 12, color: "var(--faint)" }}>
-          “In scope” is the book the tiles score. “All attributed” adds every named introducer,
-          including those who never reached Customer stage and never paid a deposit.
-        </span>
+      <div className="charts">
+        <div className="chart-card">
+          <h3>Deposits by intake year</h3>
+          <p className="cap">Paid deposits split by whether the application later closed lost.</p>
+          <div className="chart-box"><Chart config={volume} /></div>
+        </div>
+        <div className="chart-card">
+          <h3>Conversion rates by intake year</h3>
+          <p className="cap">
+            Visa and enrolment rates are only meaningful for closed intakes. Future-dated intakes
+            are excluded from both charts.
+          </p>
+          <div className="chart-box"><Chart config={rates} /></div>
+        </div>
       </div>
 
-      <div className="card scroll">
-        <table>
+      <div className="tbl-wrap">
+        <table className="funnel-table">
           <thead><tr>{COLUMNS.map((c) => header(c.key, c.label))}</tr></thead>
           <tbody>
             {sorted.map((r) => (
               <tr key={r.y} style={r.future ? { opacity: 0.6 } : undefined}>
                 <td className="num">
                   <b>{r.y}</b>{" "}
-                  {r.future ? <Pill kind="future">future intake</Pill>
+                  {r.future ? <Pill kind="cold">future intake</Pill>
                     : r.y === overview.current_year ? <Pill kind="live">in flight</Pill> : null}
                 </td>
                 <td className="num">{n0(r.apps)}</td>
@@ -189,7 +196,7 @@ export function Funnel({ overview }: { overview: Overview }) {
             ))}
           </tbody>
           <tfoot>
-            <tr className="total">
+            <tr>
               <td>All years</td>
               <td className="num">{n0(totals.apps)}</td>
               <td className="num">{n0(totals.act + totals.clos)}</td>
@@ -202,11 +209,6 @@ export function Funnel({ overview }: { overview: Overview }) {
             </tr>
           </tfoot>
         </table>
-      </div>
-
-      <div className="charts" style={{ marginTop: 12 }}>
-        <div className="card pad"><Chart config={volume} /></div>
-        <div className="card pad"><Chart config={rates} /></div>
       </div>
     </>
   );

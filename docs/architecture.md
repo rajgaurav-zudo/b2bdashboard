@@ -56,6 +56,12 @@ GET /api/dashboards/{slug}/views/{view}?...
 Core never knows what a tile is. Adding a view to one dashboard cannot change another's,
 and a dashboard with no `metrics.py` simply has no views.
 
+Drill-downs are the exception to "the server does the arithmetic": `/views/members`
+returns one tile's whole member list and the pane groups, sorts and expands it locally.
+Regrouping 3.5k rows in the browser is instant and a round trip is not, and the payload
+gzips to ~75KB. `/views/tile` still does the same work server-side with a row cap, for
+consumers that want a bounded response.
+
 The browser receives finished numbers. On a 227k-row applications file the overview query
 takes ~0.5s and a grouped drill-down ~0.15s; the payload does not grow with the file,
 because drill-downs are grouped, sorted and capped server-side.

@@ -507,4 +507,35 @@ def tile(ctx: ViewContext, params: dict):
     }
 
 
-VIEWS = {"overview": overview, "tile": tile}
+def members(ctx: ViewContext, params: dict):
+    """Every introducer in one tile, unaggregated.
+
+    The pane groups, sorts and expands client-side the way the single-file
+    version did, so switching tab or opening a group costs no round trip. The
+    largest tile is ~3.5k rows, which is well inside what one payload can carry.
+    """
+    tile_id = params.get("id")
+    cur, prev, _ = _years(ctx)
+    definitions = {t["id"]: t for t in tile_defs(cur, prev)}
+    if tile_id not in definitions:
+        raise ViewError(f"unknown tile '{tile_id}' (have: {', '.join(definitions)})")
+
+    definition = definitions[tile_id]
+    rows, stats = tile_stats(definition, _book(ctx, cur, prev))
+
+    by_stage: dict[str, dict] = {}
+    for row in rows:
+        bucket = by_stage.setdefault(row["stage"], {"stage": row["stage"], "n": 0, "act": 0, "clos": 0})
+        bucket["n"] += 1
+        bucket["act"] += row["act_life"]
+        bucket["clos"] += row["clos_life"]
+
+    return {
+        "current_year": cur, "previous_year": prev,
+        "tile": _public(definition, stats),
+        "by_stage": sorted(by_stage.values(), key=lambda b: -b["n"]),
+        "rows": [{k: r[k] for k in _ROW_FIELDS} for r in rows],
+    }
+
+
+VIEWS = {"overview": overview, "tile": tile, "members": members}
