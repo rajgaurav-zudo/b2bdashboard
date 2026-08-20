@@ -1,0 +1,43 @@
+# Render deployment (free instance type).
+#
+# Region: Singapore, the closest Render offers to the Supabase database in
+# ap-northeast-2 (Seoul). What matters is app-to-database distance, not
+# browser-to-app: the browser only ever fetches small cached JSON.
+#
+# The free instance is 512MB / 0.1 CPU and spins down after 15 minutes idle,
+# so it is sized for reading dashboards, not for ingest. Uploading a 114MB
+# export peaks around 625MB and must be run locally against the same Supabase
+# project (make up / the compose stack), which writes to the same database
+# and the same bucket this service reads.
+
+services:
+  - type: web
+    name: edvoy-b2b-dashboard
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      # one worker: two would not fit in 512MB alongside polars
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: STORAGE_BACKEND
+        value: supabase
+      # Render translates env vars into Docker build args, which is how the
+      # VITE_* values reach the frontend bundle. Only public values belong here.
+      - key: VITE_AUTH_REQUIRED
+        value: "false"
+      - key: AUTH_REQUIRED
+        value: "false"
+      # set in the Render dashboard, never in the repo
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: AUTH_ALLOWED_EMAILS
+        sync: false
