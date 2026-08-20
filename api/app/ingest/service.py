@@ -14,6 +14,7 @@ from ..config import settings
 from ..db import pool
 from ..registry import Dashboard
 from ..storage import storage
+from ..views import invalidate as invalidate_views
 from .reader import IngestError, apply_spec, read_table
 
 SYSTEM_COLUMNS = ("load_id", "row_hash")
@@ -180,6 +181,9 @@ def activate(dashboard: Dashboard, load_id: int, actor: str | None = None) -> di
                          "replaced_load": replaced["id"] if replaced else None})),
         )
         conn.commit()
+        # after the commit: dropping cached views earlier would let a concurrent
+        # read repopulate them from the load being replaced
+        invalidate_views(dashboard.slug)
         return {"load_id": load_id, "changed": True, "summary": summary,
                 "replaced_load": replaced["id"] if replaced else None}
 
@@ -329,6 +333,7 @@ def ingest(dashboard: Dashboard, dataset_slug: str, filename: str, content: byte
                     (prepared.height, upload_id),
                 )
             conn.commit()
+        invalidate_views(dashboard.slug)
 
         return {
             "upload_id": upload_id,

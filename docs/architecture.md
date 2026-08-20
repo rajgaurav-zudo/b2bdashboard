@@ -62,6 +62,15 @@ Regrouping 3.5k rows in the browser is instant and a round trip is not, and the 
 gzips to ~75KB. `/views/tile` still does the same work server-side with a row cap, for
 consumers that want a bounded response.
 
+Read models are cached on the load ids they were built from, not on a clock. An
+upload creates a new load, which is a new key, so the previous answer becomes
+unreachable rather than stale; rolling back returns to the earlier load's key and
+its cached answer, which is the same value it computed before. This matters once
+the database is not local: fetching one dashboard's book is ~2.5MB and costs
+~2.8s across a link to another region, and it was being refetched for the
+overview and for each of the thirteen tiles separately. The dashboard caches the
+book itself as well, so all of them share one fetch.
+
 The browser receives finished numbers. On a 227k-row applications file the overview query
 takes ~0.5s and a grouped drill-down ~0.15s; the payload does not grow with the file,
 because drill-downs are grouped, sorted and capped server-side.

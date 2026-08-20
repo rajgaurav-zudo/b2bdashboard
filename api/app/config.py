@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # replica should not hold more than it needs.
     db_pool_max: int = 10
 
+    # Cached read models are keyed by load id, so this bounds memory rather than
+    # freshness. A dashboard's overview is ~100KB; a big drill-down ~1.7MB.
+    view_cache_entries: int = 24
+
     # --- storage ---------------------------------------------------------------
     # auto: use Supabase when its url and service key are set, filesystem otherwise.
     storage_backend: str = "auto"

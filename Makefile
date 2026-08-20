@@ -23,8 +23,11 @@ psql:
 migrate:       ## apply core + every dashboard migration
 	docker compose exec api python -m app.migrate
 
-test:
-	docker compose exec api pytest /srv/api/tests /srv/dashboards -q
+test:          ## always against the local database, never the linked project
+	docker compose exec \
+	  -e DATABASE_URL=postgresql://$${POSTGRES_USER:-b2b}:$${POSTGRES_PASSWORD:-b2b}@db:5432/$${POSTGRES_DB:-b2bdash} \
+	  -e STORAGE_BACKEND=local \
+	  api pytest /srv/api/tests /srv/dashboards -q
 
 typecheck:     ## tsc over the frontend
 	docker compose exec web npx tsc -b --noEmit

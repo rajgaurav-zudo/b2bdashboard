@@ -14,6 +14,7 @@ context.md; the short version of the two that trip people up:
 Nothing here is imported by core or by any other dashboard.
 """
 import sys
+from collections import OrderedDict
 from statistics import median
 
 sys.path.insert(0, "/srv/api")
@@ -204,7 +205,29 @@ def _years(ctx: ViewContext) -> tuple[int, int, list[dict]]:
     return cur, cur - 1, hist
 
 
+# Every view here starts from the same book, and fetching it is by far the most
+# expensive thing this module does: ~7k rows and ~2.5MB, which is 2.8s across a
+# link to another region. Cached on the loads it was built from, so the overview
+# and all thirteen tile drill-downs share one fetch instead of paying for their
+# own. Two entries is enough for the current loads plus one rollback in flight.
+_BOOK_CACHE: "OrderedDict[tuple, list[dict]]" = OrderedDict()
+_BOOK_CACHE_MAX = 2
+
+
 def _book(ctx: ViewContext, cur: int, prev: int) -> list[dict]:
+    key = (ctx.load("applications"), ctx.load("introducers"), cur, prev)
+    if (hit := _BOOK_CACHE.get(key)) is not None:
+        _BOOK_CACHE.move_to_end(key)
+        return hit
+
+    rows = _load_book(ctx, cur, prev)
+    _BOOK_CACHE[key] = rows
+    while len(_BOOK_CACHE) > _BOOK_CACHE_MAX:
+        _BOOK_CACHE.popitem(last=False)
+    return rows
+
+
+def _load_book(ctx: ViewContext, cur: int, prev: int) -> list[dict]:
     rows = ctx.rows(BOOK_SQL, {
         "apps": ctx.load("applications"), "intro": ctx.load("introducers"),
         "cur": cur, "prev": prev,
