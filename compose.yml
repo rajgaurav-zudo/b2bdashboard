@@ -26,6 +26,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-b2b}:${POSTGRES_PASSWORD:-b2b}@db:5432/${POSTGRES_DB:-b2bdash}}
       DASHBOARDS_DIR: /srv/dashboards
       UPLOAD_DIR: /srv/data/uploads
+      # local unless STORAGE_BACKEND says otherwise, so development does not push
+      # every test upload to the bucket
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       # Off for local work so development needs no Supabase account. The default
       # in config.py is on, so anything that does not say this explicitly is
       # protected -- and the API prints a loud line at boot when it is off.

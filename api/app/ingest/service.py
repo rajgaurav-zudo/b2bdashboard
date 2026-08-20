@@ -13,6 +13,7 @@ import polars as pl
 from ..config import settings
 from ..db import pool
 from ..registry import Dashboard
+from ..storage import storage
 from .reader import IngestError, apply_spec, read_table
 
 SYSTEM_COLUMNS = ("load_id", "row_hash")
@@ -22,14 +23,19 @@ def _q(ident: str) -> str:
     return '"' + ident.replace('"', '""') + '"'
 
 
+_CONTENT_TYPES = {
+    ".csv": "text/csv",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+}
+
+
 def _store(dashboard: Dashboard, dataset_slug: str, sha: str, filename: str, content: bytes) -> str:
-    suffix = Path(filename).suffix or ".csv"
-    directory = Path(settings.upload_dir) / dashboard.slug / dataset_slug
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{sha[:16]}{suffix}"
-    if not path.exists():
-        path.write_bytes(content)
-    return str(path)
+    """Keep the original export. Content-addressed, so re-uploading the same file
+    writes the same object rather than a second copy."""
+    suffix = Path(filename).suffix.lower() or ".csv"
+    key = f"{dashboard.slug}/{dataset_slug}/{sha[:16]}{suffix}"
+    return storage().put(key, content, _CONTENT_TYPES.get(suffix, "application/octet-stream"))
 
 
 def _ids(cur, dashboard: Dashboard, dataset_slug: str) -> tuple[int, int]:

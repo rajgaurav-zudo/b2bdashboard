@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from . import auth, migrate, registry
+from . import auth, migrate, registry, storage
 from .config import settings
 from .db import pool
 from .ingest.service import reconcile_interrupted
@@ -24,6 +24,7 @@ async def lifespan(_: FastAPI):
     # Misconfigured auth is worse than none: it looks protected. Refuse to boot.
     if problems := auth.preflight():
         raise RuntimeError("auth misconfigured -- " + "; ".join(problems))
+    print(f"storage: {storage.storage().label}")
     if settings.auth_required:
         print(f"auth: verifying Supabase tokens, {auth.warmup()}")
     else:

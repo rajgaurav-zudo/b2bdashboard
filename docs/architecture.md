@@ -177,3 +177,23 @@ applied in the dashboard, or with `supabase config push`.
 Auth is off in local development (`AUTH_REQUIRED=false` in compose.yml) so the
 stack runs without an account. The default in `config.py` is on, and the API
 prints a conspicuous line at boot when it is off.
+
+## Storage
+
+The parsed rows go to Postgres; the original export is kept separately so a load
+can be explained or replayed. `api/app/storage.py` has two backends behind one
+interface -- the filesystem for development, a private Supabase bucket for
+anything that outlives a container -- and `STORAGE_BACKEND=supabase` fails at
+startup rather than silently falling back, because a deployment that thinks it
+is archiving to object storage while writing to a disposable disk loses the
+archive without any error.
+
+Keys are the sha256 prefix of the content, so re-uploading the same file writes
+the same object instead of a second copy.
+
+**The stored object is the file as it arrived.** For the applications export
+that is all 50 source columns, including the student names, nationalities and
+reference numbers the ingest layer drops -- the loaded table keeps 18. So the
+database holds no student PII but the archive does. The bucket is private with
+no `storage.objects` policies, reachable only with the service role key, and how
+long these are retained is a decision that has not been made yet.
