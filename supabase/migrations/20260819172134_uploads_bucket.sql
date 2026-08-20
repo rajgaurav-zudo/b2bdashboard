@@ -37,6 +37,3 @@ on conflict (id) do update
 -- If a policy is ever added here to let the browser upload directly, note what
 -- that costs: a file in the bucket with no matching core.uploads row is invisible
 -- to the changelog and to rollback.
-
-comment on schema storage is
-  'Supabase storage. Bucket "uploads" holds raw CRM exports: private, service-role access only.';
