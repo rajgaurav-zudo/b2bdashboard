@@ -1,0 +1,11 @@
+.git
+.env
+data/
+legacy/
+docs/
+supabase/
+web/node_modules
+web/dist
+**/__pycache__
+**/.pytest_cache
+*.md

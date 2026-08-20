@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -51,3 +54,24 @@ def healthz():
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute("select 1 as ok")
         return {"ok": cur.fetchone()["ok"] == 1}
+
+
+# --- the built frontend -------------------------------------------------------
+# Serving the SPA from the same process as the API means one deployable, one
+# origin and no CORS. Mounted last so /api and /healthz always win, and only when
+# a build is present: in development Vite serves it and proxies /api here.
+_dist = Path(settings.web_dist) if settings.web_dist else None
+if _dist and _dist.is_dir():
+    app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
+
+    @app.get("/{path:path}")
+    def spa(path: str):
+        """Any unknown path returns index.html so client-side routes survive a
+        reload; /api is excluded so a wrong endpoint 404s as JSON rather than
+        silently returning the app shell."""
+        if path.startswith("api/"):
+            raise HTTPException(404, "no such endpoint")
+        candidate = (_dist / path).resolve()
+        if path and _dist.resolve() in candidate.parents and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_dist / "index.html")
