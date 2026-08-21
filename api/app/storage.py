@@ -41,6 +41,9 @@ class Storage(Protocol):
     def put(self, key: str, content: bytes, content_type: str) -> str:
         """Store the bytes and return a locator to record against the upload."""
 
+    def get(self, locator: str) -> bytes:
+        """Return the original bytes for a locator produced by put()."""
+
     @property
     def label(self) -> str:
         ...
@@ -59,6 +62,14 @@ class LocalStorage:
         if not path.exists():                       # content is addressed by hash
             path.write_bytes(content)
         return str(path)
+
+    def get(self, locator: str) -> bytes:
+        path = Path(locator)
+        if not path.is_absolute():
+            path = self.root / locator
+        if not path.is_file():
+            raise StorageError(f"nothing archived at {locator}")
+        return _maybe_gunzip(path.read_bytes())
 
     @property
     def label(self) -> str:
@@ -137,9 +148,41 @@ class SupabaseStorage:
             )
         return f"{self.bucket}/{key}"
 
+    def get(self, locator: str) -> bytes:
+        """Fetch by the locator recorded on the upload.
+
+        Locators written before compression have no .gz and locators written
+        after do; both are read here, because the archive has to stay readable
+        across the change that made it possible at all.
+        """
+        key = locator.split("/", 1)[1] if locator.startswith(f"{self.bucket}/") else locator
+        target = f"{self.base}/object/{quote(self.bucket)}/{quote(key)}"
+        try:
+            response = httpx.get(target, headers=self._headers, timeout=self.timeout)
+        except httpx.HTTPError as exc:
+            raise StorageError(f"could not reach storage: {exc}") from exc
+        if response.status_code >= 400:
+            raise StorageError(
+                f"could not read the archived file ({response.status_code}): {response.text[:200]}"
+            )
+        return _maybe_gunzip(response.content)
+
     @property
     def label(self) -> str:
         return f"supabase:{self.bucket}"
+
+
+_GZIP_MAGIC = b"\x1f\x8b"
+
+
+def _maybe_gunzip(payload: bytes) -> bytes:
+    """Decompress if it is gzip, return it untouched otherwise.
+
+    Sniffed rather than decided from the key: the archive predates compression,
+    so both shapes are in the bucket and both have to come back as the original
+    file. The magic number is two bytes no CSV or workbook starts with.
+    """
+    return gzip.decompress(payload) if payload[:2] == _GZIP_MAGIC else payload
 
 
 def build() -> Storage:

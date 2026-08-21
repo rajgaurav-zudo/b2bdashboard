@@ -5,6 +5,9 @@ export interface DatasetSummary {
   slug: string;
   display_name: string;
   table?: string;
+  /** Which uploaded file feeds this table. Files are platform-level: one
+   *  applications export feeds every dashboard that declares it. */
+  source?: string;
   natural_key: string[];
   required_columns?: string[];
 }
@@ -74,26 +77,53 @@ export interface LoadRow {
   uploaded_by: string | null;
 }
 
+/** One row per projection: what *this* dashboard made of a file it was given.
+ *  The same file may appear against other dashboards with a different outcome. */
 export interface UploadRow {
   id: number;
+  upload_id: number;
+  source: string;
   dataset: string;
   filename: string;
   byte_size: number;
   row_count: number | null;
-  status: "pending" | "parsing" | "loading" | "diffing" | "ready" | "failed" | "duplicate";
+  status: "pending" | "loading" | "diffing" | "ready" | "failed" | "duplicate";
   error: string | null;
   started_at: string;
   finished_at: string | null;
   uploaded_by: string | null;
 }
 
+/** What one dashboard did with an uploaded file. */
+export interface Projection {
+  dashboard: string;
+  dataset: string;
+  status: "ready" | "failed" | "duplicate";
+  load_id?: number | null;
+  rows?: number | null;
+  summary?: string;
+  error?: string;
+}
+
+/** An upload feeds every dashboard that declares its source, so the result is a
+ *  list of outcomes rather than one. */
 export interface UploadResult {
   upload_id: number;
+  source: string;
   status: string;
   changed: boolean;
-  load_id?: number;
-  summary?: string;
-  counts?: Record<string, number>;
+  rows: number;
+  reused_archive: boolean;
+  projections: Projection[];
+}
+
+export interface SourceSummary {
+  slug: string;
+  display_name: string;
+  description: string | null;
+  uploads: number;
+  last_upload: string | null;
+  dashboards: { slug: string; name: string; dataset: string; display_name: string }[];
 }
 
 /* ---------- introducer performance view models ---------- */

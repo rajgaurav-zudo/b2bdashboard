@@ -89,7 +89,7 @@ def book():
         with conn.cursor() as cur:
             cur.execute(f'set local search_path to "{dashboard.db_schema}", public')
             cur.execute(
-                """select ds.slug, ds.id as dataset_id, d.id as dashboard_id
+                """select ds.slug, ds.id as dataset_id, d.id as dashboard_id, ds.source_id
                      from core.datasets ds
                      join core.dashboards d on d.id = ds.dashboard_id and d.slug = %s""",
                 (dashboard.slug,),
@@ -97,11 +97,13 @@ def book():
             ids = {r["slug"]: r for r in cur.fetchall()}
             loads = {}
             for slug, row in ids.items():
+                # an upload belongs to a source, not to this dashboard: the file is
+                # shared, and what this dashboard did with it is a projection
                 cur.execute(
                     """insert into core.uploads
-                         (dashboard_id, dataset_id, filename, byte_size, sha256, status)
-                       values (%s, %s, 'test', 0, md5(random()::text || %s), 'ready') returning id""",
-                    (row["dashboard_id"], row["dataset_id"], slug),
+                         (source_id, filename, byte_size, sha256, status)
+                       values (%s, 'test', 0, md5(random()::text || %s), 'ready') returning id""",
+                    (row["source_id"], slug),
                 )
                 upload_id = cur.fetchone()["id"]
                 cur.execute(

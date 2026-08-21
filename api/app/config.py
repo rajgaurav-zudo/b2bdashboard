@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql://b2b:b2b@db:5432/b2bdash"
     dashboards_dir: str = "/srv/dashboards"
+    # Platform-level: what kinds of file the system accepts. Dashboards say
+    # which of these feeds each of their datasets; nothing here is per-dashboard.
+    sources_file: str = "/srv/sources/sources.yaml"
     # built frontend, served by this process in production. Empty in dev,
     # where Vite serves it and proxies /api here.
     web_dist: str = ""

@@ -4,7 +4,7 @@ from .. import registry, views
 from ..auth import User, audit_actor, current_user
 from ..db import pool
 from ..ingest.reader import IngestError
-from ..ingest.service import activate, ingest
+from ..ingest.service import activate, ingest_source, project_upload
 from ..storage import StorageError
 
 # Applied to the whole router rather than per route: a new endpoint is then
@@ -52,7 +52,7 @@ def get_dashboard(slug: str):
         "dimensions": dash.manifest.get("dimensions", []),
         "views": views.available(dash),
         "datasets": [
-            {"slug": ds.slug, "display_name": ds.display_name,
+            {"slug": ds.slug, "display_name": ds.display_name, "source": ds.source,
              "natural_key": ds.natural_key, "required_columns": ds.required_columns}
             for ds in dash.datasets.values()
         ],
@@ -75,23 +75,51 @@ def view(slug: str, view: str, request: Request):
         raise HTTPException(409, str(exc)) from exc
 
 
-@router.post("/dashboards/{slug}/datasets/{dataset}/uploads")
-async def upload(slug: str, dataset: str, file: UploadFile = File(...),
-                 uploaded_by: str | None = Query(default=None),
-                 user: User | None = Depends(current_user)):
+# --- sources: files, uploaded once, read by every dashboard that wants them ----
+
+@router.get("/sources")
+def list_sources():
+    """What can be uploaded, and who reads it.
+
+    `dashboards` is what makes the fan-out visible before it happens: uploading
+    the applications export feeds exactly the dashboards listed against it.
+    """
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """select s.slug, s.display_name, s.description,
+                      (select count(*) from core.uploads u
+                        where u.source_id = s.id and u.status = 'ready') as uploads,
+                      (select max(u.started_at) from core.uploads u
+                        where u.source_id = s.id and u.status = 'ready') as last_upload
+                 from core.sources s order by s.display_name"""
+        )
+        rows = cur.fetchall()
+    for row in rows:
+        row["dashboards"] = [
+            {"slug": dash.slug, "name": dash.name, "dataset": ds.slug,
+             "display_name": ds.display_name}
+            for dash, ds in registry.consumers(row["slug"])
+        ]
+    return rows
+
+
+@router.post("/sources/{source}/uploads")
+async def upload_source(source: str, file: UploadFile = File(...),
+                        uploaded_by: str | None = Query(default=None),
+                        user: User | None = Depends(current_user)):
+    """Upload one file. It is archived once and projected into every dashboard
+    that declares this source, each into its own tables."""
     try:
-        dash = registry.get(slug)
+        registry.source(source)
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
-    if dataset not in dash.datasets:
-        raise HTTPException(404, f"{slug} has no dataset '{dataset}'")
     content = await file.read()
     if not content:
         raise HTTPException(400, "empty file")
     try:
         # the signed-in identity wins: who uploaded is not the client's to assert
-        return ingest(dash, dataset, file.filename or "upload.csv", content,
-                      audit_actor(user) or uploaded_by)
+        return ingest_source(source, file.filename or "upload.csv", content,
+                             audit_actor(user) or uploaded_by)
     except IngestError as exc:
         raise HTTPException(422, str(exc)) from exc
     # The archive is part of the contract, so a failure here fails the upload --
@@ -104,21 +132,72 @@ async def upload(slug: str, dataset: str, file: UploadFile = File(...),
         raise HTTPException(404, str(exc)) from exc
 
 
+@router.get("/sources/{source}/uploads")
+def source_uploads(source: str, limit: int = Query(25, le=200)):
+    """Every file that arrived for this source, with what each dashboard made
+    of it."""
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """select u.id, u.filename, u.byte_size, u.row_count, u.status, u.error,
+                      u.started_at, u.finished_at, u.uploaded_by, u.sha256,
+                      coalesce(json_agg(json_build_object(
+                        'dashboard', d.slug, 'dataset', ds.slug, 'status', p.status,
+                        'rows', p.row_count, 'load_id', p.load_id, 'error', p.error
+                      ) order by d.slug, ds.slug) filter (where p.id is not null), '[]')
+                        as projections
+                 from core.uploads u
+                 join core.sources s on s.id = u.source_id and s.slug = %s
+                 left join core.projections p on p.upload_id = u.id
+                 left join core.dashboards d on d.id = p.dashboard_id
+                 left join core.datasets ds on ds.id = p.dataset_id
+                group by u.id
+                order by u.started_at desc limit %s""",
+            (source, limit),
+        )
+        return cur.fetchall()
+
+
+@router.post("/uploads/{upload_id}/project")
+def project(upload_id: int, dashboard: str | None = Query(default=None),
+            force: bool = Query(default=False)):
+    """Build a dashboard's tables from a file already uploaded.
+
+    This is how a dashboard added today reads the export that arrived last week,
+    and how a corrected ingest.py is applied to the exact bytes that were loaded
+    rather than to a fresh export that has since moved on. `force` re-runs a
+    projection that is already ready.
+    """
+    try:
+        return project_upload(upload_id, dashboard, force=force)
+    except IngestError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except StorageError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
 @router.get("/dashboards/{slug}/uploads")
 def uploads(slug: str, limit: int = Query(25, le=200)):
-    """Every upload attempt, including the ones that never became a load.
+    """What this dashboard made of every file it was given, failures included.
 
-    A failed import is otherwise invisible: it produces no load and no changelog
-    entry, so the dashboard just keeps serving the previous file and looks fine.
+    One row per projection rather than per upload: the same file feeds several
+    dashboards now, and a file that loaded cleanly here may have failed next
+    door. A failed projection is otherwise invisible -- it produces no load and
+    no changelog entry, so the dashboard keeps serving the previous file and
+    looks fine.
     """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
-            """select u.id, ds.slug as dataset, u.filename, u.byte_size, u.row_count,
-                      u.status, u.error, u.started_at, u.finished_at, u.uploaded_by
-                 from core.uploads u
-                 join core.dashboards d on d.id = u.dashboard_id and d.slug = %s
-                 join core.datasets ds on ds.id = u.dataset_id
-                order by u.started_at desc limit %s""",
+            """select p.id, ds.slug as dataset, u.filename, u.byte_size,
+                      p.row_count, p.status, p.error, p.started_at, p.finished_at,
+                      u.uploaded_by, u.id as upload_id, s.slug as source
+                 from core.projections p
+                 join core.dashboards d on d.id = p.dashboard_id and d.slug = %s
+                 join core.datasets ds on ds.id = p.dataset_id
+                 join core.uploads u on u.id = p.upload_id
+                 join core.sources s on s.id = u.source_id
+                order by p.started_at desc limit %s""",
             (slug, limit),
         )
         return cur.fetchall()

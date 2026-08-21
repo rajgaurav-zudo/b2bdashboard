@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accessToken } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  LoadRow, Overview, TileMembers, UploadResult, UploadRow,
+  LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
@@ -98,6 +98,14 @@ export function useTileMembers(slug: string, tileId: string | null) {
   });
 }
 
+/** The files the platform accepts, and which dashboards read each one. */
+export function useSources() {
+  return useQuery({
+    queryKey: ["sources"],
+    queryFn: () => get<SourceSummary[]>("/sources"),
+  });
+}
+
 export function useUploads(slug: string) {
   return useQuery({
     queryKey: ["uploads", slug],
@@ -127,19 +135,27 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>, slug: string
   void queryClient.invalidateQueries({ queryKey: ["dashboard", slug] });
 }
 
+/** Upload goes to a source, not to a dashboard: the file is archived once and
+ *  projected into every dashboard that declares it. `slug` is only the dashboard
+ *  the user happens to be looking at, so its views can be refreshed afterwards. */
 export function useUpload(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ dataset, file }: { dataset: string; file: File }) => {
+    mutationFn: async ({ source, file }: { source: string; file: File }) => {
       const body = new FormData();
       body.append("file", file);
       // no Content-Type header: the browser must set the multipart boundary itself
-      const res = await fetch(`${BASE}/dashboards/${slug}/datasets/${dataset}/uploads`, {
+      const res = await fetch(`${BASE}/sources/${source}/uploads`, {
         method: "POST", body, headers: await authHeaders(),
       });
       if (!res.ok) throw new ApiError(await detail(res), res.status);
       return res.json() as Promise<UploadResult>;
     },
-    onSuccess: () => invalidate(queryClient, slug),
+    onSuccess: () => {
+      invalidate(queryClient, slug);
+      // other dashboards were fed by the same file; drop their cached answers too
+      void queryClient.invalidateQueries({ queryKey: ["sources"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboards"] });
+    },
   });
 }

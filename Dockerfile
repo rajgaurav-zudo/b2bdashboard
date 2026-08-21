@@ -37,9 +37,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api/ /srv/api/
 COPY dashboards/ /srv/dashboards/
+COPY sources/ /srv/sources/
 COPY --from=web /build/dist /srv/web
 
 ENV DASHBOARDS_DIR=/srv/dashboards \
+    SOURCES_FILE=/srv/sources/sources.yaml \
     WEB_DIST=/srv/web \
     UPLOAD_DIR=/srv/data/uploads \
     STORAGE_BACKEND=supabase \

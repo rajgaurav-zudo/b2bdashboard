@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 
-import { useActivateLoad, useLoads, useUpload, useUploads } from "../api/client";
+import { useActivateLoad, useLoads, useSources, useUpload, useUploads } from "../api/client";
 import type { DashboardDetail, UploadResult, UploadRow } from "../api/types";
 import { n0, when } from "../format";
 import { Section, Spinner } from "../ui/Primitives";
@@ -23,10 +23,14 @@ export function DataPage() {
         </p>
       </div>
 
-      <Section title="Upload">
+      <Section
+        title="Upload"
+        note="Files belong to the platform, not to this dashboard. One upload feeds every dashboard that reads it."
+      >
         <div className="drops">
           {dashboard.datasets.map((dataset) => (
-            <Drop key={dataset.slug} slug={dashboard.slug} dataset={dataset.slug}
+            <Drop key={dataset.slug} slug={dashboard.slug}
+                  source={dataset.source ?? dataset.slug}
                   label={dataset.display_name}
                   hint={dataset.required_columns?.join(" · ") ?? ""} />
           ))}
@@ -130,18 +134,24 @@ function FailedUploads({ rows }: { rows: UploadRow[] }) {
   );
 }
 
-function Drop({ slug, dataset, label, hint }: {
-  slug: string; dataset: string; label: string; hint: string;
+function Drop({ slug, source, label, hint }: {
+  slug: string; source: string; label: string; hint: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
   const upload = useUpload(slug);
+  const sources = useSources();
+  // who else is fed by this file, so it is clear before dropping it that this
+  // is not a change to one dashboard
+  const also = (sources.data ?? [])
+    .find((s) => s.slug === source)?.dashboards
+    .filter((d) => d.slug !== slug) ?? [];
 
   const send = (file: File | undefined) => {
     if (!file) return;
     setResult(null);
-    upload.mutate({ dataset, file }, { onSuccess: setResult });
+    upload.mutate({ source, file }, { onSuccess: setResult });
   };
 
   return (
@@ -159,6 +169,9 @@ function Drop({ slug, dataset, label, hint }: {
         <b>{label}</b>
         <span>Drop a .csv or .xlsx here, or click to choose</span>
         {hint ? <span>needs {hint}</span> : null}
+        {also.length > 0 ? (
+          <span>also feeds {also.map((d) => d.name).join(", ")}</span>
+        ) : null}
         <input
           ref={input} type="file" accept=".csv,.xlsx,.xls" hidden
           onChange={(e) => { send(e.target.files?.[0]); e.target.value = ""; }}
@@ -166,11 +179,13 @@ function Drop({ slug, dataset, label, hint }: {
       </div>
       {upload.isPending ? <p className="status busy"><span className="spinner" /> parsing and loading…</p> : null}
       {upload.error ? <p className="status err">{(upload.error as Error).message}</p> : null}
-      {result ? (
-        <p className={`status ${result.status === "duplicate" ? "busy" : "ok"}`}>
-          {result.summary ?? `upload ${result.status}`}
+      {result?.projections.map((p) => (
+        <p key={`${p.dashboard}.${p.dataset}`}
+           className={`status ${p.status === "failed" ? "err" : p.status === "duplicate" ? "busy" : "ok"}`}>
+          {p.dashboard === slug ? "" : `${p.dashboard}: `}
+          {p.summary ?? p.error ?? p.status}
         </p>
-      ) : null}
+      ))}
     </div>
   );
 }
