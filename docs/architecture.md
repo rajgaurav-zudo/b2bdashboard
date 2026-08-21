@@ -87,7 +87,8 @@ database is untouched and the rules are tested rather than the dictionaries.
 POST /api/dashboards/{slug}/datasets/{dataset}/uploads
   │
   ├─ sha256 → identical to the current load?  → record 'duplicate', changelog no-op, stop
-  ├─ store the raw file (audit trail)          → data/uploads/<slug>/<dataset>/<sha>.csv
+  ├─ record core.uploads first, so a failure has somewhere to be recorded
+  ├─ store the raw file, gzipped (audit trail) → data/uploads/<slug>/<dataset>/<sha>.csv
   ├─ read → polars, all strings, utf8-lossy    → curly quotes and mojibake normalised
   ├─ resolve columns: exact → substring → tokens; missing required → 422 with a hint
   ├─ finalize() → the dashboard's typed frame, plus a row_hash
@@ -157,6 +158,22 @@ diffs get materially better** — it is picked up automatically by header matchi
   the browser needs no CORS and no per-environment configuration. The API's CORS list
   exists only for running `npm run dev` outside the container.
 
+## Connections
+
+Behind Supabase's transaction pooler a connection can be closed by the pooler
+without the client being told. The pool would then hand that half-open socket to
+the next request, which failed as `OperationalError: consuming input failed: SSL
+SYSCALL error: EOF detected` — a 500 on whatever endpoint happened to draw it,
+which is why it looked random and why it hit uploads that had already parsed
+their file.
+
+`check=ConnectionPool.check_connection` costs one round trip on checkout and
+discards the corpse instead. `max_lifetime` and TCP keepalives recycle
+connections before anything upstream does it silently; neither replaces the
+check, because `min_size` connections are exempt from `max_idle` and those are
+exactly the ones that go stale overnight. `api/tests/test_db_pool.py` reproduces
+the half-open state directly and asserts both halves.
+
 ## Auth
 
 The browser signs in with Supabase Auth and sends the resulting JWT to the API,
@@ -199,6 +216,20 @@ archive without any error.
 
 Keys are the sha256 prefix of the content, so re-uploading the same file writes
 the same object instead of a second copy.
+
+**Supabase objects are gzipped; local ones are not.** Supabase enforces a
+per-object ceiling at the project level, separate from the bucket's own
+`file_size_limit` and, on the free plan, not raisable: 50MB, measured. The
+applications export is 114MB, so every upload of it failed at the archive step
+with `EntityTooLarge` — and, because the archive ran before the upload row was
+written, failed with no record of the attempt anywhere. Gzipped the export is
+21MB. Local storage keeps writing plain files, where `head` is worth more than
+compression.
+
+Formats that are already compressed do not shrink: a 48MB `.xlsx` stays 48MB, so
+a workbook past 50MB still cannot be archived on this plan. That case now returns
+413 with the reason and the workaround (export the same data as `.csv`) rather
+than a 500 and a stack trace.
 
 **The stored object is the file as it arrived.** For the applications export
 that is all 50 source columns, including the student names, nationalities and

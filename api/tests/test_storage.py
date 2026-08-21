@@ -4,6 +4,7 @@ The selection rules matter more than they look: getting them wrong means a
 deployment quietly writing its only copy of the source exports to a container
 filesystem that disappears on the next release.
 """
+import gzip
 import sys
 
 import httpx
@@ -71,35 +72,74 @@ def test_asking_for_supabase_without_credentials_is_an_error(monkeypatch):
         store.build()
 
 
-def test_supabase_put_targets_the_bucket_and_upserts(monkeypatch):
+def _capture(monkeypatch, response=None):
     seen = {}
 
     def fake_post(url, content, headers, timeout):  # noqa: ARG001
-        seen["url"] = url
-        seen["headers"] = headers
-        seen["bytes"] = content
-        return httpx.Response(200, text="{}")
+        seen.update(url=url, headers=headers, bytes=content)
+        return response or httpx.Response(200, text="{}")
 
     monkeypatch.setattr(store.httpx, "post", fake_post)
+    return seen
+
+
+def test_supabase_put_targets_the_bucket_and_upserts(monkeypatch):
+    seen = _capture(monkeypatch)
     backend = store.SupabaseStorage("https://p.supabase.co", "svc", "uploads", 30)
     locator = backend.put("dash/apps/abc.csv", b"data", "text/csv")
 
-    assert seen["url"] == "https://p.supabase.co/storage/v1/object/uploads/dash/apps/abc.csv"
+    assert seen["url"] == "https://p.supabase.co/storage/v1/object/uploads/dash/apps/abc.csv.gz"
     assert seen["headers"]["Authorization"] == "Bearer svc"
     assert seen["headers"]["x-upsert"] == "true"
-    assert seen["bytes"] == b"data"
-    assert locator == "uploads/dash/apps/abc.csv"
+    assert locator == "uploads/dash/apps/abc.csv.gz"
+
+
+def test_supabase_put_stores_the_bytes_gzipped(monkeypatch):
+    """The 114MB applications export is over the 50MB per-object limit the free
+    plan enforces regardless of the bucket's own setting. Gzipped it is 21MB, so
+    compression is what makes the archive possible at all -- and the object has
+    to be recoverable byte for byte or it is not an archive."""
+    seen = _capture(monkeypatch)
+    backend = store.SupabaseStorage("https://p.supabase.co", "svc", "uploads", 30)
+    original = b"Partner Name,Deposit Paid Status\n" * 500
+
+    backend.put("dash/apps/abc.csv", original, "text/csv")
+
+    assert seen["bytes"] != original
+    assert len(seen["bytes"]) < len(original)
+    assert gzip.decompress(seen["bytes"]) == original
+    assert seen["headers"]["Content-Type"] == "application/gzip"
+    # what is inside the gzip, so the archive still says csv or workbook
+    assert seen["headers"]["x-metadata-original-content-type"] == "text/csv"
 
 
 def test_a_rejected_upload_raises_rather_than_reporting_success(monkeypatch):
     monkeypatch.setattr(
         store.httpx, "post",
-        lambda *a, **k: httpx.Response(413, text="Payload too large"),
+        lambda *a, **k: httpx.Response(500, text="upstream exploded"),
     )
     backend = store.SupabaseStorage("https://p.supabase.co", "svc", "uploads", 30)
     with pytest.raises(store.StorageError) as err:
         backend.put("k", b"x" * 10, "text/csv")
-    assert "413" in str(err.value)
+    assert "500" in str(err.value)
+    assert not err.value.too_large
+
+
+def test_an_oversized_object_says_so_instead_of_quoting_the_api(monkeypatch):
+    """Supabase answers 400 with a 413 buried in the body. Passing that through
+    produced a 500 and a JSON blob; the user needs to know it is a plan limit and
+    that re-exporting as csv is the way round it."""
+    monkeypatch.setattr(
+        store.httpx, "post",
+        lambda *a, **k: httpx.Response(
+            400, text='{"statusCode":"413","error":"Payload too large",'
+                      '"code":"EntityTooLarge"}'),
+    )
+    backend = store.SupabaseStorage("https://p.supabase.co", "svc", "uploads", 30)
+    with pytest.raises(store.StorageError) as err:
+        backend.put("k", b"x" * 10, "text/csv")
+    assert err.value.too_large
+    assert "50MB" in str(err.value)
 
 
 def test_an_unreachable_storage_service_raises(monkeypatch):

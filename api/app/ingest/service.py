@@ -225,18 +225,30 @@ def ingest(dashboard: Dashboard, dataset_slug: str, filename: str, content: byte
                 conn.commit()
                 return {"upload_id": upload_id, "status": "duplicate", "changed": False}
 
-            stored = _store(dashboard, dataset_slug, sha, filename, content)
+            # The row is written before anything can fail, so that a failure has
+            # somewhere to be recorded. Archiving first meant a rejected file --
+            # over the storage plan's per-object limit, say -- left no upload row
+            # at all: a 500 in the browser and no trace of the attempt anywhere.
             cur.execute(
                 """insert into core.uploads
-                   (dashboard_id, dataset_id, filename, byte_size, sha256, stored_path, status, uploaded_by)
-                   values (%s, %s, %s, %s, %s, %s, 'parsing', %s) returning id""",
-                (dash_id, ds_id, filename, len(content), sha, stored, uploaded_by),
+                   (dashboard_id, dataset_id, filename, byte_size, sha256, status, uploaded_by)
+                   values (%s, %s, %s, %s, %s, 'parsing', %s) returning id""",
+                (dash_id, ds_id, filename, len(content), sha, uploaded_by),
             )
             upload_id = cur.fetchone()["id"]
         conn.commit()
 
     load_id = None
     try:
+        # Archive before parsing: the point of keeping the original is to explain
+        # a load later, including a load that turned out to be wrong.
+        stored = _store(dashboard, dataset_slug, sha, filename, content)
+        with pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("update core.uploads set stored_path = %s where id = %s",
+                            (stored, upload_id))
+            conn.commit()
+
         frame = read_table(filename, content)
         resolution = apply_spec(frame, module.COLUMNS[dataset_slug])
         if resolution.missing:

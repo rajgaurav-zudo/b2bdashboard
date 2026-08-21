@@ -5,6 +5,7 @@ from ..auth import User, audit_actor, current_user
 from ..db import pool
 from ..ingest.reader import IngestError
 from ..ingest.service import activate, ingest
+from ..storage import StorageError
 
 # Applied to the whole router rather than per route: a new endpoint is then
 # protected by default, and forgetting to add a dependency cannot open a hole.
@@ -93,6 +94,12 @@ async def upload(slug: str, dataset: str, file: UploadFile = File(...),
                       audit_actor(user) or uploaded_by)
     except IngestError as exc:
         raise HTTPException(422, str(exc)) from exc
+    # The archive is part of the contract, so a failure here fails the upload --
+    # but it is not a bug in the server, and a stack trace is the wrong answer.
+    # 413 when the file simply cannot be stored on this plan, 502 when the
+    # storage service itself is the problem.
+    except StorageError as exc:
+        raise HTTPException(413 if exc.too_large else 502, str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
 
