@@ -1,0 +1,26 @@
+slug: logs
+name: Log dashboard
+version: 1
+schema: dash_logs
+
+description: >
+  How much contact the team actually has with its introducers, week by week —
+  who is logging it, which partners are being worked, and what the notes say.
+  A week runs Saturday to Friday.
+
+# Grouping dimensions for this dashboard only. Changing them changes nothing elsewhere.
+dimensions: [log_type, managed_by_team, created_by, introducer_name]
+
+# `source` names the uploaded file this table is built from. The file is
+# platform-level (see sources/sources.yaml): another dashboard reading the same
+# activity log does not upload it again, and cannot change what this one takes
+# out of it.
+datasets:
+  logs:
+    display_name: Introducer activity log
+    source: introducer_logs
+    table: logs
+    # the export carries no log id, so the key is a content hash plus an
+    # occurrence index -- see ingest.py
+    natural_key: [log_uid]
+    required_columns: ["Introducers Name", "Log Type", "Log Time"]

@@ -31,3 +31,13 @@ applications:
   identified_by:
     - introducer name
     - deposit paid status
+
+introducer_logs:
+  display_name: Introducer activity log
+  description: >
+    One row per logged interaction with a partner -- a call, a meeting, an email,
+    a face-to-face visit -- carrying who logged it, which team owns the partner,
+    when it happened and the note whoever made it wrote down.
+  identified_by:
+    - log type
+    - log time

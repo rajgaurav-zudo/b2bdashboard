@@ -17,6 +17,7 @@ import os
 import socket
 import sys
 
+import psycopg
 import pytest
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -69,7 +70,13 @@ def test_an_unchecked_pool_serves_the_dead_connection(unchecked):
     with pytest.raises(Exception) as err:
         with unchecked.connection() as conn, conn.cursor() as cur:
             cur.execute("select 1 as n")
-    assert "EOF detected" in str(err.value) or "SSL SYSCALL" in str(err.value)
+    # The wording is a property of the transport, not of the defect: over TLS
+    # psycopg reports "SSL SYSCALL error: EOF detected", and over a plain local
+    # socket the same half-open connection reports "server closed the connection
+    # unexpectedly". Assert the failure, not the wording of one deployment.
+    assert isinstance(err.value, psycopg.OperationalError)
+    assert any(fragment in str(err.value) for fragment in
+               ("EOF detected", "SSL SYSCALL", "server closed the connection"))
 
 
 def test_a_checked_pool_replaces_it_instead(checked):

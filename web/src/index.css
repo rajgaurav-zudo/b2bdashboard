@@ -24,23 +24,127 @@ a{color:var(--info)}
 button{font:inherit;color:inherit}
 
 /* ==========================================================================
+   app frame -- the left menu and the page beside it
+   The dashboard list is short and never changes, so it costs one column to
+   keep every dashboard one click away from every page. Collapsed, it narrows
+   to a rail of initials rather than disappearing: the page should never lose
+   the thing that says where in the platform you are.
+   ========================================================================== */
+.shell{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+.shell.rail{grid-template-columns:60px 1fr}
+/* grid children are min-content wide by default, which lets a wide table push
+   the column instead of scrolling inside it. The explicit column matters on
+   narrow screens: the menu is taken out of flow there, and without this the
+   page would slide under it into the rail's 60px. */
+.main{grid-column:2;min-width:0}
+
+.sidenav{
+  position:sticky;top:0;align-self:start;height:100vh;z-index:30;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--card);border-right:1px solid var(--line);
+}
+
+.nav-brand{display:flex;align-items:center;gap:10px;padding:15px 12px 13px;border-bottom:1px solid var(--line-soft)}
+.nav-brand .mark{
+  flex:none;width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);
+  display:grid;place-items:center;font-size:11px;font-weight:600;letter-spacing:.04em;text-decoration:none;
+}
+.nav-brand .wordmark{min-width:0;text-decoration:none;color:inherit}
+.nav-brand .wordmark b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap}
+.nav-brand .wordmark span{display:block;font-size:10.5px;color:var(--faint);white-space:nowrap}
+.rail-t{
+  margin-left:auto;flex:none;width:24px;height:24px;border-radius:6px;cursor:pointer;
+  border:1px solid transparent;background:transparent;color:var(--faint);font-size:13px;line-height:1;
+}
+.rail-t:hover{background:rgba(21,32,28,.05);color:var(--ink)}
+
+.nav-list{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 10px}
+.nav-lbl{margin:0 0 8px;padding:0 8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.nav-note{margin:0;padding:0 8px;font-size:11.5px;color:var(--muted)}
+.nav-note.bad{color:var(--bad)}
+.nav-group+.nav-group{margin-top:20px}
+a.nav-d+a.nav-d{margin-top:2px}
+a.nav-d{
+  display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;
+  text-decoration:none;color:var(--muted);font-size:13px;
+}
+a.nav-d:hover{background:rgba(21,32,28,.045);color:var(--ink)}
+a.nav-d.on{background:rgba(21,32,28,.06);color:var(--ink);font-weight:600}
+a.nav-d .sq{
+  flex:none;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;
+  font-size:9.5px;font-weight:600;letter-spacing:.03em;
+  background:var(--paper);border:1px solid var(--line);color:var(--muted);
+}
+a.nav-d.on .sq{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+a.nav-d .sq.g{font-size:13px;font-weight:400}
+a.nav-d .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* collapsed: initials only, and the active square carries the highlight so the
+   rail does not fill with full-width blocks */
+.shell.rail .nav-brand{flex-direction:column;gap:9px;padding:14px 0 12px}
+.shell.rail .nav-brand .wordmark{display:none}
+.shell.rail .rail-t{margin-left:0}
+.shell.rail .nav-list{padding:14px 0}
+.shell.rail .nav-lbl,.shell.rail .nav-note{display:none}
+/* the headings are what separated the groups; without them, a line does it */
+.shell.rail .nav-group+.nav-group{margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
+.shell.rail a.nav-d{position:relative;justify-content:center;gap:0;padding:5px 0;background:transparent}
+/* a filled square alone reads like the brand mark above it, so the rail marks
+   where you are with an edge tick as well */
+.shell.rail a.nav-d.on:before{
+  content:"";position:absolute;left:0;top:3px;bottom:3px;width:2px;
+  border-radius:0 2px 2px 0;background:var(--ink);
+}
+.shell.rail a.nav-d .lb{display:none}
+.shell.rail a.nav-d:hover .sq{border-color:var(--ink);color:var(--ink)}
+
+.nav-foot{padding:12px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:8px}
+.nav-foot .em{font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-foot .out{
+  font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:var(--paper);color:var(--muted);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.nav-foot .out:hover{color:var(--ink);border-color:var(--ink)}
+.nav-foot .out .ic{display:none}
+.shell.rail .nav-foot{padding:10px 0;align-items:center}
+.shell.rail .nav-foot .em{display:none}
+.shell.rail .nav-foot .out{width:34px;padding:6px 0}
+.shell.rail .nav-foot .out .lb{display:none}
+.shell.rail .nav-foot .out .ic{display:inline;font-size:13px}
+
+.nav-scrim{display:none}
+
+/* Narrow screens keep the rail and float the expanded menu over the page: at
+   this width giving the menu a real column would leave nothing for the page. */
+@media (max-width:860px){
+  .shell,.shell.rail{grid-template-columns:60px 1fr}
+  .sidenav{position:fixed;left:0;top:0;bottom:0;width:60px;height:auto}
+  .shell:not(.rail) .sidenav{width:244px;box-shadow:10px 0 44px -22px rgba(21,32,28,.7)}
+  .shell:not(.rail) .nav-scrim{
+    display:block;position:fixed;inset:0;z-index:29;background:rgba(21,32,28,.32);
+  }
+}
+
+/* ==========================================================================
    app shell -- new in the multi-dashboard build, styled to match the rest
    ========================================================================== */
 header.top{border-bottom:1px solid var(--line);background:var(--paper);position:relative;z-index:5}
 .top-in{max-width:1180px;margin:0 auto;padding:26px 24px 22px}
-.top-in .row{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap}
 h1{font-size:23px;font-weight:600;letter-spacing:-.015em;margin:0 0 4px}
 .sub{color:var(--muted);font-size:13.5px;max-width:70ch;margin:0}
 .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
-.nav{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
-.nav a{
-  font-size:12.5px;padding:7px 13px;border-radius:99px;color:var(--muted);
-  text-decoration:none;border:1px solid transparent;
+/* narrows a platform table to one dashboard without putting the page back
+   inside one */
+.dash-filter{
+  font:inherit;font-size:12px;padding:4px 9px;border:1px solid var(--line);
+  border-radius:99px;background:var(--paper);color:var(--muted);cursor:pointer;
 }
-.nav a:hover{background:rgba(21,32,28,.04);color:var(--ink)}
-.nav a.on{background:var(--ink);color:var(--paper)}
-.back{font-size:12px;color:var(--muted);text-decoration:none;display:inline-block;margin-bottom:10px}
-.back:hover{color:var(--ink)}
+.dash-filter:hover{color:var(--ink);border-color:var(--ink)}
+/* a max-width on the cell is only a hint to an auto-layout table; the column
+   still grows to fit. An inline-block inside it is what actually clips. */
+.fname{display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;vertical-align:bottom}
 
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:34px}
 a.card-link{
@@ -93,10 +197,6 @@ button.chip:hover{color:var(--ink);border-color:var(--ink)}
 .btn:disabled{opacity:.55;cursor:default}
 .signin code{font-family:'IBM Plex Mono',monospace;font-size:12px;background:rgba(21,32,28,.05);
   padding:1px 5px;border-radius:4px}
-.whoami{margin:8px 0 0;font-size:12px;color:var(--faint);display:flex;align-items:center;gap:10px}
-.signout{font:inherit;font-size:12px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);
-  background:transparent;color:var(--muted);cursor:pointer}
-.signout:hover{color:var(--ink);border-color:var(--ink)}
 
 /* ---------- empty state ---------- */
 .empty{margin:64px auto;max-width:640px;text-align:center;color:var(--muted)}
@@ -205,6 +305,15 @@ th.sorted .ar{opacity:1}
   display:flex;flex-direction:column;
 }
 .pane.on{transform:none}
+/* the leaderboard pane carries a full table, so it takes more of the viewport */
+.pane.wide{width:min(1180px,94vw)}
+.pane .find{
+  font:inherit;font-size:12px;padding:4px 10px;border:1px solid var(--line);
+  border-radius:99px;background:var(--paper);color:var(--ink);min-width:200px;
+}
+.pane .find:focus{outline:2px solid var(--info);outline-offset:1px;border-color:transparent}
+.pane-body .top-panel{border:0;border-radius:0;box-shadow:none}
+.pane-body .panel-h{display:none}
 .pane-h{padding:18px 22px 0;border-bottom:1px solid var(--line);background:var(--card)}
 .pane-h .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 .pane-h h2{margin:0;font-size:17px;font-weight:600}
@@ -243,6 +352,150 @@ tr.kid.head td{background:rgba(21,32,28,.045);font-size:10.5px;text-transform:up
 .empty-pane{padding:40px 22px;color:var(--muted);font-size:13.5px}
 footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:11.5px;line-height:1.7}
 
+
+/* ==========================================================================
+   log dashboard -- week stepper, top-three tables, sentiment
+   Same language as everything above: 1px rules, 12px radii, no new colours.
+   ========================================================================== */
+.weekbar{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:30px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;box-shadow:var(--shadow);
+}
+.stepper{display:flex;align-items:center;gap:10px}
+/* the two arrows and the Latest button share a height and a border so they read
+   as one control cluster. Scoped by class: the square rule used to catch the
+   Latest button too and squeeze it to 30px wide. */
+.stepper .step,.stepper .latest{
+  font:inherit;line-height:1;height:30px;cursor:pointer;
+  border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--muted);
+}
+.stepper .step{font-size:15px;width:30px}
+.stepper .latest{
+  display:inline-flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;white-space:nowrap;
+}
+.stepper .latest .g{font-size:11px;opacity:.7}
+.stepper .step:hover:not(:disabled),.stepper .latest:hover:not(:disabled){
+  color:var(--ink);border-color:var(--ink);
+}
+/* disabled rather than removed: the bar must not reflow as you step weeks, and
+   a greyed control still says "there is a newer week and you are on it" */
+.stepper .step:disabled{opacity:.35;cursor:default}
+.stepper .latest:disabled{opacity:.45;cursor:default;background:transparent}
+.stepper .wk{min-width:232px}
+.stepper .wk b{display:block;font-size:14px;font-weight:600}
+.stepper .wk span{font-size:11.5px;color:var(--muted)}
+.filters{display:flex;gap:14px;flex-wrap:wrap;margin-left:auto}
+.filters label{
+  display:flex;flex-direction:column;gap:3px;
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
+}
+.filters select{
+  font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);
+  border-radius:7px;background:var(--paper);color:var(--ink);min-width:150px;
+}
+
+/* the week-on-week change chip on a tile: the arrow carries the direction, so
+   it takes the same colour as the number rather than staying muted */
+.tile .foot .d .dir{margin-left:3px;font-size:9px;vertical-align:1px}
+.tile .foot .d.up b,.tile .foot .d.up .dir{color:var(--good)}
+.tile .foot .d.down b,.tile .foot .d.down .dir{color:var(--bad)}
+.tile .foot .d.flat b,.tile .foot .d.flat .dir{color:var(--faint)}
+
+/* ---------- top performers ----------
+   One table per grouping, stacked and full width: each now carries a column per
+   log type, which three-abreast could not hold without truncating names. */
+.top-stack{display:flex;flex-direction:column;gap:18px;margin-top:18px}
+.top-panel{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);overflow:hidden}
+.top-panel .tbl-wrap{margin-top:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+.panel-h{display:flex;align-items:flex-start;gap:16px;padding:14px 16px 11px;
+  border-bottom:1px solid var(--line)}
+.panel-h h3{margin:0;font-size:13.5px;font-weight:600}
+.panel-h p{margin:2px 0 0;font-size:11.5px;color:var(--muted)}
+.panel-h .more{
+  font:inherit;font-size:11.5px;padding:5px 12px;margin-left:auto;cursor:pointer;white-space:nowrap;
+  border:1px solid var(--line);border-radius:99px;background:var(--paper);color:var(--muted);
+}
+.panel-h .more:hover{color:var(--ink);border-color:var(--ink)}
+table.leader{font-size:12.5px}
+table.leader th,table.leader td{padding:7px 10px}
+table.leader th.rk,table.leader td.rk{width:30px;color:var(--faint);text-align:right;padding-right:2px}
+table.leader tbody td.txt{white-space:normal;line-height:1.3;min-width:220px}
+/* the per-type columns read as a group: tighter, and lighter than the total */
+table.leader th.ty,table.leader td.ty{color:var(--muted);padding-left:8px;padding-right:8px}
+table.leader td.ty.zero{color:var(--line);}
+table.leader th.tot,table.leader td.tot{border-left:1px solid var(--line-soft);font-weight:600}
+table.leader td.tot{color:var(--ink)}
+table.leader thead th .swatch{margin-right:5px;vertical-align:1px}
+
+/* ---------- sentiment ---------- */
+.sent{
+  display:grid;grid-template-columns:minmax(240px,1fr) minmax(200px,1fr) minmax(220px,1fr);
+  gap:20px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:18px 20px;box-shadow:var(--shadow);margin-top:18px;
+}
+.sent .metric{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:34px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.sent .metric-l{font-size:11.5px;color:var(--muted);margin-top:6px}
+.sent p.cap{margin:10px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+.meter{position:relative;height:6px;margin-top:14px;border-radius:99px;
+  background:linear-gradient(90deg,var(--bad) 0%,rgba(21,32,28,.10) 50%,var(--good) 100%)}
+.meter .zero{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--line)}
+.meter .pin{position:absolute;top:-4px;width:2px;height:14px;background:var(--ink);border-radius:2px;
+  transform:translateX(-1px)}
+.sent-split{display:flex;flex-direction:column;justify-content:center;gap:9px}
+.split{position:relative;display:flex;align-items:baseline;gap:8px;font-size:12.5px;
+  padding:5px 8px;border-radius:7px;overflow:hidden}
+.split .bar{position:absolute;left:0;top:0;bottom:0;opacity:.13}
+.split .bar.good{background:var(--good)}
+.split .bar.bad{background:var(--bad)}
+.split .bar.warn{background:var(--warn)}
+.split .bar.faint{background:var(--faint)}
+.split b{position:relative;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  min-width:44px;text-align:right}
+.split span{position:relative;color:var(--muted)}
+.split i{position:relative;margin-left:auto;font-style:normal;color:var(--faint);font-size:11.5px}
+.sent-types h4{margin:0 0 6px;font-size:11px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em}
+.sent-types table{font-size:12.5px}
+.sent-types td{padding:5px 0;border-bottom:1px solid var(--line-soft)}
+.sent-types tr:last-child td{border-bottom:0}
+.swatch{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:7px;vertical-align:0}
+
+.quotes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.quote-card{background:var(--card);border:1px solid var(--line);border-left:3px solid;
+  border-radius:9px;padding:14px 16px}
+.quote-card.good{border-left-color:var(--good)}
+.quote-card.bad{border-left-color:var(--bad)}
+.quote-card h4{margin:0 0 10px;font-size:11px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em}
+.quote-card p.cap{margin:0;font-size:12.5px;color:var(--faint)}
+.quote-card blockquote{margin:0 0 12px;padding:0}
+.quote-card blockquote:last-child{margin-bottom:0}
+/* Real notes run to several paragraphs. Clamped rather than truncated, so the
+   full text is still in the DOM for search and for the title tooltip, and the
+   drill-down pane shows it in full. */
+.quote-card blockquote p{
+  margin:0;font-size:13px;line-height:1.5;color:#2a3833;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;
+  line-clamp:4;overflow:hidden;
+}
+.quote-card cite{display:block;margin-top:4px;font-style:normal;font-size:11px;color:var(--faint)}
+.quote-card code,.band code{font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+  background:rgba(21,32,28,.05);padding:1px 5px;border-radius:4px}
+.score{margin-left:8px;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:11px;color:var(--faint)}
+.score.good{color:var(--good)}
+.score.bad{color:var(--bad)}
+.note-cell{white-space:normal;max-width:420px;line-height:1.4}
+
+@media (max-width:1000px){
+  .sent{grid-template-columns:1fr}
+  .quotes{grid-template-columns:1fr}
+  .filters{margin-left:0}
+}
+
 @media (max-width:1000px){
   .tiles{grid-template-columns:repeat(2,1fr)}
   .charts{grid-template-columns:1fr}
@@ -250,6 +503,10 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);color:v
 }
 @media (max-width:700px){
   .wrap,.top-in{padding-left:16px;padding-right:16px}
+  /* the week label reserves 232px so the bar does not jog as the date changes
+     width -- room a phone does not have once the rail has taken its 60px */
+  .stepper{flex-wrap:wrap}
+  .stepper .wk{min-width:0;flex:1 1 130px}
   .tiles{grid-template-columns:1fr}
   .tile{min-height:0}
   .pane{width:100vw;border-left:0}

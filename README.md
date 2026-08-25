@@ -61,7 +61,21 @@ Create `dashboards/<slug>/` with a `dashboard.yaml`, a `migrations/001_init.sql`
 `ingest.py`, a `metrics.py` and a `context.md`. It is picked up on the next API start. It
 gets its own Postgres schema and its own migration scope, so it cannot affect anything
 already running. For a bespoke overview, add a component to `web/src/dashboards/registry.tsx`;
-without one the dashboard still gets working Data and Changelog tabs.
+without one the dashboard is still fed, and still appears on Uploads and Changelog.
+
+Uploading and the changelog are platform pages, not dashboard ones. A file belongs to a
+source and fans out, so there is one place to drop it (`/uploads`) and one log of what each
+upload did to each dashboard (`/changelog`); both can be narrowed to a single dashboard.
+
+Each dataset names the **source** that feeds it. If the file is one the platform already
+accepts, point at it and the dashboard is fed from the archive without anyone re-uploading:
+
+```
+POST /api/uploads/{id}/project?dashboard=<slug>
+```
+
+If the file is new, declare it in `sources/sources.yaml` first — `identified_by` is what
+refuses the wrong export before a single row is stored.
 
 See [docs/architecture.md](docs/architecture.md) for the design and the decisions behind it.
 
@@ -93,7 +107,7 @@ stylesheet and the drill-down pane are ports of it, not reinterpretations.
   before parsing, and every load is checked against an independent record count.
 - **Interrupted imports.** A crash mid-import cannot mark its own upload failed, so the row
   sat at `parsing` forever while the dashboard quietly served the previous file. Startup
-  fails anything left in flight, and the Data page lists failed uploads with the reason.
+  fails anything left in flight, and the Uploads page lists failed uploads with the reason.
 
 ## Deviations worth knowing
 

@@ -49,6 +49,9 @@ def get_dashboard(slug: str):
     return {
         "slug": dash.slug, "name": dash.name, "version": dash.version,
         "schema": dash.db_schema, "context_sha": dash.context_sha,
+        # what this dashboard is for, in the dashboard's own words. The shell
+        # used to hard-code one dashboard's line for every dashboard.
+        "description": (dash.manifest.get("description") or "").strip(),
         "dimensions": dash.manifest.get("dimensions", []),
         "views": views.available(dash),
         "datasets": [
@@ -132,27 +135,43 @@ async def upload_source(source: str, file: UploadFile = File(...),
         raise HTTPException(404, str(exc)) from exc
 
 
-@router.get("/sources/{source}/uploads")
-def source_uploads(source: str, limit: int = Query(25, le=200)):
-    """Every file that arrived for this source, with what each dashboard made
-    of it."""
+@router.get("/uploads")
+def uploads(source: str | None = None, dashboard: str | None = None,
+            limit: int = Query(50, le=500)):
+    """Every file the platform has been given, with what each dashboard made of it.
+
+    One row per *file*, not per dashboard. A file is uploaded once and fans out,
+    so the outcome is a list: the same export can load cleanly here and fail next
+    door, and a file that never parsed at all has no projections but still has a
+    row and an error. Scoping this to a dashboard hid both.
+
+    `dashboard` narrows to files that reached that dashboard, for the links that
+    used to point at its own upload list.
+    """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
             """select u.id, u.filename, u.byte_size, u.row_count, u.status, u.error,
                       u.started_at, u.finished_at, u.uploaded_by, u.sha256,
+                      s.slug as source, s.display_name as source_name,
                       coalesce(json_agg(json_build_object(
-                        'dashboard', d.slug, 'dataset', ds.slug, 'status', p.status,
-                        'rows', p.row_count, 'load_id', p.load_id, 'error', p.error
-                      ) order by d.slug, ds.slug) filter (where p.id is not null), '[]')
+                        'dashboard', d.slug, 'dashboard_name', d.name, 'dataset', ds.slug,
+                        'status', p.status, 'rows', p.row_count, 'load_id', p.load_id,
+                        'error', p.error
+                      ) order by d.name, ds.slug) filter (where p.id is not null), '[]')
                         as projections
                  from core.uploads u
-                 join core.sources s on s.id = u.source_id and s.slug = %s
+                 join core.sources s on s.id = u.source_id
                  left join core.projections p on p.upload_id = u.id
                  left join core.dashboards d on d.id = p.dashboard_id
                  left join core.datasets ds on ds.id = p.dataset_id
-                group by u.id
-                order by u.started_at desc limit %s""",
-            (source, limit),
+                where (%(source)s::text is null or s.slug = %(source)s)
+                  and (%(dashboard)s::text is null or exists (
+                        select 1 from core.projections p2
+                          join core.dashboards d2 on d2.id = p2.dashboard_id
+                         where p2.upload_id = u.id and d2.slug = %(dashboard)s))
+                group by u.id, s.slug, s.display_name
+                order by u.started_at desc limit %(limit)s""",
+            {"source": source, "dashboard": dashboard, "limit": limit},
         )
         return cur.fetchall()
 
@@ -177,28 +196,27 @@ def project(upload_id: int, dashboard: str | None = Query(default=None),
         raise HTTPException(404, str(exc)) from exc
 
 
-@router.get("/dashboards/{slug}/uploads")
-def uploads(slug: str, limit: int = Query(25, le=200)):
-    """What this dashboard made of every file it was given, failures included.
+@router.get("/datasets")
+def datasets():
+    """Every table on the platform and the file currently behind it.
 
-    One row per projection rather than per upload: the same file feeds several
-    dashboards now, and a file that loaded cleanly here may have failed next
-    door. A failed projection is otherwise invisible -- it produces no load and
-    no changelog entry, so the dashboard keeps serving the previous file and
-    looks fine.
+    Driven from the datasets rather than from the loads, so a dashboard that has
+    never been given its file appears with an empty row instead of not at all --
+    which is the state most worth seeing on an upload page.
     """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
-            """select p.id, ds.slug as dataset, u.filename, u.byte_size,
-                      p.row_count, p.status, p.error, p.started_at, p.finished_at,
-                      u.uploaded_by, u.id as upload_id, s.slug as source
-                 from core.projections p
-                 join core.dashboards d on d.id = p.dashboard_id and d.slug = %s
-                 join core.datasets ds on ds.id = p.dataset_id
-                 join core.uploads u on u.id = p.upload_id
-                 join core.sources s on s.id = u.source_id
-                order by p.started_at desc limit %s""",
-            (slug, limit),
+            """select d.slug as dashboard, d.name as dashboard_name,
+                      ds.slug as dataset, ds.display_name,
+                      s.slug as source, s.display_name as source_name,
+                      l.id as load_id, l.row_count, l.created_at,
+                      u.filename, u.uploaded_by
+                 from core.datasets ds
+                 join core.dashboards d on d.id = ds.dashboard_id
+                 join core.sources s on s.id = ds.source_id
+                 left join core.loads l on l.dataset_id = ds.id and l.is_current
+                 left join core.uploads u on u.id = l.upload_id
+                order by d.name, ds.slug"""
         )
         return cur.fetchall()
 
@@ -213,18 +231,26 @@ def activate_load(slug: str, load_id: int, user: User | None = Depends(current_u
         raise HTTPException(404, str(exc)) from exc
 
 
-@router.get("/dashboards/{slug}/changelog")
-def changelog(slug: str, limit: int = Query(50, le=500)):
+@router.get("/changelog")
+def changelog(dashboard: str | None = None, limit: int = Query(100, le=500)):
+    """What every upload changed, for every dashboard.
+
+    The entry is per dashboard because the diff is: the same file produces a
+    different changelog in each dashboard that reads it, against that
+    dashboard's own natural key.
+    """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
-            """select c.id, c.entity, c.summary, c.rows_added, c.rows_removed, c.rows_changed,
-                      c.rows_unchanged, c.rows_sampled, c.occurred_at, c.load_id, c.previous_load_id,
-                      u.filename, u.status, u.uploaded_by, c.details
+            """select c.id, d.slug as dashboard, d.name as dashboard_name,
+                      c.entity, c.summary, c.rows_added, c.rows_removed, c.rows_changed,
+                      c.rows_unchanged, c.rows_sampled, c.occurred_at, c.load_id,
+                      c.previous_load_id, u.filename, u.status, u.uploaded_by, c.details
                  from core.changelog c
-                 join core.dashboards d on d.id = c.dashboard_id and d.slug = %s
+                 join core.dashboards d on d.id = c.dashboard_id
                  left join core.uploads u on u.id = c.upload_id
-                order by c.occurred_at desc, c.id desc limit %s""",
-            (slug, limit),
+                where (%(dashboard)s::text is null or d.slug = %(dashboard)s)
+                order by c.occurred_at desc, c.id desc limit %(limit)s""",
+            {"dashboard": dashboard, "limit": limit},
         )
         return cur.fetchall()
 
@@ -244,17 +270,23 @@ def changelog_rows(changelog_id: int, change_type: str | None = None, limit: int
         return cur.fetchall()
 
 
-@router.get("/dashboards/{slug}/loads")
-def loads(slug: str, limit: int = Query(50, le=500)):
+@router.get("/loads")
+def loads(dashboard: str | None = None, current: bool = False,
+          limit: int = Query(100, le=500)):
+    """Every load ever made. Nothing is deleted, so this is the whole history."""
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
-            """select l.id, ds.slug as dataset, l.row_count, l.is_current, l.created_at, l.superseded_at,
+            """select l.id, d.slug as dashboard, d.name as dashboard_name,
+                      ds.slug as dataset, l.row_count, l.is_current,
+                      l.created_at, l.superseded_at,
                       u.filename, u.sha256, u.uploaded_by
                  from core.loads l
-                 join core.dashboards d on d.id = l.dashboard_id and d.slug = %s
+                 join core.dashboards d on d.id = l.dashboard_id
                  join core.datasets ds on ds.id = l.dataset_id
                  join core.uploads u on u.id = l.upload_id
-                order by l.created_at desc limit %s""",
-            (slug, limit),
+                where (%(dashboard)s::text is null or d.slug = %(dashboard)s)
+                  and (not %(current)s or l.is_current)
+                order by l.created_at desc limit %(limit)s""",
+            {"dashboard": dashboard, "current": current, "limit": limit},
         )
         return cur.fetchall()

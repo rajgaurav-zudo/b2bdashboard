@@ -3,6 +3,11 @@ name: Introducer performance
 version: 1
 schema: dash_introducer_performance
 
+description: >
+  Which recruitment partners used to pay us and stopped — and who to call first
+  to win them back. Deposit counts are the revenue proxy; commission value is not
+  in either export.
+
 # Grouping dimensions for this dashboard only. Changing them changes nothing elsewhere.
 dimensions: [srm_team, srm_owner, country, lifecycle_stage]
 

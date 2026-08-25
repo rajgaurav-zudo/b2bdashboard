@@ -292,6 +292,19 @@ def _project(dash: Dashboard, ds: Dataset, upload_id: int, frame: pl.DataFrame,
                 + (f". {hint}" if hint else "")
             )
         prepared: pl.DataFrame = module.finalize(ds.slug, resolution.frame)
+        # A file with rows that produces a table with none is a broken mapping,
+        # not an empty week. Committing it would mark the projection ready, swap
+        # the current flag onto an empty load, and take a working dashboard dark
+        # -- with the only symptom a 409 from a view that cannot say why. Fail
+        # here instead: the previous load stays current and the reason is on the
+        # projection row.
+        if prepared.height == 0 and frame.height > 0:
+            raise IngestError(
+                f"every one of the {frame.height:,} rows was dropped by this "
+                f"dashboard's ingest rules, so the load would be empty. The "
+                f"previous load is left current. Check the file's column formats "
+                f"against {dash.slug}/context.md."
+            )
         # Optional, dashboard-owned: counts that only exist before rows are collapsed.
         load_stats = module.stats(ds.slug, resolution.frame, prepared) \
             if hasattr(module, "stats") else {}

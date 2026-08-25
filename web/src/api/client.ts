@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { accessToken } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
+  DatasetState, LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
@@ -65,10 +65,29 @@ export function useOverview(slug: string) {
   });
 }
 
-export function useChangelog(slug: string) {
+/** Any dashboard-owned view, with its params. The introducer overview has its
+ *  own hook above because it takes none; anything parameterised goes through
+ *  here, and the params are part of the cache key. */
+export function useView<T>(
+  slug: string, view: string, params: Record<string, string | number | undefined>,
+  enabled = true,
+) {
   return useQuery({
-    queryKey: ["changelog", slug],
-    queryFn: () => get<ChangelogEntry[]>(`/dashboards/${slug}/changelog`),
+    queryKey: ["view", slug, view, params],
+    queryFn: () => get<T>(`/dashboards/${slug}/views/${view}`, params),
+    enabled,
+    retry: false,                 // 409 means "nothing uploaded yet"; retrying will not help
+    // stepping a week should redraw, not blank the page out
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Every dashboard's changelog, or one dashboard's when `dashboard` is given.
+ *  Uploads are platform-level, so the log of them is too. */
+export function useChangelog(dashboard?: string) {
+  return useQuery({
+    queryKey: ["changelog", dashboard ?? "all"],
+    queryFn: () => get<ChangelogEntry[]>("/changelog", { dashboard, limit: 200 }),
   });
 }
 
@@ -80,10 +99,19 @@ export function useChangelogRows(changelogId: number | null) {
   });
 }
 
-export function useLoads(slug: string) {
+export function useLoads(dashboard?: string) {
   return useQuery({
-    queryKey: ["loads", slug],
-    queryFn: () => get<LoadRow[]>(`/dashboards/${slug}/loads`),
+    queryKey: ["loads", dashboard ?? "all"],
+    queryFn: () => get<LoadRow[]>("/loads", { dashboard, limit: 300 }),
+  });
+}
+
+/** What every dashboard is serving right now, including the ones serving
+ *  nothing -- which is the row worth seeing on an upload page. */
+export function useDatasets() {
+  return useQuery({
+    queryKey: ["datasets"],
+    queryFn: () => get<DatasetState[]>("/datasets"),
   });
 }
 
@@ -106,39 +134,41 @@ export function useSources() {
   });
 }
 
-export function useUploads(slug: string) {
+export function useUploads(dashboard?: string) {
   return useQuery({
-    queryKey: ["uploads", slug],
-    queryFn: () => get<UploadRow[]>(`/dashboards/${slug}/uploads`),
+    queryKey: ["uploads", dashboard ?? "all"],
+    queryFn: () => get<UploadRow[]>("/uploads", { dashboard, limit: 100 }),
   });
 }
 
-export function useActivateLoad(slug: string) {
+/** Rolling back is still a dashboard's own act -- the load belongs to one
+ *  dashboard's tables -- so the row says which one to call. */
+export function useActivateLoad() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (loadId: number) => {
-      const res = await fetch(`${BASE}/dashboards/${slug}/loads/${loadId}/activate`,
+    mutationFn: async ({ dashboard, loadId }: { dashboard: string; loadId: number }) => {
+      const res = await fetch(`${BASE}/dashboards/${dashboard}/loads/${loadId}/activate`,
         { method: "POST", headers: await authHeaders() });
       if (!res.ok) throw new ApiError(await detail(res), res.status);
       return res.json() as Promise<{ load_id: number; changed: boolean; summary: string }>;
     },
-    onSuccess: () => invalidate(queryClient, slug),
+    onSuccess: () => invalidate(queryClient),
   });
 }
 
-function invalidate(queryClient: ReturnType<typeof useQueryClient>, slug: string) {
-  // a change of current load changes every number on the page
-  void queryClient.invalidateQueries({ queryKey: ["view", slug] });
-  void queryClient.invalidateQueries({ queryKey: ["changelog", slug] });
-  void queryClient.invalidateQueries({ queryKey: ["loads", slug] });
-  void queryClient.invalidateQueries({ queryKey: ["uploads", slug] });
-  void queryClient.invalidateQueries({ queryKey: ["dashboard", slug] });
+/** A file feeds every dashboard that declares its source, so there is no such
+ *  thing as an upload that only affects the dashboard you were looking at.
+ *  Everything derived from a load is dropped rather than guessing which. */
+function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
+  for (const key of ["view", "changelog", "loads", "uploads", "datasets",
+                     "dashboard", "dashboards", "sources"]) {
+    void queryClient.invalidateQueries({ queryKey: [key] });
+  }
 }
 
 /** Upload goes to a source, not to a dashboard: the file is archived once and
- *  projected into every dashboard that declares it. `slug` is only the dashboard
- *  the user happens to be looking at, so its views can be refreshed afterwards. */
-export function useUpload(slug: string) {
+ *  projected into every dashboard that declares it. */
+export function useUpload() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ source, file }: { source: string; file: File }) => {
@@ -151,11 +181,6 @@ export function useUpload(slug: string) {
       if (!res.ok) throw new ApiError(await detail(res), res.status);
       return res.json() as Promise<UploadResult>;
     },
-    onSuccess: () => {
-      invalidate(queryClient, slug);
-      // other dashboards were fed by the same file; drop their cached answers too
-      void queryClient.invalidateQueries({ queryKey: ["sources"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboards"] });
-    },
+    onSuccess: () => invalidate(queryClient),
   });
 }

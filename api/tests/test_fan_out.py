@@ -77,6 +77,27 @@ def finalize(dataset, frame):
 '''
 
 
+# What a changed export format looks like from inside: the columns still
+# resolve, and then nothing survives finalize.
+EMPTY_INGEST = '''\
+import sys
+import polars as pl
+sys.path.insert(0, "/srv/api")
+from app.ingest.reader import Col, clean
+
+COLUMNS = {"apps": [
+    Col("uid", "application id", ("application", "id"), required=True),
+    Col("introducer", "application introducer name", ("introducer", "name"), required=True),
+    Col("status", "application status", ()),
+]}
+
+
+def finalize(dataset, frame):
+    out = frame.select(clean(pl.col(c)).alias(c) for c in ("uid", "introducer", "status"))
+    return out.filter(pl.col("uid") == "no row has this id")
+'''
+
+
 def _write_dashboard(root: Path, slug: str, letter: str, status_column: str, upper: bool):
     directory = root / slug
     (directory / "migrations").mkdir(parents=True, exist_ok=True)
@@ -277,3 +298,42 @@ def test_the_wrong_file_is_refused_before_anything_is_stored(sandbox):
     assert "Introducers master" in str(err.value), "it should say what the file looks like instead"
     assert sandbox.rows("select id from core.uploads where filename = %s",
                         f"{sandbox.tag}-wrong.csv") == []
+
+
+def test_a_projection_that_drops_every_row_fails_instead_of_going_current(sandbox):
+    """A file with rows that yields a table with none is a broken mapping.
+
+    Committing it would mark the projection ready, move the current flag onto an
+    empty load, and take a working dashboard dark -- the only symptom being a 409
+    from a view that cannot say why. This is that bug, kept fixed: it is how the
+    log dashboard silently emptied itself when the CRM changed its date format.
+    """
+    a, b = sandbox.slugs
+    sandbox.upload()                                   # a is serving 3 rows
+    before = sandbox.current_loads()
+    assert before[a][1] == 3
+
+    (sandbox.root / a / "ingest.py").write_text(EMPTY_INGEST)
+    registry.discover(refresh=True)
+
+    result = sandbox.upload(CSV.replace(b"A-1", b"A-9"), name=f"{sandbox.tag}-2.csv")
+    projections = {p["dashboard"]: p for p in result["projections"]}
+
+    assert projections[a]["status"] == "failed"
+    assert "every one of the 3 rows was dropped" in projections[a]["error"]
+    # the previous load is untouched and still serving
+    assert sandbox.current_loads()[a] == before[a]
+    assert len(sandbox.table(a)) == 3
+    # and the dashboard next door took the new file as normal
+    assert projections[b]["status"] == "ready"
+    assert sandbox.current_loads()[b][1] == 3
+
+
+def test_an_empty_file_is_still_refused_by_the_reader(sandbox):
+    """The guard above is about rows being dropped, not about an empty export --
+    a header with no rows is refused earlier, by the reader."""
+    from app.ingest.reader import IngestError
+
+    with pytest.raises(IngestError):
+        sandbox.upload(b"Application Id,Application Introducer Name,Deposit Paid Status\n",
+                       name=f"{sandbox.tag}-empty.csv")
