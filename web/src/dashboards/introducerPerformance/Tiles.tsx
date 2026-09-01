@@ -45,6 +45,14 @@ export function Tiles({ tiles, section, currentYear, onOpen, extra }: Props) {
                 {n0(tile.stats.contract_active)} active · {n0(tile.stats.contract_expired)} expired
               </span>
             </div>
+            <div className="foot states">
+              <span title={`Deferral awaiting approval — deposit paid, deferral initiated, not yet approved, in ${currentYear}. Not counted in the deposits above.`}>
+                <b>{n0(tile.stats.daa)}</b> DAA
+              </span>
+              <span title={`Partial deposits — part paid, not closed lost, in ${currentYear}. Never counted in the deposits above.`}>
+                <b>{n0(tile.stats.pd)}</b> PD
+              </span>
+            </div>
           </button>
         );
       })}

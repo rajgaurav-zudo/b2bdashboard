@@ -28,7 +28,11 @@ def metrics():
 
 
 APP_COLUMNS = (
-    "app_uid", "introducer_name", "deposit_fully_paid", "closed_lost", "cycle_year",
+    "app_uid", "introducer_name", "deposit_fully_paid", "deposit_partial",
+    "deferral_initiated", "deferral_approved", "course_category", "closed_lost", "intake_year",
+    # cycle_year is still stored but no longer read: settable so a test can
+    # set the two apart and catch the read model relapsing onto it.
+    "cycle_year",
     "cycle_index", "application_status", "application_sub_status", "visa_granted", "enrolled",
 )
 INTRO_COLUMNS = (
@@ -55,7 +59,9 @@ class Fixture:
                     [self.ctx.loads["introducers"], i, *values],
                 )
             for i, row in enumerate(applications):
-                row = {"app_uid": f"a{i}", "deposit_fully_paid": False, "closed_lost": False,
+                row = {"app_uid": f"a{i}", "deposit_fully_paid": False, "deposit_partial": False,
+                       "deferral_initiated": False, "deferral_approved": False,
+                       "course_category": "Academic", "closed_lost": False,
                        "visa_granted": False, "enrolled": False, **row}
                 values = [row.get(c) for c in APP_COLUMNS]
                 cur.execute(

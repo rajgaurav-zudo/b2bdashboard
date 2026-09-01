@@ -8,6 +8,7 @@ its spec. Nothing it does can reach another dashboard.
 ```
 compose.yml              db + api + web, run by colima
 sources/sources.yaml     the files the platform accepts, independent of any dashboard
+sources/context.md       shared value definitions: course levels, deposit states, intake period
 api/                     FastAPI service: registry, migrations, ingest, changelog, views
   migrations/*.sql       core schema (scope: 'core')
   app/ingest/            file reading, column resolution, the upload pipeline

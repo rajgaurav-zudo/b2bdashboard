@@ -227,6 +227,11 @@ section{margin-top:52px}
 .tile .foot{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:11px;padding-top:9px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted)}
 .tile .foot b{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
 .tile .contract{color:var(--faint)}
+/* The deposit states sit under the introducer count behind their own rule: they
+   qualify the headline rather than adding to it, so they must not read as part
+   of the same list. */
+.tile .foot.states{margin-top:7px;padding-top:7px;gap:4px 14px}
+.tile.inv .foot.states{border-top-color:rgba(255,255,255,.22)}
 .tile .drill{position:absolute;top:14px;right:14px;font-size:11px;color:var(--faint);opacity:0;transition:opacity .12s}
 .tile:hover .drill{opacity:1}
 .tile.inv{background:var(--purple);border-color:var(--purple);color:#fff}
@@ -236,6 +241,23 @@ section{margin-top:52px}
 .tile.inv .foot b{color:#fff}
 .tile.inv .drill{color:rgba(255,255,255,.7)}
 .tile .tag{display:inline-block;margin-top:9px;font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(59,111,168,.1);color:var(--info);font-weight:500}
+
+/* ---------- course split ----------
+   The non-Academic categories. Same visual language as a tile but not clickable
+   -- there is no drill-down behind them -- so they are deliberately flatter. */
+.course-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.course-card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:16px 16px 13px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.course-card .metric{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:34px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.course-card .metric-l{font-size:11.5px;color:var(--muted);margin-top:6px;letter-spacing:.02em}
+.course-card .name{font-weight:600;font-size:14.5px;margin-top:12px;flex:1}
+.course-card .foot{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:11px;padding-top:9px;
+  border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted)}
+.course-card .foot.states{margin-top:7px;padding-top:7px;gap:4px 14px}
+.course-card .foot b{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  color:var(--ink);font-weight:600}
+.course-card .contract{color:var(--faint)}
 
 /* ---------- callouts ---------- */
 .band{border-radius:10px;padding:13px 15px;font-size:13px;line-height:1.55;border:1px solid;display:flex;gap:11px;align-items:flex-start}

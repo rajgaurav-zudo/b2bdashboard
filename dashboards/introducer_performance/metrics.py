@@ -4,9 +4,13 @@ This is the server-side port of the metric definitions that used to live in the
 browser (see legacy/introducer-dashboard.html). Definitions are documented in
 context.md; the short version of the two that trip people up:
 
-  * CUR is chosen, never assumed. Nov/Dec intakes roll into the following
-    January, so max(intake year) is a barely-started phantom year. CUR is the
-    newest year holding at least 10% of the peak year's applications.
+  * The reported year is `Actual Intake Year`, literally -- the definition in
+    sources/context.md. `cycle_year` is still derived at ingest (Nov/Dec roll
+    into the following January) and still sits in the table, but nothing here
+    reads it; switching back is a rename.
+  * CUR is chosen, never assumed. The newest intake year in the export is a
+    barely-started phantom, so CUR is the newest year holding at least 10% of
+    the peak year's applications.
   * "Lifetime" means every intake year up to and including CUR, plus rows with
     no usable year. Rows dated after CUR are visible in the funnel table but
     score nothing, so one mistyped year cannot move a tile.
@@ -24,15 +28,38 @@ from app.views import ViewContext, ViewError  # noqa: E402
 # SQL
 # --------------------------------------------------------------------------
 
-# Row-level flags, shared by every query below. `act`/`clo` split paid deposits
-# by whether the application was later closed lost.
+# Row-level flags, shared by every query below.
+#
+# Two layers. `f0` carries the deposit states as they are, for every course
+# category. `f` then narrows the four reported deposit flags to Academic, because
+# the dashboard's deposit figures are Academic-only -- Language and pre-sessional
+# are reported in their own section, from `f0`, and mixing a six-week language
+# course into the same average as a three-year degree hides both.
+#
+# Scope is deliberately NOT narrowed: `dep_any` below still counts a deposit of
+# any category, so an introducer who only ever sold language courses stays in the
+# book and is visible in the course section rather than vanishing from it.
 _ROWS = """
-f as (
+f0 as (
   select
     introducer_name                                   as name,
-    cycle_year, cycle_index, deposit_fully_paid,
-    deposit_fully_paid and not closed_lost            as act,
-    deposit_fully_paid and closed_lost                as clo,
+    intake_year, cycle_index, deposit_fully_paid, closed_lost,
+    coalesce(course_category, 'Academic')             as course_category,
+    -- the headline deposit, written as the definition writes it: a sum of two
+    -- deferral states, no deferral at all and a settled one. An *approved*
+    -- deferral has a decision and an intake, so it counts here; only the
+    -- undecided ones move to DAA. This is an explicit sum rather than "not
+    -- awaiting approval", so the (No, Yes) cell -- approved without ever being
+    -- initiated, 3 rows in the 1 Sep export and none of them live -- is
+    -- reported by nothing rather than folded in silently. See context.md.
+    deposit_fully_paid and not closed_lost
+      and ((not deferral_initiated and not deferral_approved)
+        or (deferral_initiated and deferral_approved))        as dep_live,
+    -- awaiting approval: initiated, and not yet decided. Disjoint from dep_live.
+    deposit_fully_paid and not closed_lost
+      and deferral_initiated and not deferral_approved        as daa_live,
+    -- PD is disjoint from both -- a partial deposit is not fully paid.
+    deposit_partial and not closed_lost               as pd_live,
     enrolled, visa_granted,
     closed_lost
       and lower(coalesce(application_status, ''))     = 'visa'
@@ -42,6 +69,15 @@ f as (
       and lower(coalesce(application_status, '')) like '%%receiv%%' as coe
   from applications
   where load_id = %(apps)s
+),
+f as (
+  select *,
+    dep_live  and course_category = 'Academic'                     as act,
+    deposit_fully_paid and closed_lost
+              and course_category = 'Academic'                     as clo,
+    daa_live  and course_category = 'Academic'                     as daa,
+    pd_live   and course_category = 'Academic'                     as pdep
+  from f0
 )
 """
 
@@ -52,28 +88,30 @@ a as (
   select
     name,
     count(*) filter (where scored)                                as apps_life,
-    count(*) filter (where cycle_year = %(cur)s)                  as apps_cur,
+    count(*) filter (where intake_year = %(cur)s)                  as apps_cur,
     count(*) filter (where act and scored)                        as act_life,
-    count(*) filter (where act and cycle_year = %(cur)s)          as act_cur,
-    count(*) filter (where act and cycle_year = %(prev)s)         as act_prev,
-    count(*) filter (where act and cycle_year < %(prev)s)         as act_before,
+    count(*) filter (where act and intake_year = %(cur)s)          as act_cur,
+    count(*) filter (where act and intake_year = %(prev)s)         as act_prev,
+    count(*) filter (where act and intake_year < %(prev)s)         as act_before,
     count(*) filter (where clo and scored)                        as clos_life,
-    count(*) filter (where clo and cycle_year = %(cur)s)          as clos_cur,
+    count(*) filter (where clo and intake_year = %(cur)s)          as clos_cur,
     count(*) filter (where enrolled and scored)                   as enr_life,
     count(*) filter (where enrolled and act and scored)           as enr_dep_life,
     count(*) filter (where visa_granted and act and scored)       as vg_dep_life,
     count(*) filter (where vrej and scored)                       as vrej_life,
-    count(*) filter (where vrej and cycle_year = %(cur)s)         as vrej_cur,
+    count(*) filter (where vrej and intake_year = %(cur)s)         as vrej_cur,
     count(*) filter (where coe and scored)                        as coe_life,
-    count(*) filter (where coe and cycle_year = %(cur)s)          as coe_cur,
+    count(*) filter (where coe and intake_year = %(cur)s)          as coe_cur,
     count(*) filter (where deposit_fully_paid)                    as dep_any,
+    count(*) filter (where daa and intake_year = %(cur)s)          as daa_cur,
+    count(*) filter (where pdep and intake_year = %(cur)s)         as pd_cur,
     -- cadence counts need a real intake year as well as a month
-    count(*) filter (where act and cycle_year is not null and cycle_index = 0) as cyc0,
-    count(*) filter (where act and cycle_year is not null and cycle_index = 1) as cyc1,
-    count(*) filter (where act and cycle_year is not null and cycle_index = 2) as cyc2,
-    max(cycle_year * 10 + cycle_index)
-      filter (where act and cycle_index is not null and cycle_year <= %(cur)s) as last_key
-  from (select *, (cycle_year is null or cycle_year <= %(cur)s) as scored from f) fx
+    count(*) filter (where act and intake_year is not null and cycle_index = 0) as cyc0,
+    count(*) filter (where act and intake_year is not null and cycle_index = 1) as cyc1,
+    count(*) filter (where act and intake_year is not null and cycle_index = 2) as cyc2,
+    max(intake_year * 10 + cycle_index)
+      filter (where act and cycle_index is not null and intake_year <= %(cur)s) as last_key
+  from (select *, (intake_year is null or intake_year <= %(cur)s) as scored from f) fx
   where name is not null
   group by name
 )
@@ -120,6 +158,7 @@ select
   coalesce(a.enr_dep_life, 0) as enr_dep_life, coalesce(a.vg_dep_life, 0) as vg_dep_life,
   coalesce(a.vrej_life, 0) as vrej_life, coalesce(a.vrej_cur, 0) as vrej_cur,
   coalesce(a.coe_life, 0)  as coe_life,  coalesce(a.coe_cur, 0)  as coe_cur,
+  coalesce(a.daa_cur, 0)   as daa_cur,   coalesce(a.pd_cur, 0) as pd_cur,
   coalesce(a.cyc0, 0) as cyc0, coalesce(a.cyc1, 0) as cyc1, coalesce(a.cyc2, 0) as cyc2,
   coalesce(a.last_key, 0) as last_key
 from a
@@ -130,9 +169,9 @@ where m.stage = 'Customer' or coalesce(a.dep_any, 0) > 0
 BOOK_SQL = f"with {_ROWS}, {_AGG}, {_MASTER} {_BOOK_SELECT}"
 
 YEAR_HIST_SQL = """
-select cycle_year as y, count(*) as n
+select intake_year as y, count(*) as n
   from applications
- where load_id = %(apps)s and cycle_year between 1991 and 2099
+ where load_id = %(apps)s and intake_year between 1991 and 2099
  group by 1 order by 1
 """
 
@@ -142,16 +181,35 @@ FUNNEL_SQL = f"""
 with {_ROWS}, {_AGG}, {_MASTER},
 book as ({_BOOK_SELECT})
 select
-  cycle_year as y,
+  intake_year as y,
   count(*)                                        as apps,
   count(*) filter (where act)                     as act,
   count(*) filter (where clo)                     as clos,
   count(*) filter (where act and visa_granted)    as vg,
   count(*) filter (where act and enrolled)        as enr
 from f
-where cycle_year is not null and name is not null
+where intake_year is not null and name is not null
   and (%(scope)s = 'all' or name in (select name from book))
 group by 1 order by 1
+"""
+
+# The non-Academic courses, which the deposit figures above deliberately exclude.
+# Scoped to the same book, so this is the same population seen a different way and
+# the two sections cannot disagree about who counts as an introducer.
+COURSE_SPLIT_SQL = f"""
+with {_ROWS}, {_AGG}, {_MASTER},
+book as ({_BOOK_SELECT})
+select
+  course_category                                                     as category,
+  count(*) filter (where dep_live and intake_year = %(cur)s)           as act_cur,
+  count(*) filter (where dep_live
+                     and (intake_year is null or intake_year <= %(cur)s)) as act_life,
+  count(*) filter (where daa_live and intake_year = %(cur)s)           as daa,
+  count(*) filter (where pd_live  and intake_year = %(cur)s)           as pd,
+  count(distinct name) filter (where dep_live or daa_live or pd_live) as n
+from f0
+where name in (select name from book)
+group by 1
 """
 
 NOTES_SQL = """
@@ -168,7 +226,7 @@ select
      and introducer_name is null)                                                       as blank_intro,
   (select count(*) from applications where load_id = %(apps)s
      and introducer_name is null and deposit_fully_paid)                                as blank_intro_deposits,
-  (select count(*) from applications where load_id = %(apps)s and cycle_year is null)    as no_year,
+  (select count(*) from applications where load_id = %(apps)s and intake_year is null)    as no_year,
   (select count(*) from applications where load_id = %(apps)s
      and closed_lost and enrolled)                                                      as contradictions,
   (select stats from core.loads where id = %(intro)s)                                   as intro_stats
@@ -270,7 +328,7 @@ def tile_defs(cur: int, prev: int) -> list[dict]:
     return [
         {"id": "active", "section": "active", "name": "Active", "metric": "act", "head": "cur",
          "definition": f"At least one active deposit in the {cur} intake year.",
-         "member": lambda r: r["is_active"]},
+         "member": lambda r: r["is_active"], "book_states": True},
         cohort(cur, f"Became customer {cur}", f"Active, and first became a customer in {cur}."),
         cohort(prev, f"Became customer {prev}", f"Active, and became a customer in {prev}."),
         cohort(cur - 2, f"Became customer {cur - 2}", f"Active, and became a customer in {cur - 2}."),
@@ -314,6 +372,7 @@ def tile_defs(cur: int, prev: int) -> list[dict]:
 
 def tile_stats(tile: dict, book: list[dict]) -> tuple[list[dict], dict]:
     members = [r for r in book if tile["member"](r)]
+    states = book if tile.get("book_states") else members
     metric = METRICS[tile["metric"]]
     life = sum(r[metric["life"]] for r in members) if metric["life"] else 0
     now = sum(r[metric["cur"]] for r in members) if metric["cur"] else 0
@@ -322,11 +381,24 @@ def tile_stats(tile: dict, book: list[dict]) -> tuple[list[dict], dict]:
         "n": len(members), "life": life, "cur": now,
         "contract_active": contracts.count("active"),
         "contract_expired": contracts.count("expired"),
+        # Reported beside every tile regardless of its metric: the deposit states
+        # are a property of the members, not of what the tile happens to count.
+        #
+        # The Active tile is the exception, and asks for the book. Its deposit
+        # figure is already every active deposit in CUR -- an introducer holding
+        # one is a member by definition -- but DAA and PD are not, because a
+        # partner whose only current-year money is an awaiting-approval deposit
+        # never becomes a member, and that money vanished off the card. Summing
+        # those two over the book makes all three numbers describe one
+        # population. Cohort tiles stay member-scoped: they are statements about
+        # a subset of partners, and the book figure would be the same on each.
+        "daa": sum(r["daa_cur"] for r in states),
+        "pd": sum(r["pd_cur"] for r in states),
     }
 
 
 def _public(tile: dict, stats: dict) -> dict:
-    out = {k: v for k, v in tile.items() if k != "member"}
+    out = {k: v for k, v in tile.items() if k not in ("member", "book_states")}
     metric = METRICS[tile["metric"]]
     out["metric_label"] = metric["label"]
     out["metric_short"] = metric["short"]
@@ -344,6 +416,14 @@ def _median(values: list[float]) -> float:
 def overview(ctx: ViewContext, params: dict):
     cur, prev, hist = _years(ctx)
     book = _book(ctx, cur, prev)
+
+    # every category, Academic included: the page shows the others, but a
+    # category nobody expected (Unspecified) must be visible rather than dropped
+    course_split = ctx.rows(COURSE_SPLIT_SQL, {
+        "apps": ctx.load("applications"), "intro": ctx.load("introducers"),
+        "cur": cur, "prev": prev,
+    })
+    course_split.sort(key=lambda r: -r["act_cur"])
 
     tiles = []
     for tile in tile_defs(cur, prev):
@@ -403,6 +483,7 @@ def overview(ctx: ViewContext, params: dict):
                                          "intro": ctx.load("introducers"),
                                          "cur": cur, "prev": prev, "scope": "all"}),
         },
+        "course_split": course_split,
         "not_in_crm": {
             "n": len(not_in_crm),
             "act": sum(r["act_life"] for r in not_in_crm),

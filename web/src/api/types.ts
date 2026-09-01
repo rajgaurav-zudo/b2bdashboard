@@ -162,6 +162,10 @@ export interface TileStats {
   cur: number;
   contract_active: number;
   contract_expired: number;
+  /** Deposit states in the current intake year, for this tile's members.
+   *  `daa` is a subset of the active deposits above it; `pd` is disjoint. */
+  daa: number;
+  pd: number;
 }
 
 export interface Tile {
@@ -175,6 +179,17 @@ export interface Tile {
   metric_label: string;
   metric_short: string;
   stats: TileStats;
+}
+
+/** One course category's deposit states. The dashboard's own deposit figures are
+ *  Academic-only; this is how the other categories are reported. */
+export interface CourseSplitRow {
+  category: string;
+  act_cur: number;
+  act_life: number;
+  daa: number;
+  pd: number;
+  n: number;
 }
 
 export interface FunnelRow {
@@ -232,6 +247,7 @@ export interface Overview {
   by_stage: StageRow[];
   cadence: CadenceRow[];
   funnel: { scope: FunnelRow[]; all: FunnelRow[] };
+  course_split: CourseSplitRow[];
   not_in_crm: { n: number; act: number; clos: number };
   dormant_still_applying: number;
   critique: Critique;

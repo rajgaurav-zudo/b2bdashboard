@@ -8,6 +8,11 @@
 # which of its columns that dashboard wants and what they mean. Keep the split --
 # it is why a change to one dashboard cannot alter another's numbers.
 #
+# `context.md` beside this file is the third piece: where a column's *values*
+# carry a meaning every dashboard must agree on (course-level categories, the
+# three deposit states, the intake period columns). Spec only -- nothing reads
+# it at runtime.
+#
 # `identified_by` is checked against the normalised header before anything is
 # stored, so uploading the applications export into the introducers slot is
 # refused with a readable reason rather than loading 227k wrong rows. Fragments

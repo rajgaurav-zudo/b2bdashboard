@@ -15,3 +15,6 @@ core.*
 
 # vite/tsc build artefacts
 web/tsconfig.tsbuildinfo
+
+# local-only compose overrides: pins the dev stack to the db container
+compose.override.yml
