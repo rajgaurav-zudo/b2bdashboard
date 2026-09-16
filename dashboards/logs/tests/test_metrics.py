@@ -229,6 +229,39 @@ def test_the_team_filter_narrows_everything(logs):
     assert filtered["range"]["rows"] == 4              # and the tables
 
 
+def test_the_team_filter_takes_several_teams_at_once(logs):
+    """The regional SRM teams are read together as often as alone, and asking for
+    them one at a time gives two halves of a number nobody wants halved."""
+    logs.load([*[_log(W2, managed_by_team="T1") for _ in range(3)],
+               *[_log(W2, managed_by_team="T2") for _ in range(7)],
+               *[_log(W2, managed_by_team="T3") for _ in range(5)]])
+    both = logs.overview(week=W2.isoformat(), team="T1|T2")
+    assert both["week_kpis"]["total"] == 10
+    assert both["range"]["rows"] == 10
+    assert both["filters"]["teams"] == ["T1", "T2"]
+    # the menu still lists every team in the file, including the ones filtered out
+    assert {r["team"] for r in both["teams"]} == {"T1", "T2", "T3"}
+
+
+def test_a_team_name_survives_the_round_trip_and_blanks_are_dropped(logs):
+    """One name still parses as a one-element list, so a link written before the
+    filter took several still opens on the team it named."""
+    logs.load([_log(W2, managed_by_team="T1")])
+    assert logs.overview(week=W2.isoformat(), team="T1")["filters"]["teams"] == ["T1"]
+    assert logs.overview(week=W2.isoformat(), team=" | T1 | ")["filters"]["teams"] == ["T1"]
+    assert logs.overview(week=W2.isoformat(), team="")["filters"]["teams"] == []
+
+
+def test_selecting_every_team_is_not_the_same_code_path_as_selecting_none(logs):
+    """`= any(array)` matches nothing when the array is empty, so "all teams" has
+    to be a flag. This is the test that catches it becoming an empty list."""
+    logs.load([*[_log(W2, managed_by_team="T1") for _ in range(3)],
+               *[_log(W2, managed_by_team=None) for _ in range(2)]])
+    everyone = logs.overview(week=W2.isoformat())
+    named = logs.overview(week=W2.isoformat(), team="T1|Unassigned")
+    assert everyone["week_kpis"]["total"] == named["week_kpis"]["total"] == 5
+
+
 def test_the_type_filter_narrows_the_tables_but_not_the_kpi_row(logs):
     """The KPI row and the chart are *by* type; filtering them leaves one bar."""
     logs.load([*[_log(W2, log_type="Call") for _ in range(6)],

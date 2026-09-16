@@ -132,7 +132,16 @@ disagree, and the *All time* column already answers that question per row.
 
 ### Filters
 
-- **Team** narrows everything — a team's page should be a team's page.
+- **Team** narrows everything — a team's page should be a team's page. It holds
+  a **set**, not a value: the regional SRM teams are read together as often as
+  alone, and asking for `West Africa B2B SRMs 1` and `West Africa B2B SRMs 2`
+  one at a time gives two halves of a number nobody wants halved. On the wire
+  the names are pipe-separated (`team=A|B`) — a team name may hold a comma and
+  cannot hold a pipe, and a single name still parses as a one-element list, so a
+  link written before the filter took several still opens on the team it named.
+  Selecting nothing is *every* team, and is a different code path from selecting
+  none: `= any(array)` matches nothing when the array is empty, so "all teams"
+  is a flag rather than an empty list.
 - **Log type** narrows only the tables and the sentiment index. The KPI row and
   the week-on-week chart are *by* log type; filtering them to one type would
   leave a single bar and a row of empty ones.
@@ -225,7 +234,8 @@ Two changes came out of it:
 ## Views
 
 - `overview` — the whole page. Params: `week`, `weeks`, `chart_weeks`, `top`,
-  `type`, `team`.
+  `type`, `team` (pipe-separated for several). Every view answers `filters.teams`
+  as a list.
 - `rows` — the individual logs behind a number. Params: as above, plus
   `only=week` to restrict to the selected week and `limit`.
 - `leaderboard` — one top-performer table in full, for the *view more* pane.

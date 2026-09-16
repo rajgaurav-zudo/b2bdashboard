@@ -1,6 +1,7 @@
 import type { LogOverview } from "../../api/types";
 import { n0 } from "../../format";
 import { Pill } from "../../ui/Primitives";
+import { TeamPicker } from "./TeamPicker";
 import { weekLabel } from "./weeks";
 
 interface Props {
@@ -57,15 +58,17 @@ export function WeekBar({ overview, onStep, onJumpToCurrent, onFilter }: Props) 
       </div>
 
       <div className="filters">
-        <label>
-          Team
-          <select value={filters.team} onChange={(e) => onFilter("team", e.target.value)}>
-            <option value="">All teams</option>
-            {overview.teams.map((t) => (
-              <option key={t.team} value={t.team}>{t.team} ({n0(t.n)})</option>
-            ))}
-          </select>
-        </label>
+        {/* a set rather than a value: the regional SRM teams are read together
+            as often as alone. Not a <label>, because a button is not labelable
+            and the caption would point at nothing. */}
+        <div className="fld">
+          <span className="cap">Team</span>
+          <TeamPicker
+            teams={overview.teams}
+            selected={filters.teams}
+            onChange={(next) => onFilter("team", next.join("|"))}
+          />
+        </div>
         <label>
           Log type
           <select value={filters.type} onChange={(e) => onFilter("type", e.target.value)}>

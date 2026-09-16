@@ -8,6 +8,7 @@ import { LeaderPane } from "./LeaderPane";
 import { LogPane } from "./LogPane";
 import { Notes } from "./Notes";
 import { Sentiment } from "./Sentiment";
+import { teamLabel } from "./teams";
 import { TopPerformers, type Dimension } from "./TopPerformers";
 import { WeekBar } from "./WeekBar";
 import { WeekOnWeek } from "./WeekOnWeek";
@@ -94,7 +95,7 @@ export function LogDashboard({ slug }: { slug: string }) {
         note={<>
           {data.filters.weeks} weeks to {weekLabel(data.week)} — {n0(data.range.rows)} logs
           {data.filters.type ? <> · {data.filters.type} only</> : null}
-          {data.filters.team ? <> · {data.filters.team}</> : null}.
+          {teamLabel(data.filters.teams) ? <> · {teamLabel(data.filters.teams)}</> : null}.
           {" "}These rank logging as much as activity; see the notes below.
         </>}
       >

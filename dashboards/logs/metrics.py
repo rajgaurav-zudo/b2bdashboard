@@ -11,9 +11,12 @@ Definitions are documented in context.md; the three that trip people up:
     before it, whatever range the tables are showing.
 
 Filters: `team` narrows everything, because a team's page should be a team's
-page. `type` narrows only the tables and the sentiment index -- the week KPIs
-and the week-on-week chart are *by* log type, and filtering them to one type
-would leave a single bar and eleven empty ones.
+page. It takes several teams at once -- the regional SRM teams are read together
+as often as alone, and asking for West Africa 1 and West Africa 2 separately
+gives two halves of a number nobody wants halved. `type` narrows only the tables
+and the sentiment index -- the week KPIs and the week-on-week chart are *by* log
+type, and filtering them to one type would leave a single bar and eleven empty
+ones.
 
 Nothing here is imported by core or by any other dashboard.
 """
@@ -64,7 +67,7 @@ select coalesce(nullif(log_type, ''), 'Unspecified') as type,
   from logs
  where load_id = %(load)s
    and week_start = any(%(pair)s)
-   and (%(team)s = '' or coalesce(nullif(managed_by_team, ''), 'Unassigned') = %(team)s)
+   and (%(all_teams)s or coalesce(nullif(managed_by_team, ''), 'Unassigned') = any(%(teams)s))
  group by 1
 """
 
@@ -75,7 +78,7 @@ select week_start as w,
   from logs
  where load_id = %(load)s
    and week_start between %(from)s and %(to)s
-   and (%(team)s = '' or coalesce(nullif(managed_by_team, ''), 'Unassigned') = %(team)s)
+   and (%(all_teams)s or coalesce(nullif(managed_by_team, ''), 'Unassigned') = any(%(teams)s))
  group by 1, 2
 """
 
@@ -92,7 +95,7 @@ scoped as (
    where load_id = %(load)s
      and week_start between %(from)s and %(to)s
      and (%(type)s = '' or coalesce(nullif(log_type, ''), 'Unspecified') = %(type)s)
-     and (%(team)s = '' or coalesce(nullif(managed_by_team, ''), 'Unassigned') = %(team)s)
+     and (%(all_teams)s or coalesce(nullif(managed_by_team, ''), 'Unassigned') = any(%(teams)s))
 )
 """
 
@@ -331,13 +334,29 @@ def _scope(ctx: ViewContext, params: dict) -> dict:
         "load": load, "weeks": weeks, "counted": counted, "anchor": anchor, "today": today, "previous": previous,
         "current": current, "index": index, "span": span, "start": start,
         "type": (params.get("type") or "").strip(),
-        "team": (params.get("team") or "").strip(),
+        "teams": _teams(params),
     }
+
+
+def _teams(params: dict) -> list[str]:
+    """The selected teams. Pipe-separated rather than comma-separated, because a
+    team name may hold a comma and cannot hold a pipe -- and a single name still
+    parses as a one-element list, so links written before this took several
+    still open on the team they named."""
+    raw = params.get("team") or ""
+    return [name.strip() for name in raw.split("|") if name.strip()]
 
 
 def _scoped_params(scope: dict) -> dict:
     return {"load": scope["load"], "from": scope["start"], "to": scope["anchor"],
-            "type": scope["type"], "team": scope["team"]}
+            "type": scope["type"], **_team_params(scope)}
+
+
+def _team_params(scope: dict) -> dict:
+    """`= any(array)` matches nothing when the array is empty, so "every team" is
+    a flag rather than an empty list -- and the list is never empty, because an
+    empty array has no type for the planner to compare against."""
+    return {"all_teams": not scope["teams"], "teams": scope["teams"] or [""]}
 
 
 # --------------------------------------------------------------------------
@@ -354,7 +373,7 @@ def overview(ctx: ViewContext, params: dict):
     # --- 1. selected week by log type ------------------------------------
     by_type = ctx.rows(WEEK_TYPES_SQL, {
         "load": load, "w": anchor, "p": previous,
-        "pair": [d for d in (anchor, previous) if d], "team": scope["team"],
+        "pair": [d for d in (anchor, previous) if d], **_team_params(scope),
     })
     week_total = sum(r["n"] for r in by_type)
     prev_total = sum(r["prev"] for r in by_type)
@@ -366,7 +385,7 @@ def overview(ctx: ViewContext, params: dict):
     # --- 2. week on week --------------------------------------------------
     chart_from = scope["weeks"][max(scope["index"] - chart_weeks + 1, 0)]
     grid = ctx.rows(SERIES_SQL, {"load": load, "from": chart_from, "to": anchor,
-                                 "team": scope["team"]})
+                                 **_team_params(scope)})
     chart_range = [w for w in scope["weeks"] if chart_from <= w <= anchor]
     counts: dict[str, dict[date, int]] = {}
     for row in grid:
@@ -406,7 +425,7 @@ def overview(ctx: ViewContext, params: dict):
         "days_elapsed": max(1, min((scope["today"] - anchor).days + 1, 7)),
         "has_earlier": scope["index"] > 0,
         "has_later": scope["index"] < len(scope["weeks"]) - 1,
-        "filters": {"type": scope["type"], "team": scope["team"],
+        "filters": {"type": scope["type"], "teams": scope["teams"],
                     "weeks": scope["span"], "top": top_n, "chart_weeks": chart_weeks},
         "log_types": ctx.rows(TYPES_SQL, {"load": load}),
         "teams": ctx.rows(TEAMS_SQL, {"load": load}),
@@ -438,7 +457,7 @@ def rows(ctx: ViewContext, params: dict):
     return {
         "week": scope["anchor"],
         "from": scoped["from"], "to": scoped["to"],
-        "filters": {"type": scope["type"], "team": scope["team"]},
+        "filters": {"type": scope["type"], "teams": scope["teams"]},
         "rows": ctx.rows(ROWS_SQL, {**scoped, "limit": limit}),
     }
 
@@ -463,7 +482,7 @@ def leaderboard(ctx: ViewContext, params: dict):
         "note": DIMENSIONS[dimension]["note"],
         "week": scope["anchor"],
         "range": {"from": scope["start"], "to": scope["anchor"], "weeks": scope["span"]},
-        "filters": {"type": scope["type"], "team": scope["team"]},
+        "filters": {"type": scope["type"], "teams": scope["teams"]},
         "log_types": ctx.rows(TYPES_SQL, {"load": scope["load"]}),
         "total": total,
         "rows": found,

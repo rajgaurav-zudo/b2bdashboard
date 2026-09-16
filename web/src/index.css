@@ -769,3 +769,55 @@ td.i360-c.tot b{color:var(--ink)}
   .i360-life,.i360-commit{grid-template-columns:repeat(2,1fr)}
 }
 
+/* ---------- multi-select filter ----------
+   The team filter holds a set. A native <select multiple> shows three rows of a
+   twenty-two-team list, needs ctrl-click to add a second and drops the whole
+   selection on a stray click, so adding a team is an ordinary click on a
+   checkbox instead. Sized and bordered like the selects beside it. */
+.filters .fld{display:flex;flex-direction:column;gap:3px}
+.filters .fld .cap{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.mselect{position:relative}
+.mselect .face{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;
+  font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);
+  border-radius:7px;background:var(--paper);color:var(--ink);min-width:150px;text-align:left;
+}
+.mselect .face:hover,.mselect .face.on{border-color:var(--ink)}
+.mselect .face .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mselect .face .car{font-size:9px;color:var(--faint);flex:none}
+.mpop{
+  position:absolute;top:calc(100% + 5px);left:0;z-index:30;width:270px;max-width:80vw;
+  background:var(--card);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 2px 6px rgba(21,32,28,.07),0 24px 48px -24px rgba(21,32,28,.55);
+  padding:8px;
+}
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 6px 8px;
+  border-bottom:1px solid var(--line-soft);font-size:11px;color:var(--faint)}
+.mhead button{
+  font:inherit;font-size:11px;padding:2px 9px;cursor:pointer;
+  border:1px solid var(--line);border-radius:99px;background:var(--paper);color:var(--muted);
+}
+.mhead button:hover{color:var(--ink);border-color:var(--ink)}
+.msearch{
+  width:100%;font:inherit;font-size:12.5px;padding:6px 9px;margin-top:8px;
+  border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);
+}
+.msearch:focus{outline:2px solid var(--info);outline-offset:1px;border-color:transparent}
+.mlist{max-height:280px;overflow-y:auto;margin-top:6px}
+/* every one of these resets something `.filters label` sets: that rule is the
+   caption above the control and has the same specificity, so a row left to
+   inherit it stacks into a column in faint uppercase */
+.mlist .opt{
+  display:flex;flex-direction:row;align-items:center;gap:9px;cursor:pointer;
+  font-size:12.5px;text-transform:none;letter-spacing:normal;color:var(--ink);
+  padding:5px 6px;border-radius:6px;
+}
+.mlist .opt:hover{background:rgba(21,32,28,.045)}
+.mlist .opt.on{font-weight:600}
+.mlist .opt input{accent-color:var(--ink);width:14px;height:14px;margin:0;flex:none}
+.mnone{margin:10px 6px;font-size:12.5px;color:var(--muted)}
+.mlist .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mlist .n{
+  font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:11.5px;color:var(--faint);font-weight:400;
+}

@@ -357,7 +357,7 @@ export interface LeaderboardView {
   note: string;
   week: string;
   range: { from: string; to: string; weeks: number };
-  filters: { type: string; team: string };
+  filters: { type: string; teams: string[] };
   log_types: { type: string; n: number }[];
   total: number;
   rows: TopRow[];
@@ -412,7 +412,7 @@ export interface LogOverview {
   days_elapsed: number;
   has_earlier: boolean;
   has_later: boolean;
-  filters: { type: string; team: string; weeks: number; top: number; chart_weeks: number };
+  filters: { type: string; teams: string[]; weeks: number; top: number; chart_weeks: number };
   log_types: { type: string; n: number }[];
   teams: { team: string; n: number }[];
   week_kpis: {
@@ -445,7 +445,7 @@ export interface LogRowsView {
   week: string;
   from: string;
   to: string;
-  filters: { type: string; team: string };
+  filters: { type: string; teams: string[] };
   rows: LogRow[];
 }
 
