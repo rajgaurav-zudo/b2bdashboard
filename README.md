@@ -118,3 +118,14 @@ stylesheet and the drill-down pane are ports of it, not reinterpretations.
   the lifecycle table gives 2,016 (full book) and the funnel row 1,961 (Customer-only).
   Tiles use the full book; the funnel carries an **In scope / All attributed** toggle so the
   difference is visible rather than hidden.
+- **Two of Introducer 360's eleven stages carry no date, and say so.** A stage there is an
+  event — an application that *entered* it, read off the CRM's `Timestamp of '<status>'`
+  columns — which is what makes a date range mean anything. Partial deposits and deferrals
+  awaiting approval are recorded as flags with no transition, so they are reported "as of"
+  the export instead of being narrowed by the window, they carry no year-on-year delta, and
+  the introducer-wise total column counts only the nine stages that are events. Borrowing
+  another column's date for them was tried and made the card read 0 on any short window.
+- **Introducer 360 keeps the handoff's layout, not its palette.** The eight-card line, the
+  card anatomy, the group breakdown and the counsellor-wise modal are the design's; the
+  colours, type and components are this codebase's, because a second visual language inside
+  the same left menu costs more than it buys.

@@ -448,3 +448,106 @@ export interface LogRowsView {
   filters: { type: string; team: string };
   rows: LogRow[];
 }
+
+/* ---------------------------------------------------------------------------
+   introducer 360
+   A stage is an event -- an application that entered it inside the window --
+   so every cell here is a count of entries, not of applications in a status.
+   --------------------------------------------------------------------------- */
+
+export interface I360Cell {
+  created: number;
+  active: number;
+  closed: number;
+  active_pct: number;
+  closed_pct: number;
+}
+
+export interface I360Stage extends I360Cell {
+  id: string;
+  name: string;
+  group: string | null;
+  /** an event is windowed by its own timestamp; a state has no timestamp and is
+   *  reported as it stands in the export */
+  kind: "event" | "state";
+  previous?: I360Cell;
+  delta?: number | null;
+}
+
+export interface I360Widget extends I360Cell {
+  id: string;
+  name: string;
+  sub?: string;
+  kind: "event" | "state" | "group";
+  group: string | null;
+  members: I360Stage[];
+  /** false when the card cannot be narrowed by the date range, and says "as of" */
+  windowed: boolean;
+  previous?: I360Cell;
+  delta?: number | null;
+}
+
+export interface I360Range {
+  id: string;
+  label: string;
+  from: string;
+  to: string;
+}
+
+export interface I360WiseRow {
+  name: string;
+  entered: number;
+  cells: (I360Cell & { id: string })[];
+  total: I360Cell;
+}
+
+export interface I360Overview {
+  anchor: string;
+  scope_line: string;
+  selected: string[];
+  compare: boolean;
+  range: I360Range & { presets: { id: string; label: string; from?: string; to?: string }[] };
+  previous_range: { from: string; to: string; label: string };
+  intake: {
+    year: number | null;
+    cycle: number | null;
+    years: { y: number; n: number }[];
+    cycles: { i: number; label: string; n: number }[];
+  };
+  stages: I360Stage[];
+  widgets: I360Widget[];
+  groups: { id: string; name: string; sub: string }[];
+  top: I360WiseRow[];
+  lifetime: {
+    apps: number; applied: number; offers: number; deposits_live: number;
+    enrolled: number; lost: number; first_seen: string | null; last_seen: string | null;
+  };
+  profile: {
+    stage: string; contract: string; country: string;
+    team: string; srm: string; since: number | null;
+  } | null;
+  commitment: {
+    intake_year: number;
+    now_paid: number; now_apps: number;
+    prev_paid_to_date: number; prev_paid_total: number;
+  };
+  data: {
+    app_rows: number; no_stage_dates: number; no_introducer: number;
+    paid_without_date: number; no_intake_year: number; master_rows: number;
+  };
+}
+
+export interface I360WiseView {
+  scope_line: string;
+  range: I360Range;
+  stage_names: { id: string; name: string }[];
+  rows: I360WiseRow[];
+  row_limit: number;
+  totals: { cells: I360Stage[]; total: I360Cell };
+}
+
+export interface I360MenuView {
+  q: string;
+  limit: number;
+  rows: { name: string; n: number; deposits: number }[];
+}

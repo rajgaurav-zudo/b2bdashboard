@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 
+import { Introducer360 } from "./introducer360";
 import { IntroducerPerformance } from "./introducerPerformance";
 import { LogDashboard } from "./logDashboard";
 
@@ -7,5 +8,6 @@ import { LogDashboard } from "./logDashboard";
  *  its Data and Changelog tabs; only the bespoke overview is missing. */
 export const OVERVIEWS: Record<string, ComponentType<{ slug: string }>> = {
   introducer_performance: IntroducerPerformance,
+  introducer_360: Introducer360,
   logs: LogDashboard,
 };
