@@ -43,7 +43,15 @@ class IngestError(Exception):
 
 
 def _sniff_separator(head: bytes) -> str:
-    line = head.split(b"\n", 1)[0].decode("utf-8", "replace")
+    """The delimiter that occurs most in the header, outside quoted fields.
+
+    A quoted header such as "Last, First";city carries commas that belong to
+    the field, not the file. The even segments of a split on the quote
+    character are the text outside quotes (as in count_records), so the header
+    is the outside text up to its first newline.
+    """
+    outside = b"".join(head.split(b'"')[::2])
+    line = outside.split(b"\n", 1)[0].decode("utf-8", "replace")
     return max([",", "\t", ";", "|"], key=lambda d: line.count(d))
 
 
