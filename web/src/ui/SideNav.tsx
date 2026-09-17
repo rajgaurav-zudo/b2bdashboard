@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useDashboards } from "../api/client";
@@ -12,24 +12,24 @@ function initials(name: string): string {
   return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-/** The frame every page sits in: a left menu, and the page beside it.
+/** The frame every page sits in: a navy menu, a white top bar saying where you
+ *  are, and the page beneath it.
  *
- *  Two groups, because the platform has two kinds of page. A dashboard is a way
- *  of reading the data and each has its own; the files themselves are shared, so
- *  there is one place to upload them and one log of what each upload changed.
+ *  Two menu groups, because the platform has two kinds of page. A dashboard is
+ *  a way of reading the data and each has its own; the files themselves are
+ *  shared, so there is one place to upload them and one log of what each
+ *  upload changed.
  *
- *  Collapsing narrows the menu to a rail of marks rather than hiding it, so the
- *  page never loses the thing that says where you are. Below 860px the rail is
- *  the default and expanding it floats over the page instead of squeezing it. */
+ *  Collapsing narrows the menu to a rail of marks rather than hiding it. At
+ *  900px and below the stylesheet lays the menu out as a horizontal row with
+ *  every label showing, so the rail preference does not apply there. */
 export function AppLayout() {
   const [rail, setRail] = useState<boolean>(() => {
     try {
-      const saved = window.localStorage.getItem(STORE);
-      if (saved !== null) return saved === "1";
+      return window.localStorage.getItem(STORE) === "1";
     } catch {
-      /* private browsing: fall through to the width default */
+      return false;
     }
-    return window.innerWidth <= 860;
   });
 
   const toggle = useCallback(() => {
@@ -43,23 +43,51 @@ export function AppLayout() {
     });
   }, []);
 
-  const { pathname } = useLocation();
-
-  // on a phone the expanded menu covers the page, so a tap through to a new
-  // page has to close it -- otherwise you land behind the menu you just used
-  useEffect(() => {
-    if (window.innerWidth <= 860) setRail(true);
-  }, [pathname]);
-
   return (
     <div className={`shell${rail ? " rail" : ""}`}>
       <SideNav rail={rail} onToggle={toggle} />
-      {/* only ever visible under the floating menu on a narrow screen */}
-      <div className="nav-scrim" onClick={() => setRail(true)} aria-hidden="true" />
       <main className="main">
+        <TopBar />
         <Outlet />
       </main>
     </div>
+  );
+}
+
+/** Where you are, as plain text. Only the platform root is a link: a crumb for
+ *  the page you are on would just reload it. */
+function TopBar() {
+  const { pathname } = useLocation();
+  const { data } = useDashboards();
+
+  let trail: string[];
+  if (pathname.startsWith("/d/")) {
+    const slug = decodeURIComponent(pathname.split("/")[2] ?? "");
+    trail = ["Dashboards", data?.find((d) => d.slug === slug)?.name ?? slug];
+  } else if (pathname === "/uploads") {
+    trail = ["Data", "Uploads"];
+  } else if (pathname === "/changelog") {
+    trail = ["Data", "Changelog"];
+  } else {
+    trail = ["Dashboards"];
+  }
+
+  return (
+    <header className="topbar">
+      <nav aria-label="Breadcrumb">
+        <ol className="crumbs">
+          {trail.map((crumb, i) => {
+            const last = i === trail.length - 1;
+            if (last) return <li key={crumb} aria-current="page">{crumb}</li>;
+            return (
+              <li key={crumb}>
+                {crumb === "Dashboards" ? <Link to="/">{crumb}</Link> : crumb}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+    </header>
   );
 }
 
@@ -87,7 +115,7 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
         </button>
       </div>
 
-      <nav className="nav-list">
+      <nav className="nav-list" aria-label="Main">
         <div className="nav-group">
           <p className="nav-lbl">Dashboards</p>
           {isLoading ? <p className="nav-note">Loading…</p> : null}
@@ -103,7 +131,7 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
           <p className="nav-lbl">Data</p>
           <Row to="/uploads" rail={rail} mark="↑" label="Uploads"
                hint="Send a file to every dashboard that reads it" />
-          {/* a delta, not a cycle glyph: IBM Plex has no arrow-circle and the
+          {/* a delta, not a cycle glyph: Inter has no arrow-circle and the
               fallback rendered as a dot */}
           <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
                hint="What every upload changed, in every dashboard" />

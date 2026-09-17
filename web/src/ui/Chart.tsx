@@ -10,9 +10,9 @@ ChartJS.register(
 );
 
 ChartJS.defaults.font.family =
-  "ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  "Inter, ui-sans-serif, -apple-system, 'Segoe UI', Arial, sans-serif";
 ChartJS.defaults.font.size = 11;
-ChartJS.defaults.color = "#5F6E68";
+ChartJS.defaults.color = "#5b6a7f";
 
 /** Labels each line at its right-hand end instead of in a legend, so the eye
  *  never has to travel between a colour swatch and a line. Collisions are
@@ -30,7 +30,7 @@ export const endLabels = {
       placed.push({
         y: last.y,
         text: String(dataset.label ?? ""),
-        colour: String(dataset.borderColor ?? "#15201C"),
+        colour: String(dataset.borderColor ?? "#17233a"),
       });
     });
     // Two series ending at the same value would print on top of each other.

@@ -23,7 +23,7 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
         label: s.type,
         data: s.counts,
         backgroundColor: colour(s.type),
-        borderColor: "#15201C",
+        borderColor: "#17233a",
         // the selected week keeps a hairline outline; every other bar has none
         borderWidth: s.counts.map((_, i) => (i === selected ? 1.5 : 0)),
         borderSkipped: false,
@@ -38,7 +38,7 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
       scales: {
         x: { grid: { display: false }, border: { display: false } },
         y: {
-          grid: { color: "rgba(21,32,28,.07)", drawTicks: false },
+          grid: { color: "#e3e9f0", drawTicks: false },
           border: { display: false }, beginAtZero: true, ticks: { precision: 0 },
         },
       },
@@ -49,7 +49,7 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
                     pointStyle: "rect" as const, padding: 14 },
         },
         tooltip: {
-          backgroundColor: "#15201C", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
+          backgroundColor: "#17233a", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
           callbacks: {
             title: (items: TooltipItem<"bar">[]) => weekLabel(weeks[items[0]!.dataIndex]!),
             footer: (items: TooltipItem<"bar">[]) =>
