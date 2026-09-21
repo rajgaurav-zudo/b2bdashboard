@@ -44,7 +44,6 @@ ENV DASHBOARDS_DIR=/srv/dashboards \
     SOURCES_FILE=/srv/sources/sources.yaml \
     WEB_DIST=/srv/web \
     UPLOAD_DIR=/srv/data/uploads \
-    STORAGE_BACKEND=supabase \
     AUTH_REQUIRED=true
 
 # no --reload, and a worker count the platform can override

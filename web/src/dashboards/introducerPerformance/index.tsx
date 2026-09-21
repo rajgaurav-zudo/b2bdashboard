@@ -2,28 +2,46 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { useOverview } from "../../api/client";
-import type { Overview, Tile } from "../../api/types";
+import type { Overview, OverviewTotals, Tile } from "../../api/types";
 import { n0, pct } from "../../format";
 import { Band, Empty, Section, Seg, Spinner } from "../../ui/Primitives";
 import { CourseSplit } from "./CourseSplit";
 import { Critique } from "./Critique";
+import { FilterBar, type Selection } from "./FilterBar";
 import { Funnel } from "./Funnel";
 import { Notes } from "./Notes";
 import { SidePane } from "./SidePane";
 import { Tiles } from "./Tiles";
 
+/** The URL keys the server reads as filters. `compare` only changes the overview. */
+const FILTER_KEYS = ["from", "to", "teams", "cycles"] as const;
+
 export function IntroducerPerformance({ slug }: { slug: string }) {
-  const { data, isLoading, error } = useOverview(slug);
   // in the URL rather than in state: a call list is something people send to each other
   const [params, setParams] = useSearchParams();
+  const filters: Record<string, string> = {};
+  for (const k of FILTER_KEYS) {
+    const v = params.get(k);
+    if (v) filters[k] = v;
+  }
+  const compare = params.get("compare") === "1";
+  const selection: Selection = {
+    teams: (params.get("teams") ?? "").split("|").filter(Boolean),
+    cycles: (params.get("cycles") ?? "").split(",").filter(Boolean).map(Number),
+  };
+  const { data, isLoading, error } = useOverview(slug, compare ? { ...filters, compare: "1" } : filters);
   const [scope, setScope] = useState<"scope" | "all">("scope");
   const selected = params.get("tile");
-  const setSelected = (id: string | null) => {
+  /** null or "" removes a key */
+  const set = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
-    if (id === null) next.delete("tile");
-    else next.set("tile", id);
+    for (const [k, v] of Object.entries(changes)) {
+      if (v === null || v === "") next.delete(k);
+      else next.set(k, v);
+    }
     setParams(next, { replace: true });
   };
+  const setSelected = (id: string | null) => set({ tile: id });
 
   if (isLoading) return <Spinner label="Building the read model…" />;
   if (error) {
@@ -43,25 +61,27 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
 
   return (
     <>
+      <FilterBar overview={data} selection={selection} set={set} />
+
       <ScopeBand overview={data} />
 
       <Section
         title="Active introducers"
-        note={`${n0(active.stats.n)} introducers produced ${n0(active.stats.cur)} active Academic deposits in the ${data.current_year} intake. Cohort tiles split them by the year they became a customer. DAA and PD are shown under each tile and are not counted in the deposit figure above them.`}
+        note={`${n0(active.stats.n)} introducers produced ${n0(active.stats.cur)} active Academic deposits in the ${data.period.label} ${data.period.whole_year ? "intake" : "intake window"}. Cohort tiles split them by the year they became a customer. DAA and PD are shown under each tile and are not counted in the deposit figure above them.`}
       >
-        <Tiles tiles={data.tiles} section="active" currentYear={data.current_year} onOpen={setSelected} />
+        <Tiles tiles={data.tiles} section="active" periodLabel={data.period.label} compare={data.compare} onOpen={setSelected} />
       </Section>
 
       <Section
         title="Language &amp; pre-sessional"
         note={`Every deposit figure elsewhere on this page is Academic only. Language and pre-sessional English intakes behave nothing like a degree intake, so they are reported here instead of being averaged into it.`}
       >
-        <CourseSplit rows={data.course_split} currentYear={data.current_year} />
+        <CourseSplit rows={data.course_split} periodLabel={data.period.label} />
       </Section>
 
       <Section title="Leaking revenue" note="Partners who paid before and don't now, plus effort that never converted.">
         <Tiles
-          tiles={data.tiles} section="leak" currentYear={data.current_year} onOpen={setSelected}
+          tiles={data.tiles} section="leak" periodLabel={data.period.label} compare={data.compare} onOpen={setSelected}
           extra={(tile) => tile.id === "dormant"
             ? `${n0(data.dormant_still_applying)} still submitting applications`
             : null}
@@ -71,7 +91,7 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
           <div>
             <b>Where to start.</b>{" "}
             {n0(data.dormant_still_applying)} of the {n0(dormant.stats.n)} dormant introducers are{" "}
-            <b>still submitting applications</b> in {data.current_year} — they have not left, they
+            <b>still submitting applications</b> in {data.period.label} — they have not left, they
             have stopped converting. That is a pipeline problem and far cheaper to fix than a cold
             reactivation. The other {n0(dormant.stats.n - data.dormant_still_applying)} have gone
             quiet entirely and need a relationship rebuilt. For comparison, win-backs currently
@@ -85,12 +105,13 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
         title="Quality"
         note="Where applications and deposits are being lost. Read alongside country — see the critique below."
       >
-        <Tiles tiles={data.tiles} section="quality" currentYear={data.current_year} onOpen={setSelected} />
+        <Tiles tiles={data.tiles} section="quality" periodLabel={data.period.label} compare={data.compare} onOpen={setSelected} />
       </Section>
 
       <Section
         title="Conversion funnel"
-        note="By intake cycle year. Nov–Dec roll into the following January."
+        note={`By intake cycle year. Nov–Dec roll into the following January.${
+          data.period.is_default ? "" : " Every year is shown: the date range does not apply here."}`}
         aside={
           <Seg
             value={scope}
@@ -127,7 +148,7 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
         <Notes overview={data} />
       </Section>
 
-      <SidePane slug={slug} tileId={selected} onClose={() => setSelected(null)} />
+      <SidePane slug={slug} tileId={selected} filters={filters} onClose={() => setSelected(null)} />
     </>
   );
 }
@@ -142,7 +163,9 @@ function ScopeBand({ overview }: { overview: Overview }) {
         <b>Scope.</b> {n0(overview.book_size)} introducers are in scope — every partner at{" "}
         <i>Customer</i> stage, plus anyone with a paid deposit at any stage. Together they hold{" "}
         <b>{n0(overview.totals.act_life)} active</b> and <b>{n0(overview.totals.clos_life)} closed</b>{" "}
-        deposits, {n0(overview.totals.act_cur)} of them active in the {overview.current_year} intake.{" "}
+        deposits, {n0(overview.totals.act_cur)} of them active in the {overview.period.label}{" "}
+        {overview.period.whole_year ? "intake" : "intake window"}.{" "}
+        {overview.compare ? <CompareLine now={overview} /> : null}
         {overview.by_stage.map((s, i) => (
           <span key={s.stage}>
             {i ? " · " : ""}<b>{n0(s.n)}</b> {s.stage} ({n0(s.act)} active dep.)
@@ -155,6 +178,29 @@ function ScopeBand({ overview }: { overview: Overview }) {
         reporting.
       </div>
     </div>
+  );
+}
+
+/** The scope totals against the same filters one period earlier. */
+function CompareLine({ now }: { now: Overview }) {
+  const before = now.compare!;
+  // `invert`: a rise in lost deposits is the bad direction
+  const row = (label: string, a: number, b: number, invert = false) => {
+    const change = a - b;
+    const good = invert ? -change : change;
+    return (
+      <span className={`ip-cmp ${good > 0 ? "up" : good < 0 ? "down" : "flat"}`}>
+        {label} <b>{change > 0 ? "+" : ""}{n0(change)}</b> ({n0(b)} → {n0(a)})
+      </span>
+    );
+  };
+  const t = (k: keyof OverviewTotals) => [now.totals[k], before.totals[k]] as const;
+  return (
+    <>
+      Against <b>{before.label}</b>:{" "}
+      {row("active deposits in the window", ...t("act_cur"))} ·{" "}
+      {row("paid then lost in the window", ...t("clos_cur"), true)}.{" "}
+    </>
   );
 }
 

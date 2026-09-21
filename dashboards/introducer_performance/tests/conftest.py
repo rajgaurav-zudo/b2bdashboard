@@ -33,7 +33,7 @@ APP_COLUMNS = (
     # cycle_year is still stored but no longer read: settable so a test can
     # set the two apart and catch the read model relapsing onto it.
     "cycle_year",
-    "cycle_index", "application_status", "application_sub_status", "visa_granted", "enrolled",
+    "cycle_index", "intake_month_num", "application_status", "application_sub_status", "visa_granted", "enrolled",
 )
 INTRO_COLUMNS = (
     "partner_name", "lifecycle_stage", "latest_contract_status", "country",
@@ -70,18 +70,18 @@ class Fixture:
                     [self.ctx.loads["applications"], i, *values],
                 )
 
-    def overview(self, metrics):
-        return metrics.overview(self.ctx, {})
+    def overview(self, metrics, **params):
+        return metrics.overview(self.ctx, params)
 
     def tile(self, metrics, **params):
         return metrics.tile(self.ctx, params)
 
-    def by_name(self, metrics):
-        cur, prev, _ = metrics._years(self.ctx)
-        return {r["name"]: r for r in metrics._book(self.ctx, cur, prev)}
+    def by_name(self, metrics, **params):
+        *_, flt = metrics._scope(self.ctx, params)
+        return {r["name"]: r for r in metrics._book(self.ctx, flt)}
 
-    def tiles(self, metrics):
-        return {t["id"]: t["stats"] for t in self.overview(metrics)["tiles"]}
+    def tiles(self, metrics, **params):
+        return {t["id"]: t["stats"] for t in self.overview(metrics, **params)["tiles"]}
 
 
 @pytest.fixture

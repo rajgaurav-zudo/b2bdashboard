@@ -506,3 +506,102 @@ def test_deposit_figures_are_academic_only(book, metrics):
     assert split["Language"]["n"] == 2
     assert split["Pre-sessional English"]["daa"] == 1
     assert split["Pre-sessional English"]["act_cur"] == 0   # DAA is not a deposit
+
+
+# --------------------------------------------------------------------------
+# filters: date range, team, intake, compare
+# --------------------------------------------------------------------------
+
+def _dep(name, year, month, cycle, n=1, **kw):
+    return [{"introducer_name": name, "deposit_fully_paid": True, "intake_year": year,
+             "intake_month_num": month, "cycle_index": cycle, **kw} for _ in range(n)]
+
+
+def test_the_default_window_is_the_whole_current_year(book, metrics):
+    book.load(
+        introducers=[{"partner_name": "P", "lifecycle_stage": "Customer"}],
+        applications=_dep("P", 2026, 9, 2, n=20) + _dep("P", 2025, 1, 0),
+    )
+    period = book.overview(metrics)["period"]
+    assert (period["from"], period["to"], period["label"]) == ("2026-01", "2026-12", "2026")
+    assert period["prior_label"] == "2025" and period["is_default"]
+    # spelling the default out is the same request
+    assert book.by_name(metrics, **{"from": "2026-01", "to": "2026-12"}) == book.by_name(metrics)
+
+
+def test_a_month_window_counts_only_intakes_inside_it(book, metrics):
+    book.load(
+        introducers=[{"partner_name": "P", "lifecycle_stage": "Customer"}],
+        applications=(_dep("P", 2026, 9, 2, n=20) + _dep("P", 2026, 1, 0, n=3)
+                      + _dep("P", 2025, 9, 2, n=2) + _dep("P", 2024, 9, 2)
+                      # no month: its year straddles the window, so it is in neither
+                      + _dep("P", 2025, None, None)),
+    )
+    p = book.by_name(metrics, **{"from": "2025-09", "to": "2026-05"})["P"]
+    assert p["act_cur"] == 5            # Sep 2025 x2 + Jan 2026 x3, not Sep 2026
+    assert p["act_prev"] == 1           # Sep 2024 - May 2025
+    assert p["act_life"] == 7           # everything up to May 2026, month-less 2025 included
+    period = book.overview(metrics, **{"from": "2025-09", "to": "2026-05"})["period"]
+    assert period["label"] == "Sep 2025 – May 2026"
+    assert period["prior_label"] == "Sep 2024 – May 2025"
+    assert not period["is_default"]
+
+
+def test_a_reversed_range_is_swapped_and_a_bad_one_refused(book, metrics):
+    book.load(introducers=[], applications=_dep("P", 2026, 9, 2, n=20))
+    assert book.by_name(metrics, **{"from": "2026-12", "to": "2026-01"}) == book.by_name(metrics)
+    for bad in ({"from": "2026-13"}, {"to": "Sept"}, {"cycles": "5"}):
+        with pytest.raises(metrics.ViewError):
+            book.overview(metrics, **bad)
+
+
+def test_the_team_filter_keeps_only_that_teams_introducers(book, metrics):
+    book.load(
+        introducers=[
+            {"partner_name": "North", "lifecycle_stage": "Customer", "srm_team": "North"},
+            {"partner_name": "South", "lifecycle_stage": "Customer", "srm_team": "South"},
+            {"partner_name": "Blank", "lifecycle_stage": "Customer", "srm_team": ""},
+        ],
+        applications=(_dep("North", 2026, 9, 2, n=20) + _dep("South", 2026, 9, 2, n=4)
+                      + _dep("Ghost", 2026, 9, 2)),
+    )
+    assert set(book.by_name(metrics, teams="North")) == {"North"}
+    # blank teams and names missing from the CRM are both Unassigned
+    assert set(book.by_name(metrics, teams="South|Unassigned")) == {"South", "Blank", "Ghost"}
+
+    out = book.overview(metrics, teams="South")
+    assert out["totals"]["act_cur"] == 4
+    assert out["filters"]["teams"] == ["South"]
+    # the options are counted without the Team filter, so every team stays pickable
+    assert {o["team"]: o["n"] for o in out["team_options"]} == {"North": 1, "South": 1, "Unassigned": 2}
+    assert [r["act"] for r in out["funnel"]["all"]] == [4]
+
+
+def test_the_intake_filter_keeps_only_those_cycles(book, metrics):
+    book.load(
+        introducers=[{"partner_name": "P", "lifecycle_stage": "Customer"}],
+        applications=_dep("P", 2026, 9, 2, n=20) + _dep("P", 2026, 1, 0, n=3) + _dep("P", 2026, 5, 1),
+    )
+    assert book.by_name(metrics, cycles="0,1")["P"]["act_cur"] == 4
+    assert book.by_name(metrics, cycles="2")["P"]["act_cur"] == 20
+    # all three is no filter
+    assert book.overview(metrics, cycles="0,1,2")["filters"]["cycles"] == []
+
+
+def test_compare_is_the_same_filters_a_year_earlier(book, metrics):
+    book.load(
+        introducers=[{"partner_name": "P", "lifecycle_stage": "Customer", "became_customer_year": 2026},
+                     {"partner_name": "Q", "lifecycle_stage": "Customer", "became_customer_year": 2025}],
+        applications=(_dep("P", 2026, 9, 2, n=20) + _dep("Q", 2025, 9, 2, n=6)
+                      + _dep("Q", 2025, 1, 0, n=2)),
+    )
+    assert book.overview(metrics)["compare"] is None
+    cmp = book.overview(metrics, compare="1")["compare"]
+    assert cmp["label"] == "2025"
+    assert cmp["totals"]["act_cur"] == 8
+    assert cmp["tiles"]["active"]["n"] == 1
+    # cohorts are compared newest against newest: coh2026 now with coh2025 then
+    assert cmp["tiles"]["coh2026"]["n"] == 1
+
+    cmp = book.overview(metrics, compare="1", cycles="2")["compare"]
+    assert cmp["totals"]["act_cur"] == 6

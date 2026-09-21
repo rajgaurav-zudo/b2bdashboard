@@ -858,3 +858,7 @@ td.i360-c.tot b{color:var(--ink)}
   h1{font-size:25px}
   .tile .metric,.course-card .metric,.sent .metric{font-size:27px}
 }
+.ip-cmp b{font-weight:600}
+.ip-cmp.up b{color:var(--good)}
+.ip-cmp.down b{color:var(--bad)}
+.ip-cmp.flat b{color:var(--faint)}

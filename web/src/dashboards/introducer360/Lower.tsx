@@ -1,7 +1,7 @@
 import type { I360Overview } from "../../api/types";
 import { n0, pct } from "../../format";
 import { Band, Note } from "../../ui/Primitives";
-import { dayLabel } from "./dates";
+import { dayLabel } from "../../ui/dates";
 
 /** Who this partner is, from the master file, and what they have done over
  *  their whole life rather than inside the window. This is the half that makes

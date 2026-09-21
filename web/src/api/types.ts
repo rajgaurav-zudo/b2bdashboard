@@ -234,15 +234,41 @@ export interface DataNotes {
   intro_stats: { input_rows?: number; blank_name_rows?: number; duplicate_names?: number } | null;
 }
 
+/** The intake-month window every "current" figure counts, and the one it is
+ *  compared with: the same months, a year (or as many years as it spans) back. */
+export interface Period {
+  from: string;          // YYYY-MM
+  to: string;            // YYYY-MM
+  label: string;         // "2026", "2024–2026", "Sep 2025 – May 2026"
+  prior_label: string;
+  end_year: number;
+  whole_year: boolean;
+  is_default: boolean;
+}
+
+export interface OverviewTotals {
+  act_life: number; clos_life: number; apps_life: number;
+  act_cur: number; clos_cur: number; enr_life: number;
+}
+
+/** The same filters over the prior window, keyed by the current tile ids. */
+export interface OverviewCompare {
+  label: string;
+  book_size: number;
+  totals: OverviewTotals;
+  tiles: Record<string, TileStats>;
+}
+
 export interface Overview {
   current_year: number;
   previous_year: number;
+  period: Period;
+  filters: { teams: string[]; cycles: number[] };
+  team_options: { team: string; n: number }[];
+  compare: OverviewCompare | null;
   year_histogram: { y: number; n: number }[];
   book_size: number;
-  totals: {
-    act_life: number; clos_life: number; apps_life: number;
-    act_cur: number; clos_cur: number; enr_life: number;
-  };
+  totals: OverviewTotals;
   tiles: Tile[];
   by_stage: StageRow[];
   cadence: CadenceRow[];
@@ -283,6 +309,7 @@ export interface IntroducerRow {
 export interface TileMembers {
   current_year: number;
   previous_year: number;
+  period: Period;
   tile: Tile;
   by_stage: { stage: string; n: number; act: number; clos: number }[];
   rows: IntroducerRow[];
@@ -293,6 +320,7 @@ export interface TileMembers {
 export interface TileDrilldown {
   current_year: number;
   previous_year: number;
+  period: Period;
   tile: Tile;
   group_by: string;
   sort: string;

@@ -4,6 +4,7 @@ Export headers arrive mangled: curly quotes, mojibake from a bad decode, stray
 whitespace. Normalise hard, then match on exact name, substring, and finally
 tokens -- never on a hard-coded header string.
 """
+import csv
 import io
 import re
 from dataclasses import dataclass, field
@@ -42,17 +43,35 @@ class IngestError(Exception):
     pass
 
 
-def _sniff_separator(head: bytes) -> str:
-    """The delimiter that occurs most in the header, outside quoted fields.
+def _sniff_separator(head: bytes, sample_rows: int = 50) -> str:
+    """The delimiter the header shares with the rows under it, outside quotes.
 
     A quoted header such as "Last, First";city carries commas that belong to
     the field, not the file. The even segments of a split on the quote
-    character are the text outside quotes (as in count_records), so the header
-    is the outside text up to its first newline.
+    character are the text outside quotes (as in count_records), so each line
+    of that outside text is one record.
+
+    Counting the header alone is not enough: a tab file may leave
+    `Last, First, Middle` unquoted, and then its two commas tie with its two
+    tabs. The real delimiter is the one every row repeats as often as the
+    header does, so candidates are ranked by how many rows agree with the
+    header first, and by how often the header carries them second. Rows may be
+    ragged -- the reader tolerates junk lines -- which is why this is a share
+    of rows rather than a demand that every row agree.
     """
-    outside = b"".join(head.split(b'"')[::2])
-    line = outside.split(b"\n", 1)[0].decode("utf-8", "replace")
-    return max([",", "\t", ";", "|"], key=lambda d: line.count(d))
+    outside = b"".join(head.split(b'"')[::2]).decode("utf-8", "replace")
+    lines = outside.split("\n")
+    if len(lines) > 1:
+        lines = lines[:-1]            # cut mid-record by the 64k head, or the empty tail
+    header, rows = lines[0], [line for line in lines[1:sample_rows + 1] if line.strip()]
+
+    def score(sep: str) -> tuple[int, int]:
+        width = header.count(sep)
+        if not width:
+            return (0, 0)
+        return (sum(row.count(sep) == width for row in rows), width)
+
+    return max([",", "\t", ";", "|"], key=score)
 
 
 def normalize_newlines(content: bytes) -> bytes:
@@ -87,6 +106,29 @@ def count_records(content: bytes) -> int:
     return max(outside - trailing, 0)                # the remaining header line cancels the last row
 
 
+def _unescape_header(frame: pl.DataFrame, content: bytes, separator: str) -> pl.DataFrame:
+    """Undo the doubled quotes polars leaves in header names.
+
+    A quote inside a quoted field is written twice, so the field `"say ""hi""`
+    followed by its closing quote is the name `say "hi"`. Polars unescapes that in rows but not in the header, and a
+    spec searching for the quote would then miss the column. The csv module
+    reads the header record the standard way; its spelling is taken only where
+    polars kept a doubled quote, so polars' names for duplicate or blank
+    headers stay as they are.
+    """
+    if not any('""' in name for name in frame.columns):
+        return frame
+    head = content[:64_000].decode("utf-8", "replace")
+    header = next(csv.reader(io.StringIO(head), delimiter=separator), [])
+    if len(header) != frame.width:
+        return frame
+    names = [ours if '""' in theirs and ours == theirs.replace('""', '"') else theirs
+             for theirs, ours in zip(frame.columns, header)]
+    if len(set(names)) != len(names):   # never rename onto another column
+        return frame
+    return frame.rename(dict(zip(frame.columns, names)))
+
+
 def read_table(filename: str, content: bytes) -> pl.DataFrame:
     """Read csv/xls/xlsx into an all-strings frame. Never infers types."""
     name = (filename or "").lower()
@@ -97,10 +139,11 @@ def read_table(filename: str, content: bytes) -> pl.DataFrame:
             raise IngestError(f"could not read the workbook: {exc}") from exc
     else:
         content = normalize_newlines(content)
+        separator = _sniff_separator(content[:64_000])
         try:
             frame = pl.read_csv(
                 io.BytesIO(content),
-                separator=_sniff_separator(content[:64_000]),
+                separator=separator,
                 encoding="utf8-lossy",
                 infer_schema_length=0,
                 has_header=True,
@@ -117,6 +160,7 @@ def read_table(filename: str, content: bytes) -> pl.DataFrame:
                 f"read {frame.height:,} of {expected:,} rows -- the file did not parse cleanly. "
                 "Check the delimiter and quoting, then re-export it."
             )
+        frame = _unescape_header(frame, content, separator)
     if frame.height == 0:
         raise IngestError("the file has a header but no rows")
     return frame.with_columns(pl.all().cast(pl.Utf8))

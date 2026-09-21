@@ -184,6 +184,10 @@ def finalize(dataset: str, frame: pl.DataFrame) -> pl.DataFrame:
             year.alias("intake_year"),
             cycle_year.cast(pl.Int32).alias("cycle_year"),
             cycle_index.alias("cycle_index"),
+            # the date range's month; out-of-range numbers are no month at all,
+            # as they already are for cycle_index
+            pl.when(month.is_between(1, 12)).then(month).otherwise(None)
+                .cast(pl.Int16).alias("intake_month_num"),
             _deposit_status().eq("fullypaid").fill_null(False).alias("deposit_fully_paid"),
             _deposit_status().eq("partiallypaid").fill_null(False).alias("deposit_partial"),
             clean(pl.col("deferral_initiated_raw")).str.to_lowercase()
@@ -225,7 +229,7 @@ def finalize(dataset: str, frame: pl.DataFrame) -> pl.DataFrame:
             "deposit_fully_paid", "deposit_partial",
             "deferral_initiated", "deferral_approved",
             "course_level", "course_category",
-            "closed_lost", "intake_month", "intake_year",
+            "closed_lost", "intake_month", "intake_month_num", "intake_year",
             "cycle_year", "cycle_index", "application_status", "application_sub_status",
             "visa_granted", "visa_granted_at", "enrolled", "enrolled_at",
         )
