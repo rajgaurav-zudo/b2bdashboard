@@ -44,6 +44,11 @@ def test_presets_resolve_against_the_anchor(metrics, preset, expected):
     assert metrics.resolve_preset(preset, date(2026, 6, 10)) == expected
 
 
+def test_all_time_runs_from_the_first_stage_date_to_the_anchor(metrics):
+    assert metrics.resolve_preset("all_time", date(2026, 6, 10), date(2019, 3, 4)) \
+        == (date(2019, 3, 4), date(2026, 6, 10))
+
+
 def test_month_end_is_found_by_arithmetic_not_by_a_table(metrics):
     assert metrics.resolve_preset("this_month", date(2026, 2, 15))[1] == date(2026, 2, 28)
     assert metrics.resolve_preset("this_month", date(2024, 2, 15))[1] == date(2024, 2, 29)
@@ -126,6 +131,7 @@ def test_a_stage_counts_entries_in_the_window_not_the_status_today(book):
     ])
     assert book.widgets()["applied"]["created"] == 2
     assert book.widgets(range="last_week")["applied"]["created"] == 1
+    assert book.widgets(range="all_time")["applied"]["created"] == 3
 
 
 def test_one_application_appears_in_every_stage_it_passed_through(book):

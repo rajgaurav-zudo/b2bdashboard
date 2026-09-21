@@ -164,7 +164,10 @@ someone opens this dashboard to look at.
 **Date range** — the design's eight presets and its two-month custom calendar,
 over the stage dates. Weeks run **Monday to Sunday**, to agree with the calendar
 that picks them. (The log dashboard's weeks run Saturday to Friday; that is a
-property of *its* export's week definition, not a platform rule.)
+property of *its* export's week definition, not a platform rule.) A ninth
+preset, **All time**, is what the range's ✕ selects: the file's first stage date
+to its anchor, so removing the date filter still leaves a window the queries and
+Compare can read.
 
 **Intake** — the design's six intake presets become this data's intake years and,
 within a chosen year, its three cycles (Jan · May · Sep). Intake period is

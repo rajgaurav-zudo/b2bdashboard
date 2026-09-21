@@ -177,9 +177,10 @@ limit %(limit)s
 """
 
 # The anchor: the newest stage event anywhere in the file. Not the server clock
-# -- see the module docstring.
+# -- see the module docstring. `first` is the oldest, where All time starts.
 ANCHOR_SQL = f"""
-select max(greatest({', '.join(s['date'] for s in EVENTS)})) as anchor
+select max(greatest({', '.join(s['date'] for s in EVENTS)})) as anchor,
+       min(least({', '.join(s['date'] for s in EVENTS)}))    as first
   from applications where load_id = %(load)s
 """
 
@@ -278,11 +279,11 @@ select
 # --------------------------------------------------------------------------
 
 PRESETS = ["today", "yesterday", "this_week", "last_week",
-           "this_month", "last_month", "this_year", "custom"]
+           "this_month", "last_month", "this_year", "all_time", "custom"]
 PRESET_LABELS = {
     "today": "Today", "yesterday": "Yesterday", "this_week": "This week",
     "last_week": "Last week", "this_month": "This month", "last_month": "Last month",
-    "this_year": "This year", "custom": "Custom",
+    "this_year": "This year", "all_time": "All time", "custom": "Custom",
 }
 DEFAULT_PRESET = "this_week"
 
@@ -294,8 +295,12 @@ def week_start(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
 
-def resolve_preset(name: str, anchor: date) -> tuple[date, date]:
-    """A preset's window, measured from the export's newest stage event."""
+def resolve_preset(name: str, anchor: date, first: date | None = None) -> tuple[date, date]:
+    """A preset's window, measured from the export's newest stage event.
+
+    `all_time` is the date range removed: the file's first stage event to its
+    last, so it is still a window -- the queries, the calendar and Compare all
+    keep working -- it just holds every dated event."""
     if name == "today":
         return anchor, anchor
     if name == "yesterday":
@@ -314,6 +319,8 @@ def resolve_preset(name: str, anchor: date) -> tuple[date, date]:
         return start, _month_end(start)
     if name == "this_year":
         return date(anchor.year, 1, 1), date(anchor.year, 12, 31)
+    if name == "all_time":
+        return (first or anchor), anchor
     raise ViewError(f"unknown date range '{name}' (have: {', '.join(PRESETS)})")
 
 
@@ -337,7 +344,7 @@ def _iso(value: str, field: str) -> date:
         raise ViewError(f"{field} is not a date: '{value}'") from exc
 
 
-def _range(params: dict, anchor: date) -> dict:
+def _range(params: dict, anchor: date, first: date | None = None) -> dict:
     """The window on screen. `from`/`to` win over `range`; a preset is resolved
     against the anchor so the label and the dates can never disagree."""
     start_raw, end_raw = params.get("from"), params.get("to")
@@ -350,7 +357,7 @@ def _range(params: dict, anchor: date) -> dict:
     preset = params.get("range") or DEFAULT_PRESET
     if preset == "custom":                       # custom with no dates yet
         preset = DEFAULT_PRESET
-    start, end = resolve_preset(preset, anchor)
+    start, end = resolve_preset(preset, anchor, first)
     return {"id": preset, "label": PRESET_LABELS[preset], "from": start, "to": end}
 
 
@@ -398,9 +405,10 @@ def _scope(ctx: ViewContext, params: dict) -> dict:
 
     names = _names(params)
     intake_year, intake_cycle = _intake(params)
-    window = _range(params, anchor)
+    first = row.get("first")
+    window = _range(params, anchor, first)
     return {
-        "load": load, "anchor": anchor, "names": names, "range": window,
+        "load": load, "anchor": anchor, "first": first, "names": names, "range": window,
         "intake_year": intake_year, "intake_cycle": intake_cycle,
         "compare": (params.get("compare") or "") in ("1", "true", "yes"),
     }
@@ -575,7 +583,7 @@ def overview(ctx: ViewContext, params: dict):
         "compare": scope["compare"],
         "range": {**window, "presets": [
             {"id": p, "label": PRESET_LABELS[p],
-             **(dict(zip(("from", "to"), resolve_preset(p, scope["anchor"]))) if p != "custom" else {})}
+             **(dict(zip(("from", "to"), resolve_preset(p, scope["anchor"], scope["first"]))) if p != "custom" else {})}
             for p in PRESETS
         ]},
         "previous_range": {

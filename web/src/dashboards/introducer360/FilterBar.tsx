@@ -14,9 +14,9 @@ type SetParams = (changes: Record<string, string | null>) => void;
  *
  *  Every control that is set carries its own ✕, and the ✕ stops the click from
  *  reaching the button underneath it -- otherwise clearing a filter opens the
- *  menu you were trying to leave. Clearing the range returns to This week
- *  rather than to nothing: an empty window would report an empty pipeline as if
- *  it were a quiet week. */
+ *  menu you were trying to leave. Clearing the range removes the date filter:
+ *  it becomes All time, the file's first stage date to its last, rather than no
+ *  window at all. Clear all still returns to the page's opening This week. */
 export function FilterBar({ slug, overview, set }: {
   slug: string; overview: I360Overview; set: SetParams;
 }) {
@@ -187,8 +187,8 @@ function When({ overview, set, open, onToggle, onClose }: {
 
   return (
     <Control
-      label="Date range" value={range.label} isSet={range.id !== "this_week"}
-      onClear={() => { setPending(null); set({ range: null, from: null, to: null }); }}
+      label="Date range" value={range.label} isSet={range.id !== "all_time"}
+      onClear={() => { setPending(null); set({ range: "all_time", from: null, to: null }); }}
       open={open} onToggle={onToggle} onClose={() => { setPending(null); onClose(); }}
       width={620}
     >
