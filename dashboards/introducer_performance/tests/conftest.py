@@ -28,7 +28,11 @@ def metrics():
 
 
 APP_COLUMNS = (
-    "app_uid", "introducer_name", "deposit_fully_paid", "closed_lost", "cycle_year",
+    "app_uid", "introducer_name", "deposit_fully_paid", "deposit_partial",
+    "deferral_initiated", "deferral_approved", "course_category", "closed_lost", "intake_year",
+    # cycle_year is still stored but no longer read: settable so a test can
+    # set the two apart and catch the read model relapsing onto it.
+    "cycle_year",
     "cycle_index", "application_status", "application_sub_status", "visa_granted", "enrolled",
 )
 INTRO_COLUMNS = (
@@ -55,7 +59,9 @@ class Fixture:
                     [self.ctx.loads["introducers"], i, *values],
                 )
             for i, row in enumerate(applications):
-                row = {"app_uid": f"a{i}", "deposit_fully_paid": False, "closed_lost": False,
+                row = {"app_uid": f"a{i}", "deposit_fully_paid": False, "deposit_partial": False,
+                       "deferral_initiated": False, "deferral_approved": False,
+                       "course_category": "Academic", "closed_lost": False,
                        "visa_granted": False, "enrolled": False, **row}
                 values = [row.get(c) for c in APP_COLUMNS]
                 cur.execute(
@@ -89,7 +95,7 @@ def book():
         with conn.cursor() as cur:
             cur.execute(f'set local search_path to "{dashboard.db_schema}", public')
             cur.execute(
-                """select ds.slug, ds.id as dataset_id, d.id as dashboard_id
+                """select ds.slug, ds.id as dataset_id, d.id as dashboard_id, ds.source_id
                      from core.datasets ds
                      join core.dashboards d on d.id = ds.dashboard_id and d.slug = %s""",
                 (dashboard.slug,),
@@ -97,11 +103,13 @@ def book():
             ids = {r["slug"]: r for r in cur.fetchall()}
             loads = {}
             for slug, row in ids.items():
+                # an upload belongs to a source, not to this dashboard: the file is
+                # shared, and what this dashboard did with it is a projection
                 cur.execute(
                     """insert into core.uploads
-                         (dashboard_id, dataset_id, filename, byte_size, sha256, status)
-                       values (%s, %s, 'test', 0, md5(random()::text || %s), 'ready') returning id""",
-                    (row["dashboard_id"], row["dataset_id"], slug),
+                         (source_id, filename, byte_size, sha256, status)
+                       values (%s, 'test', 0, md5(random()::text || %s), 'ready') returning id""",
+                    (row["source_id"], slug),
                 )
                 upload_id = cur.fetchone()["id"]
                 cur.execute(

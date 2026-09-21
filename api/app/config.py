@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql://b2b:b2b@db:5432/b2bdash"
     dashboards_dir: str = "/srv/dashboards"
+    # Platform-level: what kinds of file the system accepts. Dashboards say
+    # which of these feeds each of their datasets; nothing here is per-dashboard.
+    sources_file: str = "/srv/sources/sources.yaml"
     # built frontend, served by this process in production. Empty in dev,
     # where Vite serves it and proxies /api here.
     web_dist: str = ""
@@ -20,6 +23,13 @@ class Settings(BaseSettings):
     # Supabase counts pooler clients against the project's limit, so an API
     # replica should not hold more than it needs.
     db_pool_max: int = 10
+    # Recycle before something upstream does it silently. See db.py: the pool
+    # checks every connection on checkout, and these keep it from having to.
+    db_pool_max_idle: float = 120.0
+    db_pool_max_lifetime: float = 1800.0
+    # How long a request waits for a connection before failing. The default is
+    # 120s, long enough that a database outage looks like a hung browser tab.
+    db_pool_timeout: float = 20.0
 
     # Cached read models are keyed by load id, so this bounds memory rather than
     # freshness. A dashboard's overview is ~100KB; a big drill-down ~1.7MB.

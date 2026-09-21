@@ -51,7 +51,10 @@ def run() -> list[str]:
     applied: list[str] = []
     with pool.connection() as conn:
         applied += _apply_dir(conn, "core", CORE_DIR)
-        for dash in discover():
+        # refresh: a dashboard directory added since the registry was last read
+        # would otherwise have its migrations skipped and then fail to load,
+        # which reads as a broken dashboard rather than a missing table.
+        for dash in discover(refresh=True):
             applied += _apply_dir(conn, dash.slug, dash.dir / "migrations", dash.db_schema)
     return applied
 

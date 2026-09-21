@@ -1,8 +1,14 @@
-"""Dashboard discovery.
+"""Sources and dashboard discovery.
 
 A dashboard is a directory under DASHBOARDS_DIR containing dashboard.yaml. It owns
 its own Postgres schema, its own migrations, its own ingest module and its own
 context.md. Nothing here is shared between dashboards except these contracts.
+
+A *source* is one step above that: a kind of CRM export, declared once in
+sources.yaml and uploaded once. Dashboards say which source feeds each of their
+datasets, so one applications export can be read by any number of dashboards
+into any number of different tables. The source owns what the file is; the
+dashboard owns what it takes out of it.
 """
 import hashlib
 import importlib.util
@@ -18,11 +24,25 @@ from .config import settings
 
 
 @dataclass
+class Source:
+    """A kind of file the platform accepts, independent of any dashboard."""
+    slug: str
+    display_name: str
+    description: str = ""
+    # normalised header fragments that must all be present. Checked before the
+    # file is stored, so the wrong export is refused rather than loaded.
+    identified_by: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Dataset:
     slug: str
     display_name: str
     table_name: str
     natural_key: list[str]
+    # which uploaded file feeds this table. Defaults to the dataset's own slug,
+    # which is what every dataset written before sources existed relied on.
+    source: str = ""
     required_columns: list[str] = field(default_factory=list)
 
 
@@ -77,6 +97,7 @@ def _load(directory: Path) -> Dashboard:
             display_name=spec.get("display_name", ds_slug),
             table_name=spec["table"],
             natural_key=list(spec["natural_key"]),
+            source=spec.get("source") or ds_slug,
             required_columns=list(spec.get("required_columns", [])),
         )
         for ds_slug, spec in (manifest.get("datasets") or {}).items()
@@ -91,6 +112,51 @@ def _load(directory: Path) -> Dashboard:
         datasets=datasets,
         context_sha=hashlib.sha256(context.read_bytes()).hexdigest() if context.exists() else None,
     )
+
+
+@lru_cache(maxsize=1)
+def _sources() -> dict[str, Source]:
+    path = Path(settings.sources_file)
+    if not path.exists():
+        return {}
+    declared = yaml.safe_load(path.read_text()) or {}
+    return {
+        slug: Source(
+            slug=slug,
+            display_name=(spec or {}).get("display_name", slug),
+            description=((spec or {}).get("description") or "").strip(),
+            identified_by=list((spec or {}).get("identified_by") or []),
+        )
+        for slug, spec in declared.items()
+    }
+
+
+def sources(refresh: bool = False) -> list[Source]:
+    if refresh:
+        _sources.cache_clear()
+    return list(_sources().values())
+
+
+def source(slug: str) -> Source:
+    found = _sources().get(slug)
+    if found is None:
+        raise KeyError(f"unknown source '{slug}'")
+    return found
+
+
+def consumers(source_slug: str) -> list[tuple[Dashboard, Dataset]]:
+    """Every (dashboard, dataset) fed by this source, in a stable order.
+
+    This is the whole fan-out. A dashboard appears here because its own manifest
+    named the source -- nothing registers a dashboard against a source on its
+    behalf, so adding one cannot change what another already receives.
+    """
+    return [
+        (dash, ds)
+        for dash in discover()
+        for ds in dash.datasets.values()
+        if ds.source == source_slug
+    ]
 
 
 @lru_cache(maxsize=1)
@@ -117,10 +183,25 @@ def get(slug: str) -> Dashboard:
 
 
 def sync(conn) -> None:
-    """Upsert the filesystem registry into core.dashboards / core.datasets."""
+    """Upsert the filesystem registry into core.sources / dashboards / datasets."""
     import json
 
     with conn.cursor() as cur:
+        source_ids: dict[str, int] = {}
+        for src in sources(refresh=True):
+            cur.execute(
+                """
+                insert into core.sources (slug, display_name, description, identified_by, updated_at)
+                values (%s, %s, %s, %s, now())
+                on conflict (slug) do update set
+                  display_name = excluded.display_name, description = excluded.description,
+                  identified_by = excluded.identified_by, updated_at = now()
+                returning id
+                """,
+                (src.slug, src.display_name, src.description, src.identified_by),
+            )
+            source_ids[src.slug] = cur.fetchone()["id"]
+
         for dash in discover(refresh=True):
             cur.execute(
                 """
@@ -136,16 +217,24 @@ def sync(conn) -> None:
             )
             dash_id = cur.fetchone()["id"]
             for ds in dash.datasets.values():
+                if ds.source not in source_ids:
+                    raise KeyError(
+                        f"{dash.slug}.{ds.slug} declares source '{ds.source}', "
+                        f"which is not in sources.yaml ({', '.join(sorted(source_ids)) or 'empty'})"
+                    )
                 cur.execute(
                     """
                     insert into core.datasets
-                      (dashboard_id, slug, display_name, table_name, natural_key, required_columns)
-                    values (%s, %s, %s, %s, %s, %s)
+                      (dashboard_id, slug, display_name, table_name, natural_key,
+                       required_columns, source_id)
+                    values (%s, %s, %s, %s, %s, %s, %s)
                     on conflict (dashboard_id, slug) do update set
                       display_name = excluded.display_name, table_name = excluded.table_name,
-                      natural_key = excluded.natural_key, required_columns = excluded.required_columns
+                      natural_key = excluded.natural_key,
+                      required_columns = excluded.required_columns,
+                      source_id = excluded.source_id
                     """,
                     (dash_id, ds.slug, ds.display_name, ds.table_name,
-                     ds.natural_key, ds.required_columns),
+                     ds.natural_key, ds.required_columns, source_ids[ds.source]),
                 )
     conn.commit()

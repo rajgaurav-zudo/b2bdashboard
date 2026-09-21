@@ -25,6 +25,7 @@ services:
       # at production is a decision rather than a side effect of storing the string.
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-b2b}:${POSTGRES_PASSWORD:-b2b}@db:5432/${POSTGRES_DB:-b2bdash}}
       DASHBOARDS_DIR: /srv/dashboards
+      SOURCES_FILE: /srv/sources/sources.yaml
       UPLOAD_DIR: /srv/data/uploads
       # local unless STORAGE_BACKEND says otherwise, so development does not push
       # every test upload to the bucket
@@ -41,8 +42,9 @@ services:
     volumes:
       - ./api:/srv/api
       - ./dashboards:/srv/dashboards
+      - ./sources:/srv/sources
       - ./data/uploads:/srv/data/uploads
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /srv/api --reload-dir /srv/dashboards
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /srv/api --reload-dir /srv/dashboards --reload-dir /srv/sources
 
   web:
     build: ./web

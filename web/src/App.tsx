@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { ApiError } from "./api/client";
 import { authRequired, supabase, useAuth } from "./auth";
@@ -10,6 +10,7 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage, NotPermitted } from "./pages/LoginPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { Spinner } from "./ui/Primitives";
+import { AppLayout } from "./ui/SideNav";
 
 export function App() {
   const { session, email, ready, signOut } = useAuth();
@@ -52,13 +53,29 @@ export function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/d/:slug" element={<DashboardShell />}>
-        <Route index element={<OverviewPage />} />
-        <Route path="data" element={<DataPage />} />
-        <Route path="changelog" element={<ChangelogPage />} />
+      {/* every page hangs off the layout, so the menu is drawn once and does
+          not remount -- and cannot scroll away -- as you move between them */}
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<HomePage />} />
+        {/* uploads and their changelog are platform-level: one file feeds every
+            dashboard that declares its source, so there is one place to put it
+            and one log of what it did */}
+        <Route path="/uploads" element={<DataPage />} />
+        <Route path="/changelog" element={<ChangelogPage />} />
+        <Route path="/d/:slug" element={<DashboardShell />}>
+          <Route index element={<OverviewPage />} />
+        </Route>
+        {/* these were tabs inside a dashboard until the move; a bookmark still
+            lands on the right table, filtered to the dashboard it named */}
+        <Route path="/d/:slug/data" element={<MovedToPlatform page="uploads" />} />
+        <Route path="/d/:slug/changelog" element={<MovedToPlatform page="changelog" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+function MovedToPlatform({ page }: { page: "uploads" | "changelog" }) {
+  const { slug = "" } = useParams();
+  return <Navigate to={`/${page}?dashboard=${encodeURIComponent(slug)}`} replace />;
 }

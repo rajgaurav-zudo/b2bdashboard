@@ -12,6 +12,7 @@ sys.path.insert(0, "/srv/api")
 
 from app.ingest.reader import (  # noqa: E402
     IngestError,
+    _sniff_separator,
     count_records,
     normalize_newlines,
     read_table,
@@ -105,3 +106,21 @@ def test_the_row_guard_fires_when_the_parser_returns_fewer_rows(monkeypatch):
 def test_a_clean_file_passes_the_row_guard():
     frame = read_table("export.csv", _csv([b"n%d,city,note" % i for i in range(500)]))
     assert frame.height == 500
+
+
+@pytest.mark.parametrize("separator", [",", "\t", ";", "|"])
+def test_the_separator_is_sniffed_from_the_header(separator):
+    assert _sniff_separator(f"name{separator}city\nAna{separator}Porto\n".encode()) == separator
+
+
+def test_punctuation_inside_a_quoted_header_does_not_pick_the_separator():
+    content = b'"Last, First, Middle";city\n"Doe, Jane, M";Lisbon\n'
+    assert _sniff_separator(content) == ";"
+    frame = read_table("export.csv", content)
+    assert frame.columns == ["Last, First, Middle", "city"]
+    assert frame.rows() == [("Doe, Jane, M", "Lisbon")]
+
+
+def test_a_quoted_header_spanning_lines_is_read_to_its_real_end():
+    content = b'"Notes\nsee, below";id;city\n"a, b";1;Porto\n'
+    assert _sniff_separator(content) == ";"

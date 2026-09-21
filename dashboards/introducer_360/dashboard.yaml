@@ -1,0 +1,32 @@
+slug: introducer_360
+name: Introducer 360
+version: 1
+schema: dash_introducer_360
+
+description: >
+  One introducer, end to end. Every stage an application passes through, when it
+  passed through it, and what happened to it — filtered to a partner, a window
+  and an intake, and comparable against the same window a year earlier.
+
+# Grouping dimensions for this dashboard only. Changing them changes nothing elsewhere.
+dimensions: [introducer_name, srm_team, srm_owner, country]
+
+# `source` names the uploaded file each table is built from. Both files are
+# platform-level (see sources/sources.yaml) and already in the archive, so this
+# dashboard was fed by projecting what had arrived rather than by a new upload.
+# It reads columns the introducer performance dashboard does not — the ten stage
+# timestamps — into its own tables, and cannot change what that one takes out of
+# the same file.
+datasets:
+  introducers:
+    display_name: Introducers master
+    source: introducers
+    table: introducers
+    natural_key: [partner_name]
+    required_columns: ["Partner Name", "Lifecycle Stage"]
+  applications:
+    display_name: Applications
+    source: applications
+    table: applications
+    natural_key: [app_uid]
+    required_columns: ["Application Introducer Name", "Application Status"]

@@ -33,9 +33,18 @@ COLUMNS = {
         Col("contract_commission_type", "contract commission type", ("commission", "type")),
     ],
     "applications": [
-        Col("application_id", "application id", ("application", "id")),
+        # 'Application Ref No' is the CRM's id for an application. The old
+        # ("application", "id") tokens matched no header in any export, so this
+        # resolved to null for every row and app_uid fell back to a content hash.
+        Col("application_id", "application ref no", ("application", "ref")),
         Col("introducer_name", "application introducer name", ("introducer", "name"), required=True),
         Col("deposit_paid_status", "deposit paid status", ("deposit", "paid"), required=True),
+        # Optional: exports before the deferral columns existed resolve to null,
+        # which reads as "not deferred" rather than failing the load.
+        Col("deferral_initiated_raw", "deferred initiated (no/yes/all)", ("deferred", "initiated")),
+        Col("deferral_approved_raw", "deferred approved (no/yes/all)", ("deferred", "approved")),
+        # 'application course level', not 'course name' -- the tokens require both
+        Col("course_level", "application course level", ("course", "level")),
         Col("closed_lost_raw", "application closed lost", ("closed", "lost")),
         Col("intake_month", "actual intake month", ("intake", "month")),
         Col("intake_year_raw", "actual intake year", ("intake", "year")),
@@ -75,6 +84,46 @@ def _year_of(col: str) -> pl.Expr:
     )
 
 
+def _deposit_status() -> pl.Expr:
+    """The deposit status, normalised once. `FullyPaid`, `fullyPaidWaitingForApproval`
+    and `PartiallyPaid` are distinct values in the export and must stay distinct:
+    the exact match is what keeps waiting-for-approval out of the paid count."""
+    return clean(pl.col("deposit_paid_status")).str.to_lowercase().str.replace_all(r"\s+", "")
+
+
+COURSE_LANGUAGE = "Language"
+COURSE_PRESESSIONAL = "Pre-sessional English"
+COURSE_ACADEMIC = "Academic"
+
+
+def _course_category(has_levels: bool) -> pl.Expr:
+    """The three categories of sources/context.md.
+
+    Academic is the residue, not a list: a course level the CRM adds tomorrow is
+    Academic without a change here. Language and pre-sessional are the two
+    exceptions carved out of it, matched on the normalised value so
+    `PresessionalEnglish`, `Pre-Sessional English` and `presessional` are one
+    thing.
+
+    `has_levels` is whether the file carries the column at all, and it decides
+    what a blank means. In a file that has course levels, a blank one is a gap in
+    the CRM and is named `Unspecified` so it stays visible. In a file that has
+    none -- an export from before the column existed -- every row is Academic,
+    because the deposit figures are Academic-only and the alternative is a load
+    that quietly reports zero deposits. That is the failure the logs dashboard
+    already hit once: a projection that "succeeds" and empties the page.
+    """
+    if not has_levels:
+        return pl.lit(COURSE_ACADEMIC)
+    level = clean(pl.col("course_level")).str.to_lowercase().str.replace_all(r"[^a-z]", "")
+    return (
+        pl.when(level.is_null()).then(pl.lit("Unspecified"))
+        .when(level == "language").then(pl.lit(COURSE_LANGUAGE))
+        .when(level.str.starts_with("presessional")).then(pl.lit(COURSE_PRESESSIONAL))
+        .otherwise(pl.lit(COURSE_ACADEMIC))
+    )
+
+
 def _month_number() -> pl.Expr:
     text = clean(pl.col("intake_month")).str.to_lowercase().str.slice(0, 3)
     numeric = clean(pl.col("intake_month")).str.extract(r"^(\d{1,2})$", 1).cast(pl.Int32, strict=False)
@@ -105,6 +154,10 @@ def finalize(dataset: str, frame: pl.DataFrame) -> pl.DataFrame:
         )
 
     if dataset == "applications":
+        # whether the export carries course levels at all, decided once per file
+        has_levels = bool(
+            frame.select(clean(pl.col("course_level")).is_not_null().any()).item()
+        )
         month = _month_number()
         year = clean(pl.col("intake_year_raw")).str.extract(r"((?:19|20)\d{2})", 1).cast(pl.Int32, strict=False)
         # Nov & Dec roll into the FOLLOWING year's January intake
@@ -131,8 +184,14 @@ def finalize(dataset: str, frame: pl.DataFrame) -> pl.DataFrame:
             year.alias("intake_year"),
             cycle_year.cast(pl.Int32).alias("cycle_year"),
             cycle_index.alias("cycle_index"),
-            clean(pl.col("deposit_paid_status")).str.to_lowercase().str.replace_all(r"\s+", "")
-                .eq("fullypaid").fill_null(False).alias("deposit_fully_paid"),
+            _deposit_status().eq("fullypaid").fill_null(False).alias("deposit_fully_paid"),
+            _deposit_status().eq("partiallypaid").fill_null(False).alias("deposit_partial"),
+            clean(pl.col("deferral_initiated_raw")).str.to_lowercase()
+                .eq("yes").fill_null(False).alias("deferral_initiated"),
+            clean(pl.col("deferral_approved_raw")).str.to_lowercase()
+                .eq("yes").fill_null(False).alias("deferral_approved"),
+            clean(pl.col("course_level")).alias("course_level"),
+            _course_category(has_levels).alias("course_category"),
             clean(pl.col("closed_lost_raw")).str.to_lowercase().eq("yes").fill_null(False).alias("closed_lost"),
             clean(pl.col("visa_granted_raw")).is_not_null().alias("visa_granted"),
             clean(pl.col("enrolled_raw")).is_not_null().alias("enrolled"),
@@ -148,16 +207,25 @@ def finalize(dataset: str, frame: pl.DataFrame) -> pl.DataFrame:
             ("introducer_name", "deposit_paid_status", "closed_lost", "intake_month",
              "intake_year", "application_status", "application_sub_status")
         ], separator="\x1f").hash().cast(pl.Utf8)
-        out = out.with_columns(content.alias("_c"))
         out = out.with_columns(
-            pl.coalesce(
-                pl.col("application_id"),
-                pl.col("_c") + pl.lit("#") + pl.col("_c").cum_count().over("_c").cast(pl.Utf8),
-            ).alias("app_uid")
+            pl.coalesce(pl.col("application_id"), content).alias("_k")
+        )
+        # `Application Ref No` is *nearly* unique: 6 refs out of 227,210 repeat in
+        # the 20 Aug export. A repeated key is suffixed with its occurrence index
+        # so the primary key holds; a key that appears once is left alone, so the
+        # app_uid of an ordinary row is the CRM's own reference and can be looked
+        # up by hand.
+        out = out.with_columns(
+            pl.when(pl.len().over("_k") == 1).then(pl.col("_k"))
+            .otherwise(pl.col("_k") + pl.lit("#") + pl.col("_k").cum_count().over("_k").cast(pl.Utf8))
+            .alias("app_uid")
         )
         return out.select(
             "app_uid", "application_id", "introducer_name", "deposit_paid_status",
-            "deposit_fully_paid", "closed_lost", "intake_month", "intake_year",
+            "deposit_fully_paid", "deposit_partial",
+            "deferral_initiated", "deferral_approved",
+            "course_level", "course_category",
+            "closed_lost", "intake_month", "intake_year",
             "cycle_year", "cycle_index", "application_status", "application_sub_status",
             "visa_granted", "visa_granted_at", "enrolled", "enrolled_at",
         )

@@ -5,11 +5,17 @@ be explained or replayed later. Two backends behind one interface: the local
 filesystem for development, and a private Supabase bucket for anything that has
 to outlive a container.
 
-The stored object is the file as it arrived -- for the applications export that
-means all 50 source columns, including the student names and nationalities the
-ingest layer drops. The bucket is private and reachable only with the service
-role key for that reason, and it is worth deciding how long these are kept.
+The stored object is the file as it arrived, gzipped -- for the applications
+export that means all 50 source columns, including the student names and
+nationalities the ingest layer drops. The bucket is private and reachable only
+with the service role key for that reason, and it is worth deciding how long
+these are kept.
+
+Local storage writes the file plainly and Supabase storage gzips it. That is not
+an oversight: compression exists to fit under a hosted per-object limit, and a
+development archive is more useful when `head` works on it.
 """
+import gzip
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote
@@ -20,12 +26,23 @@ from .config import settings
 
 
 class StorageError(Exception):
-    pass
+    """Something went wrong archiving the original export.
+
+    `too_large` separates "this file cannot be stored here at all" -- a plan
+    limit, which no retry fixes -- from a transport failure, which one might.
+    """
+
+    def __init__(self, message: str, *, too_large: bool = False):
+        super().__init__(message)
+        self.too_large = too_large
 
 
 class Storage(Protocol):
     def put(self, key: str, content: bytes, content_type: str) -> str:
         """Store the bytes and return a locator to record against the upload."""
+
+    def get(self, locator: str) -> bytes:
+        """Return the original bytes for a locator produced by put()."""
 
     @property
     def label(self) -> str:
@@ -46,6 +63,14 @@ class LocalStorage:
             path.write_bytes(content)
         return str(path)
 
+    def get(self, locator: str) -> bytes:
+        path = Path(locator)
+        if not path.is_absolute():
+            path = self.root / locator
+        if not path.is_file():
+            raise StorageError(f"nothing archived at {locator}")
+        return _maybe_gunzip(path.read_bytes())
+
     @property
     def label(self) -> str:
         return f"local:{self.root}"
@@ -57,7 +82,23 @@ class SupabaseStorage:
     Uses the plain upload endpoint rather than resumable: these are single files
     of ~100MB from a server with a stable connection, and a resumable session
     would add a protocol to maintain for no benefit at this size.
+
+    **The object is gzipped.** Supabase enforces a per-object ceiling at the
+    project level that is lower than the bucket's own `file_size_limit` and, on
+    the free plan, cannot be raised: 50MB, measured. The applications export is
+    114MB, so it was rejected with `EntityTooLarge` and the whole ingest failed
+    at the archive step. Gzipped it is 21MB and fits with room to spare.
+
+    Level 6 rather than 1: 1.6s instead of 0.7s on the 114MB export, for 21MB
+    instead of 27MB. The second of CPU is paid once per upload; the megabytes
+    are paid for as long as the archive is kept, against a 1GB free quota.
+
+    Already-compressed formats do not shrink -- .xlsx is a zip, so a 48MB one
+    stays 48MB. There is no fix for a >50MB .xlsx short of a paid plan, so that
+    case raises rather than pretending.
     """
+
+    COMPRESS_LEVEL = 6
 
     def __init__(self, url: str, service_key: str, bucket: str, timeout: float):
         self.base = f"{url.rstrip('/')}/storage/v1"
@@ -69,14 +110,21 @@ class SupabaseStorage:
         }
 
     def put(self, key: str, content: bytes, content_type: str) -> str:
+        # .gz in the key and application/gzip as the type: the object describes
+        # itself, so anything fetching it later needs no convention from here.
+        body = gzip.compress(content, compresslevel=self.COMPRESS_LEVEL)
+        key = f"{key}.gz"
         target = f"{self.base}/object/{quote(self.bucket)}/{quote(key)}"
         try:
             response = httpx.post(
                 target,
-                content=content,
+                content=body,
                 headers={
                     **self._headers,
-                    "Content-Type": content_type,
+                    "Content-Type": "application/gzip",
+                    # the type of what is inside, so the archive still knows
+                    # whether it holds a csv or a workbook
+                    "x-metadata-original-content-type": content_type,
                     # keys are content-addressed, so a repeat upload is the same
                     # bytes; overwrite rather than fail the whole ingest
                     "x-upsert": "true",
@@ -86,14 +134,55 @@ class SupabaseStorage:
         except httpx.HTTPError as exc:
             raise StorageError(f"could not reach storage: {exc}") from exc
         if response.status_code >= 400:
+            if "EntityTooLarge" in response.text or response.status_code == 413:
+                raise StorageError(
+                    f"the archive copy is too large for this Supabase plan: "
+                    f"{len(content) / 1048576:.0f}MB compresses to "
+                    f"{len(body) / 1048576:.0f}MB, over the 50MB per-object limit. "
+                    f"Compressed formats such as .xlsx do not shrink -- export the "
+                    f"same data as .csv, which does.",
+                    too_large=True,
+                )
             raise StorageError(
                 f"storage rejected the file ({response.status_code}): {response.text[:300]}"
             )
         return f"{self.bucket}/{key}"
 
+    def get(self, locator: str) -> bytes:
+        """Fetch by the locator recorded on the upload.
+
+        Locators written before compression have no .gz and locators written
+        after do; both are read here, because the archive has to stay readable
+        across the change that made it possible at all.
+        """
+        key = locator.split("/", 1)[1] if locator.startswith(f"{self.bucket}/") else locator
+        target = f"{self.base}/object/{quote(self.bucket)}/{quote(key)}"
+        try:
+            response = httpx.get(target, headers=self._headers, timeout=self.timeout)
+        except httpx.HTTPError as exc:
+            raise StorageError(f"could not reach storage: {exc}") from exc
+        if response.status_code >= 400:
+            raise StorageError(
+                f"could not read the archived file ({response.status_code}): {response.text[:200]}"
+            )
+        return _maybe_gunzip(response.content)
+
     @property
     def label(self) -> str:
         return f"supabase:{self.bucket}"
+
+
+_GZIP_MAGIC = b"\x1f\x8b"
+
+
+def _maybe_gunzip(payload: bytes) -> bytes:
+    """Decompress if it is gzip, return it untouched otherwise.
+
+    Sniffed rather than decided from the key: the archive predates compression,
+    so both shapes are in the bucket and both have to come back as the original
+    file. The magic number is two bytes no CSV or workbook starts with.
+    """
+    return gzip.decompress(payload) if payload[:2] == _GZIP_MAGIC else payload
 
 
 def build() -> Storage:

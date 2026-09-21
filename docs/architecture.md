@@ -7,12 +7,14 @@ its spec. Nothing it does can reach another dashboard.
 
 ```
 compose.yml              db + api + web, run by colima
+sources/sources.yaml     the files the platform accepts, independent of any dashboard
+sources/context.md       shared value definitions: course levels, deposit states, intake period
 api/                     FastAPI service: registry, migrations, ingest, changelog, views
   migrations/*.sql       core schema (scope: 'core')
   app/ingest/            file reading, column resolution, the upload pipeline
   app/views.py           dispatch into a dashboard's own read model
 dashboards/<slug>/       one self-contained dashboard
-  dashboard.yaml         id, schema name, datasets, natural keys, dimensions
+  dashboard.yaml         id, schema name, datasets, their sources, natural keys, dimensions
   context.md             the spec; its sha256 is stored on core.dashboards
   migrations/*.sql       that dashboard's tables, applied in its own schema
   ingest.py              how its export columns map onto those tables
@@ -25,11 +27,46 @@ web/                     React + TypeScript app (Vite)
   src/dashboards/registry.tsx   slug -> overview component
 ```
 
+## Sources
+
+A file belongs to the CRM, not to whichever dashboard happens to read it. So an
+upload names a **source** — a kind of export, declared once in `sources.yaml` —
+and every dashboard whose manifest declares that source is fed from it:
+
+```
+POST /api/sources/applications/uploads
+  │
+  ├─ read once, into one polars frame
+  ├─ identify: does the header match what this source is?  → 422 with what it looks like instead
+  ├─ archive once, keyed on the content hash
+  └─ for each dashboard declaring `source: applications`
+        └─ its own ingest.py → its own tables → its own load → its own changelog
+```
+
+The 114MB applications export is uploaded once and stored once however many
+dashboards read it. Each takes different columns and may transform them
+differently; none can see another's rows.
+
+**Projections are rows, not a status on the upload.** One upload now has N
+outcomes, and the point of the design is that they are independent: a dashboard
+whose `ingest.py` raises, or whose migrations have not run, records `failed` on
+its own `core.projections` row and keeps serving its previous load, while every
+other dashboard's projection commits normally. `api/tests/test_fan_out.py`
+asserts exactly that, by breaking one dashboard and checking the others.
+
+**A dashboard added later reads what already arrived.** `POST
+/api/uploads/{id}/project?dashboard=<slug>` rebuilds one dashboard's tables from
+an archived file — which is what the archive is for, and why the platform can
+grow a dashboard without anyone hunting for last week's export. The same
+endpoint with `force=true` re-applies a corrected `ingest.py` to the exact bytes
+that were loaded, rather than to a fresh export that has since moved on.
+
 ## Isolation
 
 | Boundary | Mechanism |
 |---|---|
 | Data | One Postgres schema per dashboard: `dash_<slug>`. Core never holds dashboard data. |
+| Ingest failure | One `core.projections` row per (upload, dataset). A failure is recorded there and rolled back there; other dashboards' projections are separate transactions. |
 | Schema changes | Migrations are scoped per dashboard in `core.schema_migrations (scope, version)`. A broken migration in one dashboard does not block another. |
 | Ingest rules | `dashboards/<slug>/ingest.py`, imported by path. No shared parsing rules beyond the generic reader. |
 | Grouping | `dimensions:` in that dashboard's manifest. |
@@ -84,23 +121,33 @@ database is untouched and the rules are tested rather than the dictionaries.
 ## Upload pipeline
 
 ```
-POST /api/dashboards/{slug}/datasets/{dataset}/uploads
+POST /api/sources/{source}/uploads
   │
-  ├─ sha256 → identical to the current load?  → record 'duplicate', changelog no-op, stop
-  ├─ store the raw file (audit trail)          → data/uploads/<slug>/<dataset>/<sha>.csv
   ├─ read → polars, all strings, utf8-lossy    → curly quotes and mojibake normalised
-  ├─ resolve columns: exact → substring → tokens; missing required → 422 with a hint
-  ├─ finalize() → the dashboard's typed frame, plus a row_hash
-  ├─ COPY into <schema>.<table> with a new load_id      (not yet current)
-  ├─ FULL OUTER JOIN against the current load on the natural key
-  │     → exact counts of added / removed / changed
-  │     → up to CHANGELOG_ROW_LIMIT row-level diffs with before/after jsonb
-  ├─ write core.changelog (+ core.changelog_rows)
-  └─ swap: previous load stops being current, new load becomes current
+  ├─ identify against the source's headers      → wrong file, 422, nothing stored
+  ├─ sha256 → this exact file already archived? → reuse the row, do not store it twice
+  ├─ record core.uploads first, so a failure has somewhere to be recorded
+  ├─ store the raw file, gzipped (audit trail) → sources/<source>/<sha>.csv.gz
+  │
+  └─ for each dashboard reading this source, separately:
+     ├─ resolve columns: exact → substring → tokens; missing required → the projection fails
+     ├─ finalize() → the dashboard's typed frame, plus a row_hash
+     ├─ COPY into <schema>.<table> with a new load_id      (not yet current)
+     ├─ FULL OUTER JOIN against the current load on the natural key
+     │     → exact counts of added / removed / changed
+     │     → up to CHANGELOG_ROW_LIMIT row-level diffs with before/after jsonb
+     ├─ write core.changelog (+ core.changelog_rows)
+     └─ swap: previous load stops being current, new load becomes current
 ```
 
-Failure at any step rolls back the staged rows and marks the upload `failed` with the
-error. The previous load stays current, so a bad export cannot leave a dashboard broken.
+Failure inside a projection rolls back that dashboard's staged rows and marks its
+`core.projections` row `failed` with the error. Its previous load stays current, and
+the other dashboards reading the same file are untouched — so a bad export, or a bad
+mapping in one dashboard, cannot leave anything broken.
+
+Re-uploading a file already held is not an error. The dedupe is per dashboard, not per
+file, so uploading the same export after adding a dashboard feeds the new one and
+reports `duplicate` for the ones that already had it.
 
 ## Retention
 
@@ -130,6 +177,9 @@ is hit, `details.row_limit_hit` is true and `rows_sampled` says how many were ke
 
 Diffs need a stable identity per row. `dashboard.yaml` declares it per dataset:
 
+Natural keys are per dashboard-dataset, not per source: two dashboards reading the same
+applications file may identify a row differently, and neither's diffs are the other's.
+
 - **introducers** → `partner_name`, the join key the business already uses.
 - **applications** → `app_uid`: the export's application id when one exists, otherwise a
   content hash plus occurrence index.
@@ -156,6 +206,22 @@ diffs get materially better** — it is picked up automatically by header matchi
 - **The frontend fetches through a Vite proxy** rather than an absolute API origin, so
   the browser needs no CORS and no per-environment configuration. The API's CORS list
   exists only for running `npm run dev` outside the container.
+
+## Connections
+
+Behind Supabase's transaction pooler a connection can be closed by the pooler
+without the client being told. The pool would then hand that half-open socket to
+the next request, which failed as `OperationalError: consuming input failed: SSL
+SYSCALL error: EOF detected` — a 500 on whatever endpoint happened to draw it,
+which is why it looked random and why it hit uploads that had already parsed
+their file.
+
+`check=ConnectionPool.check_connection` costs one round trip on checkout and
+discards the corpse instead. `max_lifetime` and TCP keepalives recycle
+connections before anything upstream does it silently; neither replaces the
+check, because `min_size` connections are exempt from `max_idle` and those are
+exactly the ones that go stale overnight. `api/tests/test_db_pool.py` reproduces
+the half-open state directly and asserts both halves.
 
 ## Auth
 
@@ -199,6 +265,20 @@ archive without any error.
 
 Keys are the sha256 prefix of the content, so re-uploading the same file writes
 the same object instead of a second copy.
+
+**Supabase objects are gzipped; local ones are not.** Supabase enforces a
+per-object ceiling at the project level, separate from the bucket's own
+`file_size_limit` and, on the free plan, not raisable: 50MB, measured. The
+applications export is 114MB, so every upload of it failed at the archive step
+with `EntityTooLarge` — and, because the archive ran before the upload row was
+written, failed with no record of the attempt anywhere. Gzipped the export is
+21MB. Local storage keeps writing plain files, where `head` is worth more than
+compression.
+
+Formats that are already compressed do not shrink: a 48MB `.xlsx` stays 48MB, so
+a workbook past 50MB still cannot be archived on this plan. That case now returns
+413 with the reason and the workaround (export the same data as `.csv`) rather
+than a 500 and a stack trace.
 
 **The stored object is the file as it arrived.** For the applications export
 that is all 50 source columns, including the student names, nationalities and

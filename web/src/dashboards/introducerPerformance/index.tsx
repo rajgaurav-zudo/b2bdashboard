@@ -5,6 +5,7 @@ import { useOverview } from "../../api/client";
 import type { Overview, Tile } from "../../api/types";
 import { n0, pct } from "../../format";
 import { Band, Empty, Section, Seg, Spinner } from "../../ui/Primitives";
+import { CourseSplit } from "./CourseSplit";
 import { Critique } from "./Critique";
 import { Funnel } from "./Funnel";
 import { Notes } from "./Notes";
@@ -46,9 +47,16 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
 
       <Section
         title="Active introducers"
-        note={`${n0(active.stats.n)} introducers produced ${n0(active.stats.cur)} active deposits in the ${data.current_year} intake. Cohort tiles split them by the year they became a customer.`}
+        note={`${n0(active.stats.n)} introducers produced ${n0(active.stats.cur)} active Academic deposits in the ${data.current_year} intake. Cohort tiles split them by the year they became a customer. DAA and PD are shown under each tile and are not counted in the deposit figure above them.`}
       >
         <Tiles tiles={data.tiles} section="active" currentYear={data.current_year} onOpen={setSelected} />
+      </Section>
+
+      <Section
+        title="Language &amp; pre-sessional"
+        note={`Every deposit figure elsewhere on this page is Academic only. Language and pre-sessional English intakes behave nothing like a degree intake, so they are reported here instead of being averaged into it.`}
+      >
+        <CourseSplit rows={data.course_split} currentYear={data.current_year} />
       </Section>
 
       <Section title="Leaking revenue" note="Partners who paid before and don't now, plus effort that never converted.">

@@ -85,14 +85,14 @@ export function Funnel({ overview, scope }: { overview: Overview; scope: "scope"
       interaction: { mode: "index" as const, intersect: false },
       scales: {
         x: { stacked: true, grid: { display: false }, border: { display: false } },
-        y: { stacked: true, grid: { color: "rgba(21,32,28,.07)", drawTicks: false },
+        y: { stacked: true, grid: { color: "#e3e9f0", drawTicks: false },
              border: { display: false }, ticks: { precision: 0 } },
       },
       plugins: {
         legend: { position: "bottom" as const,
                   labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: "rect" as const, padding: 14 } },
         tooltip: {
-          backgroundColor: "#15201C", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
+          backgroundColor: "#17233a", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
           callbacks: {
             footer: (items: TooltipItem<"bar">[]) => {
               const r = shown[items[0]!.dataIndex]!;
@@ -127,12 +127,12 @@ export function Funnel({ overview, scope }: { overview: Overview; scope: "scope"
         interaction: { mode: "index" as const, intersect: false },
         scales: {
           x: { grid: { display: false }, border: { display: false } },
-          y: { grid: { color: "rgba(21,32,28,.07)", drawTicks: false }, border: { display: false },
+          y: { grid: { color: "#e3e9f0", drawTicks: false }, border: { display: false },
                beginAtZero: true, ticks: { callback: (v: string | number) => `${v}%` } },
         },
         plugins: {
           legend: { display: false },
-          tooltip: { backgroundColor: "#15201C", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
+          tooltip: { backgroundColor: "#17233a", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
                      callbacks: { label: (c: TooltipItem<"line">) =>
                        `${c.dataset.label}: ${(c.parsed.y ?? 0).toFixed(2)}%` } },
         },
