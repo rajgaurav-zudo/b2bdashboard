@@ -35,14 +35,6 @@ class Settings(BaseSettings):
     # freshness. A dashboard's overview is ~100KB; a big drill-down ~1.7MB.
     view_cache_entries: int = 24
 
-    # --- storage ---------------------------------------------------------------
-    # auto: use Supabase when its url and service key are set, filesystem otherwise.
-    storage_backend: str = "auto"
-    supabase_service_role_key: str = ""
-    supabase_storage_bucket: str = "uploads"
-    # a 114MB export over a long link takes a while; well short of hanging forever
-    storage_timeout: float = 180.0
-
     # --- auth -----------------------------------------------------------------
     # On unless deliberately switched off. The local compose stack sets
     # AUTH_REQUIRED=false so development needs no credentials; anything that does

@@ -57,17 +57,18 @@ export function useDashboard(slug: string) {
   });
 }
 
-export function useOverview(slug: string) {
+/** The introducer overview, with the page's filters. Changing a filter keeps
+ *  the previous page on screen until the new one arrives. */
+export function useOverview(slug: string, filters: Record<string, string | undefined> = {}) {
   return useQuery({
-    queryKey: ["view", slug, "overview"],
-    queryFn: () => get<Overview>(`/dashboards/${slug}/views/overview`),
+    queryKey: ["view", slug, "overview", filters],
+    queryFn: () => get<Overview>(`/dashboards/${slug}/views/overview`, filters),
     retry: false,                 // 409 means "nothing uploaded yet"; retrying will not help
+    placeholderData: keepPreviousData,
   });
 }
 
-/** Any dashboard-owned view, with its params. The introducer overview has its
- *  own hook above because it takes none; anything parameterised goes through
- *  here, and the params are part of the cache key. */
+/** Any dashboard-owned view, with its params; the params are part of the cache key. */
 export function useView<T>(
   slug: string, view: string, params: Record<string, string | number | undefined>,
   enabled = true,
@@ -115,11 +116,12 @@ export function useDatasets() {
   });
 }
 
-export function useTileMembers(slug: string, tileId: string | null) {
+export function useTileMembers(
+  slug: string, tileId: string | null, filters: Record<string, string | undefined> = {},
+) {
   return useQuery({
-    queryKey: ["view", slug, "members", tileId],
-    queryFn: () => get<TileMembers>(
-      `/dashboards/${slug}/views/members?id=${encodeURIComponent(tileId!)}`),
+    queryKey: ["view", slug, "members", tileId, filters],
+    queryFn: () => get<TileMembers>(`/dashboards/${slug}/views/members`, { id: tileId!, ...filters }),
     enabled: tileId !== null,
     // the pane regroups and re-sorts locally, so the payload is fetched once per tile
     staleTime: 5 * 60 * 1000,

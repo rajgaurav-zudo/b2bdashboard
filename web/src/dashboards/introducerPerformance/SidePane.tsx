@@ -109,14 +109,17 @@ function Caret({ column, sort }: { column: ColKey; sort: Sort }) {
   return <span className="ar">{sort.c === column ? (sort.d > 0 ? "▲" : "▼") : "▼"}</span>;
 }
 
-export function SidePane({ slug, tileId, onClose }: {
-  slug: string; tileId: string | null; onClose: () => void;
+export function SidePane({ slug, tileId, filters, onClose }: {
+  slug: string; tileId: string | null;
+  /** The page's filters, so the members are the ones its tiles counted. */
+  filters: Record<string, string>;
+  onClose: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("team");
   const [sort, setSort] = useState<Sort>({ c: "life", d: -1 });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [kidSort, setKidSort] = useState<Record<string, Sort>>({});
-  const { data, isLoading, error } = useTileMembers(slug, tileId);
+  const { data, isLoading, error } = useTileMembers(slug, tileId, filters);
 
   // a fresh tile resets everything; a tile with no metric can only sort by name
   useEffect(() => {
@@ -152,7 +155,7 @@ export function SidePane({ slug, tileId, onClose }: {
       { k: "clos", l: "Closed dep." },
       { k: "cpct", l: "Closed %" },
       { k: "last", l: "Last deposit" },
-      { k: "cur", l: `${data.current_year} ${data.tile.metric_short}` },
+      { k: "cur", l: `${data.period.label} ${data.tile.metric_short}` },
       { k: "life", l: `Lifetime ${data.tile.metric_short}` },
     ];
   }, [data, tab]);
@@ -240,7 +243,7 @@ function PaneHead({ data, tab, onTab, onClose }: {
             {tile.definition} <b>{n0(tile.stats.n)}</b>{" "}
             {tile.stats.n === 1 ? "introducer" : "introducers"} ·{" "}
             <b>{none ? "--" : `${n0(tile.stats.life)} ${tile.metric_label}`}</b> lifetime
-            {none ? "" : <> · <b>{n0(tile.stats.cur)}</b> in {data.current_year}</>}.
+            {none ? "" : <> · <b>{n0(tile.stats.cur)}</b> in {data.period.label}</>}.
           </p>
         </div>
         <button className="x" onClick={onClose} aria-label="Close">×</button>
@@ -309,7 +312,7 @@ function PaneTable({ data, tab, sort, columns, openGroups, kidSort, onSort, onTo
       </thead>
       <tbody>
         {top.map((row) => {
-          if (flat) return <LeafRow key={row.label} row={row} tile={data.tile} year={data.current_year} />;
+          if (flat) return <LeafRow key={row.label} row={row} tile={data.tile} year={data.period.label} />;
           const isOpen = !!openGroups[row.label];
           const ks = kidSort[row.label] ?? sort;
           return (
@@ -319,7 +322,7 @@ function PaneTable({ data, tab, sort, columns, openGroups, kidSort, onSort, onTo
                   <span className="car">▶</span> {row.label}{" "}
                   <span className="dim" style={{ fontWeight: 400 }}>({n0(row.n)})</span>
                 </td>
-                <Cells row={row} tile={data.tile} year={data.current_year} />
+                <Cells row={row} tile={data.tile} year={data.period.label} />
               </tr>
               {isOpen ? (
                 <>
@@ -334,7 +337,7 @@ function PaneTable({ data, tab, sort, columns, openGroups, kidSort, onSort, onTo
                     ))}
                   </tr>
                   {row.kids!.slice().sort(compare(ks)).map((kid) => (
-                    <LeafRow key={kid.label} row={kid} tile={data.tile} year={data.current_year} />
+                    <LeafRow key={kid.label} row={kid} tile={data.tile} year={data.period.label} />
                   ))}
                 </>
               ) : null}
@@ -349,7 +352,7 @@ function PaneTable({ data, tab, sort, columns, openGroups, kidSort, onSort, onTo
           <td className="num" data-l="Closed dep.">{n0(total.clos)}</td>
           <td className="num" data-l="Closed %"><ClosedPct act={total.act} clos={total.clos} /></td>
           <td />
-          <td className="num" data-l={`${data.current_year} ${data.tile.metric_short}`}>
+          <td className="num" data-l={`${data.period.label} ${data.tile.metric_short}`}>
             {none ? "--" : n0(total.cur)}
           </td>
           <td className="num" data-l={`Lifetime ${data.tile.metric_short}`}>
@@ -361,7 +364,7 @@ function PaneTable({ data, tab, sort, columns, openGroups, kidSort, onSort, onTo
   );
 }
 
-function LeafRow({ row, tile, year }: { row: Row; tile: Tile; year: number }) {
+function LeafRow({ row, tile, year }: { row: Row; tile: Tile; year: string }) {
   const member = row.member!;
   const where = [member.team, member.srm, member.country]
     .filter((bit) => bit && bit !== "Unassigned" && bit !== "Unknown");
@@ -383,7 +386,7 @@ function LeafRow({ row, tile, year }: { row: Row; tile: Tile; year: number }) {
 }
 
 /** Every column after the name. Shared so group and leaf rows cannot drift. */
-function Cells({ row, tile, year }: { row: Row; tile: Tile; year: number }) {
+function Cells({ row, tile, year }: { row: Row; tile: Tile; year: string }) {
   const none = tile.metric === "none";
   return (
     <>

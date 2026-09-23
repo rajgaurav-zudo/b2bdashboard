@@ -128,7 +128,6 @@ def sandbox(tmp_path, monkeypatch):
     _write_dashboard(tmp_path, slugs[1], "B", "application status", upper=True)
 
     monkeypatch.setattr(settings, "dashboards_dir", str(tmp_path))
-    monkeypatch.setattr(settings, "storage_backend", "local")
     monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "archive"))
     monkeypatch.setattr(storage, "_storage", None)
     registry._cache.cache_clear()

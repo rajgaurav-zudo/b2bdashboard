@@ -4,7 +4,7 @@ import { useView } from "../../api/client";
 import type { I360Overview } from "../../api/types";
 import { n0 } from "../../format";
 import { Empty, Section, Spinner } from "../../ui/Primitives";
-import { dayLabel } from "./dates";
+import { dayLabel } from "../../ui/dates";
 import { FilterBar } from "./FilterBar";
 import { GroupPane } from "./GroupPane";
 import { Commitment, Notes, Profile } from "./Lower";

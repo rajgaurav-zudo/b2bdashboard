@@ -3,13 +3,13 @@ import { n0 } from "../../format";
 
 interface Props {
   rows: CourseSplitRow[];
-  currentYear: number;
+  periodLabel: string;
 }
 
 /** Every category except Academic, which the rest of the page already reports.
  *  A category nobody expected -- `Unspecified` -- renders here rather than being
  *  dropped, because a blank course level in the CRM is a finding. */
-export function CourseSplit({ rows, currentYear }: Props) {
+export function CourseSplit({ rows, periodLabel }: Props) {
   const others = rows.filter((r) => r.category !== "Academic");
   if (others.length === 0) return null;
 
@@ -18,7 +18,7 @@ export function CourseSplit({ rows, currentYear }: Props) {
       {others.map((row) => (
         <div className="course-card" key={row.category}>
           <div className="metric">{n0(row.act_cur)}</div>
-          <div className="metric-l">deposits · {currentYear}</div>
+          <div className="metric-l">deposits · {periodLabel}</div>
           <div className="name">{row.category}</div>
           <div className="foot">
             <span><b>{n0(row.n)}</b> {row.n === 1 ? "introducer" : "introducers"}</span>

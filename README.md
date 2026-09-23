@@ -91,7 +91,7 @@ See [docs/architecture.md](docs/architecture.md) for the design and the decision
 | Metrics API (tiles, funnel, drill-down) | working, 20 tests |
 | Drill-down side pane (group / sort / expand) | working, client-side from `/views/members` |
 | React + TypeScript frontend | working |
-| Auth, object storage, deployment | not started, deliberately last |
+| Hosting, object storage | undecided; the repo runs locally only |
 
 `legacy/introducer-dashboard.html` is the original single-file version, kept as the
 provenance of both the metric definitions and the visual design. It parses both exports in

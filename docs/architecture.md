@@ -209,7 +209,7 @@ diffs get materially better** — it is picked up automatically by header matchi
 
 ## Connections
 
-Behind Supabase's transaction pooler a connection can be closed by the pooler
+Behind a transaction pooler (PgBouncer) a connection can be closed by the pooler
 without the client being told. The pool would then hand that half-open socket to
 the next request, which failed as `OperationalError: consuming input failed: SSL
 SYSCALL error: EOF detected` — a 500 on whatever endpoint happened to draw it,
@@ -238,16 +238,11 @@ sign-up form. `AUTH_ALLOWED_DOMAINS` / `AUTH_ALLOWED_EMAILS` decide who actually
 gets in, and the API refuses to start with auth on and neither set -- looking
 protected while admitting everyone is the worst of the three states.
 
-Three settings hold that up together, and all three are needed:
-
-| Where | Setting | Why |
-|---|---|---|
-| API | allow-list, checked per request | The only one enforced right now |
-| Supabase | `enable_signup = false` | Nobody uncertain gets a token at all |
-| Supabase | `enable_confirmations = true` | The allow-list trusts the `email` claim, so the address must be proven |
-
-`config.toml` governs the local stack; the live project needs the same settings
-applied in the dashboard, or with `supabase config push`.
+The Supabase project that issued these tokens is no longer part of this repo
+(its CLI config and the hosting files were removed while hosting is undecided).
+Sign-in still only works against a Supabase Auth project, so choosing a host
+means either pointing `SUPABASE_URL` at one again, with sign-ups off and
+confirmations on, or replacing this layer.
 
 Auth is off in local development (`AUTH_REQUIRED=false` in compose.yml) so the
 stack runs without an account. The default in `config.py` is on, and the API
@@ -256,33 +251,17 @@ prints a conspicuous line at boot when it is off.
 ## Storage
 
 The parsed rows go to Postgres; the original export is kept separately so a load
-can be explained or replayed. `api/app/storage.py` has two backends behind one
-interface -- the filesystem for development, a private Supabase bucket for
-anything that outlives a container -- and `STORAGE_BACKEND=supabase` fails at
-startup rather than silently falling back, because a deployment that thinks it
-is archiving to object storage while writing to a disposable disk loses the
-archive without any error.
+can be explained or replayed. `api/app/storage.py` writes it to the filesystem
+under `UPLOAD_DIR`, behind a small interface so a hosted backend can be added
+when hosting is decided. A container disk is not somewhere an audit trail should
+live, so that choice has to come with the host.
 
 Keys are the sha256 prefix of the content, so re-uploading the same file writes
-the same object instead of a second copy.
-
-**Supabase objects are gzipped; local ones are not.** Supabase enforces a
-per-object ceiling at the project level, separate from the bucket's own
-`file_size_limit` and, on the free plan, not raisable: 50MB, measured. The
-applications export is 114MB, so every upload of it failed at the archive step
-with `EntityTooLarge` — and, because the archive ran before the upload row was
-written, failed with no record of the attempt anywhere. Gzipped the export is
-21MB. Local storage keeps writing plain files, where `head` is worth more than
-compression.
-
-Formats that are already compressed do not shrink: a 48MB `.xlsx` stays 48MB, so
-a workbook past 50MB still cannot be archived on this plan. That case now returns
-413 with the reason and the workaround (export the same data as `.csv`) rather
-than a 500 and a stack trace.
+the same object instead of a second copy. A gzipped file, such as a copy pulled
+down from the old hosted bucket, reads back as the original.
 
 **The stored object is the file as it arrived.** For the applications export
 that is all 50 source columns, including the student names, nationalities and
 reference numbers the ingest layer drops -- the loaded table keeps 18. So the
-database holds no student PII but the archive does. The bucket is private with
-no `storage.objects` policies, reachable only with the service role key, and how
-long these are retained is a decision that has not been made yet.
+database holds no student PII but the archive does. Wherever it is hosted must be
+private, and how long these are retained is a decision that has not been made yet.

@@ -124,3 +124,40 @@ def test_punctuation_inside_a_quoted_header_does_not_pick_the_separator():
 def test_a_quoted_header_spanning_lines_is_read_to_its_real_end():
     content = b'"Notes\nsee, below";id;city\n"a, b";1;Porto\n'
     assert _sniff_separator(content) == ";"
+
+
+@pytest.mark.parametrize("separator", ["\t", ";", "|"])
+def test_unquoted_header_punctuation_does_not_outvote_the_rows(separator):
+    """BUG-002: a tab file may leave `Last, First, Middle` unquoted, and then
+    its two commas tie with its two tabs. The rows break the tie."""
+    content = (f"Last, First, Middle{separator}city{separator}note\n"
+               f"Doe{separator}Lisbon{separator}\"a,b;c|d\"\n"
+               f"Roe{separator}Porto{separator}plain\n").encode()
+    assert _sniff_separator(content) == separator
+    frame = read_table("export.csv", content)
+    assert frame.columns == ["Last, First, Middle", "city", "note"]
+    assert frame.height == 2
+
+
+def test_a_ragged_row_does_not_cost_the_real_separator_its_lead():
+    content = b"Last, First\tcity\nDoe\tLisbon\njunk\nRoe\tPorto\n"
+    assert _sniff_separator(content) == "\t"
+
+
+def test_a_header_with_no_rows_still_picks_its_most_common_separator():
+    assert _sniff_separator(b"name;city;note\n") == ";"
+
+
+@pytest.mark.parametrize("separator", [",", "\t", ";", "|"])
+def test_escaped_quotes_in_a_header_name_are_unescaped(separator):
+    """BUG-003: a quote doubled inside a quoted header is one quote in the
+    name, as it already is in a row."""
+    content = (f'"say ""hi"""{separator}b\n"a ""q"""{separator}2\n').encode()
+    frame = read_table("export.csv", content)
+    assert frame.columns == ['say "hi"', "b"]
+    assert frame.rows() == [('a "q"', "2")]
+
+
+def test_a_header_without_escapes_keeps_polars_names():
+    frame = read_table("export.csv", b"a,a,\n1,2,3\n")
+    assert frame.width == 3 and frame.height == 1
