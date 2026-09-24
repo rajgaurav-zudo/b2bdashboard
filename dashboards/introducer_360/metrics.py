@@ -28,6 +28,7 @@ import sys
 from datetime import date, timedelta
 
 sys.path.insert(0, "/srv/api")
+from app.regions import narrow, options, split  # noqa: E402
 from app.views import ViewContext, ViewError  # noqa: E402
 
 TOP_INTRODUCERS = 8          # the leaderboard under the pipeline
@@ -38,9 +39,9 @@ WISE_ROWS = 25               # rows in the introducer-wise table when nothing is
 # the pipeline
 # --------------------------------------------------------------------------
 #
-# Eleven stages in funnel order, of two kinds.
+# Nine stages in funnel order, of two kinds.
 #
-# Nine are **events**: `date` is the column saying when an application entered
+# Seven are **events**: `date` is the column saying when an application entered
 # the stage, and the window filters on it.
 #
 # Two are **states**. The CRM records a partial deposit and an initiated deferral
@@ -53,9 +54,12 @@ WISE_ROWS = 25               # rows in the introducer-wise table when nothing is
 # which is where the useful question is -- "this partner's partial deposits in
 # the 2026 intake" -- and Compare leaves them alone, because a state has no
 # last year to be compared with.
+#
+# The funnel starts at Applied. Draft and Ready to apply are still loaded, but
+# the export only carries applications that went on to be submitted -- all but
+# a handful have all three dates -- so those two cards could only ever repeat
+# the Applied figure and show no drop-off.
 STAGES = [
-    {"id": "draft",        "name": "Draft",           "kind": "event", "date": "at_draft",        "extra": "", "group": None},
-    {"id": "ready",        "name": "Ready to apply",  "kind": "event", "date": "at_ready",        "extra": "", "group": None},
     {"id": "applied",      "name": "Applied",         "kind": "event", "date": "at_applied",      "extra": "", "group": None},
     {"id": "offer",        "name": "Offer",           "kind": "event", "date": "at_offer",        "extra": "", "group": None},
     {"id": "deposit",      "name": "Deposit paid",    "kind": "event", "date": "at_deposit",      "extra": "", "group": "deposits"},
@@ -73,7 +77,11 @@ STAGES = [
 EVENTS = [s for s in STAGES if s["kind"] == "event"]
 EVENT_IDS = {s["id"] for s in EVENTS}
 
-# The eight widgets. A group is the sum of its members' events, not a count of
+# Every stage date the file carries, including the two the funnel no longer
+# shows: the anchor and All time are about the file, not about the cards.
+ALL_DATES = ["at_draft", "at_ready", *(s["date"] for s in EVENTS)]
+
+# The six widgets. A group is the sum of its members' events, not a count of
 # distinct applications: an application that paid a deposit, received a CoE and
 # applied for a visa inside the window entered three stages and is counted three
 # times, exactly as it would be on three separate cards. The breakdown modal is
@@ -89,8 +97,8 @@ GROUPS = {
     },
 }
 
-# The order the eight cards are drawn in: a stage id, or a group id.
-WIDGETS = ["draft", "ready", "applied", "offer", "deposits", "visa_granted", "enrolled", "awaiting"]
+# The order the six cards are drawn in: a stage id, or a group id.
+WIDGETS = ["applied", "offer", "deposits", "visa_granted", "enrolled", "awaiting"]
 
 CYCLES = [(0, "Jan"), (1, "May"), (2, "Sep")]
 
@@ -98,15 +106,25 @@ CYCLES = [(0, "Jan"), (1, "May"), (2, "Sep")]
 # SQL
 # --------------------------------------------------------------------------
 
+# An application's team is its introducer's SRM team on the master file. A
+# partner missing from the master, or with no team there, is Unassigned -- as on
+# Introducer Performance, so the two dashboards agree about who is whose.
+_TEAM = """
+coalesce((select nullif(m.srm_team, '') from introducers m
+           where m.load_id = %(intro)s and m.partner_name = applications.introducer_name),
+         'Unassigned')
+"""
+
 # Everything below reads from this, and only this. The filters are applied once,
 # here, so no view can accidentally answer for a different population than the
 # card beside it.
-_BASE = """
+_BASE = f"""
 base as (
   select *
     from applications
    where load_id = %(load)s
      and (%(all_intro)s or introducer_name = any(%(names)s))
+     and (%(all_teams)s or {_TEAM} = any(%(teams)s))
      and (%(iy)s = 0  or intake_year  = %(iy)s)
      and (%(ic)s = -1 or cycle_index  = %(ic)s)
 )
@@ -116,9 +134,10 @@ base as (
 def _stage_aggregates(prefix: str, window: str) -> str:
     """`created`, `active` and `closed` for every stage over one window.
 
-    Generated rather than written out because eleven stages times three figures
-    times two windows is sixty-six aggregates, and sixty-six hand-written
-    `count(*) filter` clauses is sixty-six chances to paste the wrong column in.
+    Generated rather than written out because nine stages times three figures,
+    most of them over two windows, is forty-eight aggregates, and forty-eight
+    hand-written `count(*) filter` clauses is forty-eight chances to paste the
+    wrong column in.
     """
     out = []
     for stage in STAGES:
@@ -138,12 +157,13 @@ def _stage_aggregates(prefix: str, window: str) -> str:
 # compares one intake year with the one before it, so it cannot be run inside a
 # base that has already narrowed to a single intake -- it would be comparing a
 # year with itself and reporting zero.
-_BASE_ALL_INTAKES = """
+_BASE_ALL_INTAKES = f"""
 base as (
   select *
     from applications
    where load_id = %(load)s
      and (%(all_intro)s or introducer_name = any(%(names)s))
+     and (%(all_teams)s or {_TEAM} = any(%(teams)s))
 )
 """
 
@@ -179,8 +199,8 @@ limit %(limit)s
 # The anchor: the newest stage event anywhere in the file. Not the server clock
 # -- see the module docstring. `first` is the oldest, where All time starts.
 ANCHOR_SQL = f"""
-select max(greatest({', '.join(s['date'] for s in EVENTS)})) as anchor,
-       min(least({', '.join(s['date'] for s in EVENTS)}))    as first
+select max(greatest({', '.join(ALL_DATES)})) as anchor,
+       min(least({', '.join(ALL_DATES)}))    as first
   from applications where load_id = %(load)s
 """
 
@@ -259,6 +279,16 @@ select
   count(*) filter (where intake_year = %(iy_prev)s
                      and deposit_fully_paid and not closed_lost)   as prev_paid_total
 from base
+"""
+
+# The Team menu: partners on the master file per team. Unassigned is always
+# offered, since an application whose partner is not on the master lands there.
+TEAMS_SQL = """
+select team, count(*) filter (where counted) as n from (
+  select coalesce(nullif(srm_team, ''), 'Unassigned') as team, true as counted
+    from introducers where load_id = %(intro)s
+  union all select 'Unassigned', false
+) t group by 1 order by 1
 """
 
 NOTES_SQL = """
@@ -407,8 +437,18 @@ def _scope(ctx: ViewContext, params: dict) -> dict:
     intake_year, intake_cycle = _intake(params)
     first = row.get("first")
     window = _range(params, anchor, first)
+
+    # Region and Team come to one list of teams, or None for every team. It can
+    # be empty -- a team picked outside the picked regions -- and then matches
+    # nothing, which is what was asked for.
+    master = ctx.loads.get("introducers")
+    picked, regions = sorted(set(split(params.get("teams")))), sorted(set(split(params.get("regions"))))
+    team_counts = ctx.rows(TEAMS_SQL, {"intro": master})
+    teams = narrow(picked, regions, [r["team"] for r in team_counts])
     return {
         "load": load, "anchor": anchor, "first": first, "names": names, "range": window,
+        "master": master, "picked": picked, "regions": regions, "teams": teams,
+        "team_counts": team_counts,
         "intake_year": intake_year, "intake_cycle": intake_cycle,
         "compare": (params.get("compare") or "") in ("1", "true", "yes"),
     }
@@ -421,6 +461,9 @@ def _sql_params(scope: dict, **extra) -> dict:
         "load": scope["load"],
         "all_intro": not scope["names"],
         "names": scope["names"] or [""],
+        "intro": scope["master"],
+        "all_teams": scope["teams"] is None,
+        "teams": scope["teams"] or [""],
         "iy": scope["intake_year"], "ic": scope["intake_cycle"],
         "rf": window["from"], "rt": window["to"],
         "pf": last_year(window["from"]), "pt": last_year(window["to"]),
@@ -437,7 +480,11 @@ def _scope_label(scope: dict) -> str:
         who = names[0]
     else:
         who = f"{len(names)} introducers"
-    parts = [who, scope["range"]["label"]]
+    parts = [who]
+    for chosen, one in ((scope["regions"], "region"), (scope["picked"], "team")):
+        if chosen:
+            parts.append(chosen[0] if len(chosen) == 1 else f"{len(chosen)} {one}s")
+    parts.append(scope["range"]["label"])
     if scope["intake_year"]:
         intake = str(scope["intake_year"])
         if scope["intake_cycle"] != -1:
@@ -564,7 +611,7 @@ def overview(ctx: ViewContext, params: dict):
     # The master file is what makes this a 360 rather than a pipeline, but the
     # pipeline is readable without it: a null load id matches no rows, so an
     # unloaded master costs the profile card and nothing else.
-    master = ctx.loads.get("introducers")
+    master = scope["master"]
     profile = (ctx.one(PROFILE_SQL, {"intro": master, "name": scope["names"][0]})
                if len(scope["names"]) == 1 else None)
 
@@ -580,6 +627,8 @@ def overview(ctx: ViewContext, params: dict):
         "anchor": scope["anchor"],
         "scope_line": _scope_label(scope),
         "selected": scope["names"],
+        "filters": {"teams": scope["picked"], "regions": scope["regions"]},
+        **dict(zip(("team_options", "region_options"), options(scope["team_counts"]))),
         "compare": scope["compare"],
         "range": {**window, "presets": [
             {"id": p, "label": PRESET_LABELS[p],

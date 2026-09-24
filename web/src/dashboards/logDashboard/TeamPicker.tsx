@@ -2,19 +2,21 @@ import { useMemo, useRef, useState } from "react";
 
 import { n0 } from "../../format";
 import { useOutside } from "../../ui/useOutside";
-import { teamFace } from "./teams";
-
-/** The team filter, as a set.
+/** The team filter, as a set -- and the region filter, which is the same
+ *  control over a shorter list.
  *
  *  A dropdown of checkboxes rather than a native `<select multiple>`: the
  *  native one shows three rows of a twenty-two-team list, needs ctrl-click to
  *  add a second, and drops the whole selection on a stray click. The regional
  *  SRM teams are read together as often as alone, so adding one has to be a
  *  single ordinary click. */
-export function TeamPicker({ teams, selected, onChange }: {
-  teams: { team: string; n: number }[];
+export function TeamPicker({ options: teams, selected, onChange, face, noun = "team" }: {
+  options: { name: string; n: number }[];
   selected: string[];
   onChange: (next: string[]) => void;
+  /** what the closed button says for this selection */
+  face: (selected: string[]) => string;
+  noun?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -24,7 +26,7 @@ export function TeamPicker({ teams, selected, onChange }: {
   // the whole list is already on the page, so the search is local
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return needle ? teams.filter((t) => t.team.toLowerCase().includes(needle)) : teams;
+    return needle ? teams.filter((t) => t.name.toLowerCase().includes(needle)) : teams;
   }, [teams, q]);
 
   const flip = (team: string) =>
@@ -33,7 +35,7 @@ export function TeamPicker({ teams, selected, onChange }: {
   // what the selection covers, so picking two of twenty-two says how much of
   // the file is left rather than leaving it to be guessed
   const covered = teams
-    .filter((t) => selected.includes(t.team))
+    .filter((t) => selected.includes(t.name))
     .reduce((sum, t) => sum + t.n, 0);
   const all = teams.reduce((sum, t) => sum + t.n, 0);
 
@@ -43,7 +45,7 @@ export function TeamPicker({ teams, selected, onChange }: {
         type="button" className={`face${open ? " on" : ""}`}
         aria-expanded={open} onClick={() => setOpen((was) => !was)}
       >
-        <span className="v">{teamFace(selected)}</span>
+        <span className="v">{face(selected)}</span>
         <span className="car" aria-hidden>▾</span>
       </button>
       {open ? (
@@ -52,14 +54,14 @@ export function TeamPicker({ teams, selected, onChange }: {
             <span>
               {selected.length
                 ? <>{n0(covered)} of {n0(all)} logs</>
-                : <>every team in the file</>}
+                : <>every {noun} in the file</>}
             </span>
             {selected.length ? (
               <button type="button" onClick={() => onChange([])}>Clear</button>
             ) : null}
           </div>
           <input
-            className="msearch" type="search" autoFocus placeholder="Search teams…"
+            className="msearch" type="search" autoFocus placeholder={`Search ${noun}s…`}
             value={q} onChange={(e) => setQ(e.target.value)}
           />
           <div className="mlist">
@@ -67,17 +69,17 @@ export function TeamPicker({ teams, selected, onChange }: {
                 rule above the control, and it would otherwise stack these
                 three into a column and set them in faint uppercase */}
             {shown.map((team) => (
-              <label key={team.team} className={`opt${selected.includes(team.team) ? " on" : ""}`}>
+              <label key={team.name} className={`opt${selected.includes(team.name) ? " on" : ""}`}>
                 <input
                   type="checkbox"
-                  checked={selected.includes(team.team)}
-                  onChange={() => flip(team.team)}
+                  checked={selected.includes(team.name)}
+                  onChange={() => flip(team.name)}
                 />
-                <span className="nm">{team.team}</span>
+                <span className="nm">{team.name}</span>
                 <span className="n">{n0(team.n)}</span>
               </label>
             ))}
-            {shown.length === 0 ? <p className="mnone">No team matches “{q}”.</p> : null}
+            {shown.length === 0 ? <p className="mnone">No {noun} matches “{q}”.</p> : null}
           </div>
         </div>
       ) : null}

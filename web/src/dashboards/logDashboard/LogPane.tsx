@@ -4,7 +4,7 @@ import { useView } from "../../api/client";
 import type { LogOverview, LogRowsView } from "../../api/types";
 import { n0 } from "../../format";
 import { Spinner } from "../../ui/Primitives";
-import { teamLabel, teamParam } from "./teams";
+import { scopeLabel, teamParam } from "./teams";
 import { dayLabel, weekLabel } from "./weeks";
 
 interface Props {
@@ -23,6 +23,7 @@ export function LogPane({ slug, overview, type, onClose }: Props) {
     week: overview.week,
     only: "week",
     type: open && type ? type : overview.filters.type,
+    region: teamParam(overview.filters.regions),
     team: teamParam(overview.filters.teams),
     limit: 500,
   }, open);
@@ -47,7 +48,8 @@ export function LogPane({ slug, overview, type, onClose }: Props) {
               <h2>{type ? `${type} logs` : "All logs"}</h2>
               <p className="pdef">
                 {weekLabel(overview.week)}
-                {teamLabel(overview.filters.teams) ? ` · ${teamLabel(overview.filters.teams)}` : ""}
+                {scopeLabel(overview.filters.regions, overview.filters.teams)
+                  ? ` · ${scopeLabel(overview.filters.regions, overview.filters.teams)}` : ""}
               </p>
             </div>
             <button type="button" className="x" onClick={onClose} aria-label="Close">×</button>

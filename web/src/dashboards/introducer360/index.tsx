@@ -22,6 +22,8 @@ export function Introducer360({ slug }: { slug: string }) {
 
   const query = {
     introducers: params.get("introducers") ?? undefined,
+    regions: params.get("regions") ?? undefined,
+    teams: params.get("teams") ?? undefined,
     range: params.get("range") ?? undefined,
     from: params.get("from") ?? undefined,
     to: params.get("to") ?? undefined,

@@ -4,7 +4,7 @@ import { useView } from "../../api/client";
 import type { LeaderboardView, LogOverview } from "../../api/types";
 import { n0 } from "../../format";
 import { Spinner } from "../../ui/Primitives";
-import { teamLabel, teamParam } from "./teams";
+import { scopeLabel, teamParam } from "./teams";
 import { TopTable, type Dimension } from "./TopPerformers";
 import { weekLabel } from "./weeks";
 
@@ -30,6 +30,7 @@ export function LeaderPane({ slug, overview, dimension, onClose }: Props) {
     week: overview.week,
     weeks: overview.filters.weeks,
     type: overview.filters.type,
+    region: teamParam(overview.filters.regions),
     team: teamParam(overview.filters.teams),
   }, open);
 
@@ -59,7 +60,8 @@ export function LeaderPane({ slug, overview, dimension, onClose }: Props) {
               <h2>{data?.label ?? "Loading"}</h2>
               <p className="pdef">
                 {data?.note}. {overview.filters.weeks} weeks to {weekLabel(overview.week)}
-                {teamLabel(overview.filters.teams) ? ` · ${teamLabel(overview.filters.teams)}` : ""}
+                {scopeLabel(overview.filters.regions, overview.filters.teams)
+                  ? ` · ${scopeLabel(overview.filters.regions, overview.filters.teams)}` : ""}
                 {overview.filters.type ? ` · ${overview.filters.type} only` : ""}
               </p>
             </div>

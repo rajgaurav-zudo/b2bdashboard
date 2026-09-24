@@ -705,7 +705,7 @@ table.leader thead th .swatch{margin-right:5px;vertical-align:1px}
    minmax(0,1fr) rather than 1fr: a grid column is min-content wide by default,
    and a six-figure number in a mono face would push the row wider than the
    page and put a scrollbar under it. */
-.i360-cards{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:9px;align-items:stretch}
+.i360-cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;align-items:stretch}
 .i360-card{
   display:flex;flex-direction:column;text-align:left;min-width:0;
   background:var(--card);border:1px solid var(--line);border-radius:var(--radius-card);
@@ -784,7 +784,7 @@ td.i360-c.tot b{color:var(--ink)}
    two and two. The rule the design set is that the pipeline never scrolls
    sideways -- it says nothing about it being one line on a phone. */
 @media (max-width:1080px){
-  .i360-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .i360-cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .i360-360{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:760px){

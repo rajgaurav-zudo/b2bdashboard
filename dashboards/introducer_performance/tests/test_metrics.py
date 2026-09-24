@@ -605,3 +605,29 @@ def test_compare_is_the_same_filters_a_year_earlier(book, metrics):
 
     cmp = book.overview(metrics, compare="1", cycles="2")["compare"]
     assert cmp["totals"]["act_cur"] == 6
+
+
+def test_the_region_filter_keeps_the_teams_in_that_region(book, metrics):
+    book.load(
+        introducers=[
+            {"partner_name": "Lagos", "lifecycle_stage": "Customer", "srm_team": "West Africa B2B SRMs 1"},
+            {"partner_name": "Nairobi", "lifecycle_stage": "Customer", "srm_team": "East Africa B2B SRMs"},
+            {"partner_name": "Dhaka", "lifecycle_stage": "Customer", "srm_team": "Bangladesh B2B SRMs"},
+            {"partner_name": "Blank", "lifecycle_stage": "Customer", "srm_team": ""},
+        ],
+        applications=(_dep("Lagos", 2026, 9, 2, n=3) + _dep("Nairobi", 2026, 9, 2, n=5)
+                      + _dep("Dhaka", 2026, 9, 2, n=7) + _dep("Blank", 2026, 9, 2)),
+    )
+    assert set(book.by_name(metrics, regions="Africa")) == {"Lagos", "Nairobi"}
+    # a blank team is Unassigned, and a team outside the mapping sits in Other
+    assert set(book.by_name(metrics, regions="Other")) == {"Blank"}
+    # Team narrows inside the region
+    assert set(book.by_name(metrics, regions="Africa", teams="East Africa B2B SRMs")) == {"Nairobi"}
+    # and a team from another region leaves nobody, rather than everybody
+    assert book.by_name(metrics, regions="Africa", teams="Bangladesh B2B SRMs") == {}
+
+    out = book.overview(metrics, regions="Africa")
+    assert out["totals"]["act_cur"] == 8
+    assert out["filters"]["regions"] == ["Africa"] and out["filters"]["teams"] == []
+    assert {o["region"]: o["n"] for o in out["region_options"]} == {"Africa": 2, "Bangladesh": 1, "Other": 1}
+    assert {o["team"]: o["region"] for o in out["team_options"]}["Bangladesh B2B SRMs"] == "Bangladesh"

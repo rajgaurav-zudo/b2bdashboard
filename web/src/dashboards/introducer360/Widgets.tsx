@@ -1,7 +1,7 @@
 import type { I360Cell, I360Overview, I360Stage, I360Widget } from "../../api/types";
 import { n0 } from "../../format";
 
-/** The eight cards, on one line.
+/** The six cards, on one line.
  *
  *  Two of them are groups: they show their total and nothing else, and open a
  *  breakdown. A group is the sum of its members' events rather than a count of

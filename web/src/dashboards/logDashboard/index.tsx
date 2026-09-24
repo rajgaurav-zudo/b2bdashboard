@@ -8,7 +8,7 @@ import { LeaderPane } from "./LeaderPane";
 import { LogPane } from "./LogPane";
 import { Notes } from "./Notes";
 import { Sentiment } from "./Sentiment";
-import { teamLabel } from "./teams";
+import { scopeLabel } from "./teams";
 import { TopPerformers, type Dimension } from "./TopPerformers";
 import { WeekBar } from "./WeekBar";
 import { WeekOnWeek } from "./WeekOnWeek";
@@ -30,6 +30,7 @@ export function LogDashboard({ slug }: { slug: string }) {
 
   const query = {
     week: params.get("week") ?? undefined,
+    region: params.get("region") ?? undefined,
     team: params.get("team") ?? undefined,
     type: params.get("type") ?? undefined,
     weeks: params.get("weeks") ?? undefined,
@@ -68,7 +69,7 @@ export function LogDashboard({ slug }: { slug: string }) {
         overview={data}
         onStep={step}
         onJumpToCurrent={() => set({ week: null })}
-        onFilter={(key, value) => set({ [key]: value })}
+        onFilter={(changes) => set(changes)}
       />
 
       <Section
@@ -95,7 +96,8 @@ export function LogDashboard({ slug }: { slug: string }) {
         note={<>
           {data.filters.weeks} weeks to {weekLabel(data.week)} — {n0(data.range.rows)} logs
           {data.filters.type ? <> · {data.filters.type} only</> : null}
-          {teamLabel(data.filters.teams) ? <> · {teamLabel(data.filters.teams)}</> : null}.
+          {scopeLabel(data.filters.regions, data.filters.teams)
+            ? <> · {scopeLabel(data.filters.regions, data.filters.teams)}</> : null}.
           {" "}These rank logging as much as activity; see the notes below.
         </>}
       >

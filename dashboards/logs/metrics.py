@@ -24,6 +24,7 @@ import sys
 from datetime import date, timedelta
 
 sys.path.insert(0, "/srv/api")
+from app.regions import narrow, options, split  # noqa: E402
 from app.views import ViewContext, ViewError  # noqa: E402
 
 DEFAULT_TABLE_WEEKS = 8      # "last 2 months", ending with the selected week
@@ -330,12 +331,18 @@ def _scope(ctx: ViewContext, params: dict) -> dict:
     span = _int(params, "weeks", DEFAULT_TABLE_WEEKS, 1, 260)
     start = weeks[max(index - span + 1, 0)]
 
-    return {
+    scope = {
         "load": load, "weeks": weeks, "counted": counted, "anchor": anchor, "today": today, "previous": previous,
         "current": current, "index": index, "span": span, "start": start,
         "type": (params.get("type") or "").strip(),
         "teams": _teams(params),
+        "regions": sorted(set(split(params.get("region")))),
     }
+    # Region and Team come to one list of teams, or None for every team; an
+    # empty list -- a team picked outside the picked regions -- matches nothing
+    known = [r["team"] for r in ctx.rows(TEAMS_SQL, {"load": load})] if scope["regions"] else []
+    scope["effective"] = narrow(scope["teams"], scope["regions"], known)
+    return scope
 
 
 def _teams(params: dict) -> list[str]:
@@ -356,7 +363,7 @@ def _team_params(scope: dict) -> dict:
     """`= any(array)` matches nothing when the array is empty, so "every team" is
     a flag rather than an empty list -- and the list is never empty, because an
     empty array has no type for the planner to compare against."""
-    return {"all_teams": not scope["teams"], "teams": scope["teams"] or [""]}
+    return {"all_teams": scope["effective"] is None, "teams": scope["effective"] or [""]}
 
 
 # --------------------------------------------------------------------------
@@ -425,10 +432,10 @@ def overview(ctx: ViewContext, params: dict):
         "days_elapsed": max(1, min((scope["today"] - anchor).days + 1, 7)),
         "has_earlier": scope["index"] > 0,
         "has_later": scope["index"] < len(scope["weeks"]) - 1,
-        "filters": {"type": scope["type"], "teams": scope["teams"],
+        "filters": {"type": scope["type"], "teams": scope["teams"], "regions": scope["regions"],
                     "weeks": scope["span"], "top": top_n, "chart_weeks": chart_weeks},
         "log_types": ctx.rows(TYPES_SQL, {"load": load}),
-        "teams": ctx.rows(TEAMS_SQL, {"load": load}),
+        **dict(zip(("teams", "regions"), options(ctx.rows(TEAMS_SQL, {"load": load})))),
         "week_kpis": {"total": week_total, "previous_total": prev_total,
                       "delta": week_total - prev_total, "by_type": by_type},
         "series": {"weeks": chart_range, "by_type": series,
@@ -457,7 +464,7 @@ def rows(ctx: ViewContext, params: dict):
     return {
         "week": scope["anchor"],
         "from": scoped["from"], "to": scoped["to"],
-        "filters": {"type": scope["type"], "teams": scope["teams"]},
+        "filters": {"type": scope["type"], "teams": scope["teams"], "regions": scope["regions"]},
         "rows": ctx.rows(ROWS_SQL, {**scoped, "limit": limit}),
     }
 
@@ -482,7 +489,7 @@ def leaderboard(ctx: ViewContext, params: dict):
         "note": DIMENSIONS[dimension]["note"],
         "week": scope["anchor"],
         "range": {"from": scope["start"], "to": scope["anchor"], "weeks": scope["span"]},
-        "filters": {"type": scope["type"], "teams": scope["teams"]},
+        "filters": {"type": scope["type"], "teams": scope["teams"], "regions": scope["regions"]},
         "log_types": ctx.rows(TYPES_SQL, {"load": scope["load"]}),
         "total": total,
         "rows": found,

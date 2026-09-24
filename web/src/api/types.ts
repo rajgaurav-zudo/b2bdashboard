@@ -259,12 +259,17 @@ export interface OverviewCompare {
   tiles: Record<string, TileStats>;
 }
 
+/** A team as the filter menus list it, with the region it sits in. */
+export interface TeamOption { team: string; n: number; region: string }
+export interface RegionOption { region: string; n: number }
+
 export interface Overview {
   current_year: number;
   previous_year: number;
   period: Period;
-  filters: { teams: string[]; cycles: number[] };
-  team_options: { team: string; n: number }[];
+  filters: { teams: string[]; regions: string[]; cycles: number[] };
+  team_options: TeamOption[];
+  region_options: RegionOption[];
   compare: OverviewCompare | null;
   year_histogram: { y: number; n: number }[];
   book_size: number;
@@ -385,7 +390,7 @@ export interface LeaderboardView {
   note: string;
   week: string;
   range: { from: string; to: string; weeks: number };
-  filters: { type: string; teams: string[] };
+  filters: { type: string; teams: string[]; regions: string[] };
   log_types: { type: string; n: number }[];
   total: number;
   rows: TopRow[];
@@ -440,9 +445,10 @@ export interface LogOverview {
   days_elapsed: number;
   has_earlier: boolean;
   has_later: boolean;
-  filters: { type: string; teams: string[]; weeks: number; top: number; chart_weeks: number };
+  filters: { type: string; teams: string[]; regions: string[]; weeks: number; top: number; chart_weeks: number };
   log_types: { type: string; n: number }[];
-  teams: { team: string; n: number }[];
+  teams: TeamOption[];
+  regions: RegionOption[];
   week_kpis: {
     total: number;
     previous_total: number;
@@ -473,7 +479,7 @@ export interface LogRowsView {
   week: string;
   from: string;
   to: string;
-  filters: { type: string; teams: string[] };
+  filters: { type: string; teams: string[]; regions: string[] };
   rows: LogRow[];
 }
 
@@ -533,6 +539,9 @@ export interface I360Overview {
   anchor: string;
   scope_line: string;
   selected: string[];
+  filters: { teams: string[]; regions: string[] };
+  team_options: TeamOption[];
+  region_options: RegionOption[];
   compare: boolean;
   range: I360Range & { presets: { id: string; label: string; from?: string; to?: string }[] };
   previous_range: { from: string; to: string; label: string };

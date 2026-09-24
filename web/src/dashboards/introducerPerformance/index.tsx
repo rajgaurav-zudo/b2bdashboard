@@ -14,7 +14,7 @@ import { SidePane } from "./SidePane";
 import { Tiles } from "./Tiles";
 
 /** The URL keys the server reads as filters. `compare` only changes the overview. */
-const FILTER_KEYS = ["from", "to", "teams", "cycles"] as const;
+const FILTER_KEYS = ["from", "to", "regions", "teams", "cycles"] as const;
 
 export function IntroducerPerformance({ slug }: { slug: string }) {
   // in the URL rather than in state: a call list is something people send to each other
@@ -26,6 +26,7 @@ export function IntroducerPerformance({ slug }: { slug: string }) {
   }
   const compare = params.get("compare") === "1";
   const selection: Selection = {
+    regions: (params.get("regions") ?? "").split("|").filter(Boolean),
     teams: (params.get("teams") ?? "").split("|").filter(Boolean),
     cycles: (params.get("cycles") ?? "").split(",").filter(Boolean).map(Number),
   };
