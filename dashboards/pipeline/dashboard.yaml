@@ -1,0 +1,34 @@
+slug: pipeline
+name: Pipeline
+version: 1
+schema: dash_pipeline
+
+description: >
+  Every application, not only introduced ones, rolled up to unique students by
+  actual intake. Each student sits at the furthest stage any of their
+  applications has reached, Applied through Enrolled, against the same intake a
+  year earlier.
+
+dimensions: [course_level, recruitment_type, srm_team]
+
+# The applications export is platform-level (sources/sources.yaml), so this
+# dashboard is fed by projecting the file already in the archive. It reads the
+# student reference and the stage timestamps into its own table and cannot
+# change what any other dashboard takes out of the same file.
+#
+# The introducers master is read for one thing: each partner's SRM team, which
+# is what Region and Team filter on, so this page files students under the same
+# teams as Introducer Performance.
+datasets:
+  introducers:
+    display_name: Introducers master
+    source: introducers
+    table: introducers
+    natural_key: [partner_name]
+    required_columns: ["Partner Name"]
+  applications:
+    display_name: Applications
+    source: applications
+    table: applications
+    natural_key: [app_uid]
+    required_columns: ["Student Ref Id", "Application Status"]

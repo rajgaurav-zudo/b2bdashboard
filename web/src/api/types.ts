@@ -588,3 +588,41 @@ export interface I360MenuView {
   limit: number;
   rows: { name: string; n: number; deposits: number }[];
 }
+
+// ---------------------------------------------------------------------------
+// Pipeline
+// ---------------------------------------------------------------------------
+
+export interface PipelineCell { total: number; active: number | null; lost: number | null }
+
+export interface PipelinePeriod { pipeline: PipelineCell; funnel: PipelineCell }
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  now: PipelinePeriod;
+  ly_asat: PipelinePeriod;
+  ly_final: PipelinePeriod;
+}
+
+export interface PipelineOverview {
+  anchor: string;
+  cutoff: string;
+  filters: {
+    mode: "calendar" | "academic"; year: number; quarters: number[]; levels: string[];
+    teams: string[]; regions: string[];
+  };
+  options: {
+    modes: { id: "calendar" | "academic"; label: string }[];
+    years: { value: number; label: string }[];
+    quarters: { q: number; label: string }[];
+    levels: { name: string; n: number }[];
+    academic_start: string;
+    team_options: TeamOption[];
+    region_options: RegionOption[];
+  };
+  scope: { label: string; last_year: string };
+  totals: { now: PipelineCell; ly_asat: PipelineCell; ly_final: PipelineCell };
+  stages: PipelineStage[];
+  data: { app_rows: number; no_intake: number; no_student_ref: number; no_stage: number; undated_deposit: number };
+}

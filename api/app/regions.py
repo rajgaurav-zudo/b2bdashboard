@@ -18,7 +18,7 @@ OTHER = "Other"
 _BY_REGION: dict[str, tuple[str, ...]] = {
     "Africa": (
         "Africa B2B AMT", "Africa B2B SRMs", "East Africa B2B AMT", "East Africa B2B SRMs",
-        "North Africa B2B SRMs", "West Africa B2B AMT 1", "West Africa B2B AMT2",
+        "West Africa B2B AMT 1", "West Africa B2B AMT2",
         "West Africa B2B SRMs 1", "West Africa B2B SRMs 2",
     ),
     "Bangladesh": ("Bangladesh B2B SRMs",),
@@ -29,7 +29,8 @@ _BY_REGION: dict[str, tuple[str, ...]] = {
         "SriLanka B2B SRMs", "Vietnam B2B SRMs", "West India B2B SRMs",
     ),
     "China": ("China B2B SRMs", "China UK B2C"),
-    "MENA & CIS": ("CIS B2B SRMs", "MENA B2B SRMs"),
+    # North Africa is run by the MENA team, so it sits here, not under Africa
+    "MENA & CIS": ("CIS B2B SRMs", "MENA B2B SRMs", "North Africa B2B SRMs"),
     "NR": ("DevTesting AMT",),
     "RoW & Pakistan": ("LATAM B2B SRMs", "Pak B2B SRMs", "RoW B2B SRMs", "UK B2B SRMs"),
     "Thailand": ("Thai B2B SRMs",),
