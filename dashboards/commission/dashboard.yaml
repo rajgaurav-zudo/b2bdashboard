@@ -1,0 +1,13 @@
+slug: commission
+name: Commission
+version: 1
+schema: dash_commission
+
+description: >
+  Contract terms per institution: base commission, tiers, bonuses, territory and
+  exclusions, plus every amendment, resolved into the terms that apply to a given
+  intake. Imported from the contracts workbook as drafts, published by a person.
+
+# No datasets: nothing here is loaded from an upload. The contracts team writes
+# the data through the configurator (router.py) and the workbook importer.
+datasets: {}

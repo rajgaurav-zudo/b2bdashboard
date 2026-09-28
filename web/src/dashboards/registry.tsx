@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 
+import { Commission } from "./commission";
 import { Introducer360 } from "./introducer360";
 import { IntroducerPerformance } from "./introducerPerformance";
 import { LogDashboard } from "./logDashboard";
@@ -12,4 +13,5 @@ export const OVERVIEWS: Record<string, ComponentType<{ slug: string }>> = {
   introducer_360: Introducer360,
   logs: LogDashboard,
   pipeline: Pipeline,
+  commission: Commission,
 };
