@@ -12,7 +12,7 @@ function initials(name: string): string {
   return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-/** The frame every page sits in: a navy menu, a white top bar saying where you
+/** The frame every page sits in: a white menu, a white top bar saying where you
  *  are, and the page beneath it.
  *
  *  Two menu groups, because the platform has two kinds of page. A dashboard is
@@ -131,7 +131,7 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
           <p className="nav-lbl">Data</p>
           <Row to="/uploads" rail={rail} mark="↑" label="Uploads"
                hint="Send a file to every dashboard that reads it" />
-          {/* a delta, not a cycle glyph: Inter has no arrow-circle and the
+          {/* a delta, not a cycle glyph: Figtree has no arrow-circle and the
               fallback rendered as a dot */}
           <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
                hint="What every upload changed, in every dashboard" />

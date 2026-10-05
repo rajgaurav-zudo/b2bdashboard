@@ -4,7 +4,7 @@ import type { TooltipItem } from "chart.js";
 
 import type { LogOverview } from "../../api/types";
 import { n0 } from "../../format";
-import { Chart } from "../../ui/Chart";
+import { Chart, chartChrome } from "../../ui/Chart";
 import { colourFor, weekLabel, weekTick } from "./weeks";
 
 /** One bar per log type per week, grouped rather than stacked: the question is
@@ -15,7 +15,9 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
   const colour = colourFor(overview.log_types.map((t) => t.type));
   const selected = weeks.indexOf(overview.week);
 
-  const config = useMemo(() => ({
+  const config = useMemo(() => {
+    const chrome = chartChrome();
+    return {
     type: "bar" as const,
     data: {
       labels: weeks.map(weekTick),
@@ -23,7 +25,7 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
         label: s.type,
         data: s.counts,
         backgroundColor: colour(s.type),
-        borderColor: "#17233a",
+        borderColor: chrome.ink,
         // the selected week keeps a hairline outline; every other bar has none
         borderWidth: s.counts.map((_, i) => (i === selected ? 1.5 : 0)),
         borderSkipped: false,
@@ -38,7 +40,7 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
       scales: {
         x: { grid: { display: false }, border: { display: false } },
         y: {
-          grid: { color: "#e3e9f0", drawTicks: false },
+          grid: { color: chrome.grid, drawTicks: false },
           border: { display: false }, beginAtZero: true, ticks: { precision: 0 },
         },
       },
@@ -49,7 +51,7 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
                     pointStyle: "rect" as const, padding: 14 },
         },
         tooltip: {
-          backgroundColor: "#17233a", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
+          backgroundColor: chrome.tooltip, padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
           callbacks: {
             title: (items: TooltipItem<"bar">[]) => weekLabel(weeks[items[0]!.dataIndex]!),
             footer: (items: TooltipItem<"bar">[]) =>
@@ -58,7 +60,8 @@ export function WeekOnWeek({ overview }: { overview: LogOverview }) {
         },
       },
     },
-  }), [weeks, series, totals, selected, colour]);
+  };
+  }, [weeks, series, totals, selected, colour]);
 
   return (
     <div className="chart-card" style={{ marginTop: 18 }}>

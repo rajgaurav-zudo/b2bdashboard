@@ -4,7 +4,7 @@ import type { TooltipItem } from "chart.js";
 
 import type { FunnelRow, Overview } from "../../api/types";
 import { n0, pct } from "../../format";
-import { Chart, endLabels } from "../../ui/Chart";
+import { Chart, chartChrome, endLabels } from "../../ui/Chart";
 import { Pill } from "../../ui/Primitives";
 
 interface Row {
@@ -69,14 +69,15 @@ export function Funnel({ overview, scope }: { overview: Overview; scope: "scope"
   );
   const labels = shown.map((r) => String(r.y));
 
+  const chrome = useMemo(chartChrome, []);
   const volume = useMemo(() => ({
     type: "bar" as const,
     data: {
       labels,
       datasets: [
-        { label: "Active deposits", data: shown.map((r) => r.act), backgroundColor: "#0F8A5F",
-          borderColor: "#FFFFFF", borderWidth: { top: 2 }, borderSkipped: false, maxBarThickness: 46 },
-        { label: "Closed lost", data: shown.map((r) => r.clos), backgroundColor: "#C0491F",
+        { label: "Active deposits", data: shown.map((r) => r.act), backgroundColor: chrome.positive,
+          borderColor: chrome.surface, borderWidth: { top: 2 }, borderSkipped: false, maxBarThickness: 46 },
+        { label: "Closed lost", data: shown.map((r) => r.clos), backgroundColor: chrome.negative,
           borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: "bottom" as const, maxBarThickness: 46 },
       ],
     },
@@ -85,14 +86,14 @@ export function Funnel({ overview, scope }: { overview: Overview; scope: "scope"
       interaction: { mode: "index" as const, intersect: false },
       scales: {
         x: { stacked: true, grid: { display: false }, border: { display: false } },
-        y: { stacked: true, grid: { color: "#e3e9f0", drawTicks: false },
+        y: { stacked: true, grid: { color: chrome.grid, drawTicks: false },
              border: { display: false }, ticks: { precision: 0 } },
       },
       plugins: {
         legend: { position: "bottom" as const,
                   labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: "rect" as const, padding: 14 } },
         tooltip: {
-          backgroundColor: "#17233a", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
+          backgroundColor: chrome.tooltip, padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
           callbacks: {
             footer: (items: TooltipItem<"bar">[]) => {
               const r = shown[items[0]!.dataIndex]!;
@@ -108,7 +109,7 @@ export function Funnel({ overview, scope }: { overview: Overview; scope: "scope"
     const series = (label: string, key: keyof Row, colour: string, dash: number[] = []) => ({
       label, data: shown.map((r) => Number((r[key] as number).toFixed(2))),
       borderColor: colour, backgroundColor: colour, borderWidth: 2, borderDash: dash,
-      pointRadius: 4, pointHoverRadius: 6, pointBorderColor: "#FFFFFF", pointBorderWidth: 2, tension: 0.25,
+      pointRadius: 4, pointHoverRadius: 6, pointBorderColor: chrome.surface, pointBorderWidth: 2, tension: 0.25,
     });
     return {
       type: "line" as const,
@@ -127,12 +128,12 @@ export function Funnel({ overview, scope }: { overview: Overview; scope: "scope"
         interaction: { mode: "index" as const, intersect: false },
         scales: {
           x: { grid: { display: false }, border: { display: false } },
-          y: { grid: { color: "#e3e9f0", drawTicks: false }, border: { display: false },
+          y: { grid: { color: chrome.grid, drawTicks: false }, border: { display: false },
                beginAtZero: true, ticks: { callback: (v: string | number) => `${v}%` } },
         },
         plugins: {
           legend: { display: false },
-          tooltip: { backgroundColor: "#17233a", padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
+          tooltip: { backgroundColor: chrome.tooltip, padding: 10, cornerRadius: 6, boxWidth: 8, boxHeight: 8,
                      callbacks: { label: (c: TooltipItem<"line">) =>
                        `${c.dataset.label}: ${(c.parsed.y ?? 0).toFixed(2)}%` } },
         },

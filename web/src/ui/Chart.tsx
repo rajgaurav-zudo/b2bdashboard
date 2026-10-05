@@ -9,10 +9,27 @@ ChartJS.register(
   LinearScale, CategoryScale, Tooltip, Legend,
 );
 
-ChartJS.defaults.font.family =
-  "Inter, ui-sans-serif, -apple-system, 'Segoe UI', Arial, sans-serif";
+/** A design-system token (an --ecrm-* custom property) as a literal value, for
+ *  the canvas, which cannot resolve var(). Read when a chart is configured, by
+ *  which point the token stylesheet has loaded. */
+export function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(`--ecrm-${name}`).trim();
+}
+
+/** Chart chrome shared by every chart: hairline grid, dark tooltip. Series
+ *  colours stay with each chart -- the design system has one single-series
+ *  colour and no categorical palette. */
+export const chartChrome = () => ({
+  grid: token("color-border-row"),
+  tooltip: token("color-tooltip"),
+  ink: token("color-text"),
+  surface: token("color-surface"),
+  positive: token("color-positive"),
+  negative: token("color-negative"),
+});
+
+ChartJS.defaults.font.family = "Figtree, ui-sans-serif, -apple-system, 'Segoe UI', Arial, sans-serif";
 ChartJS.defaults.font.size = 11;
-ChartJS.defaults.color = "#5b6a7f";
 
 /** Labels each line at its right-hand end instead of in a legend, so the eye
  *  never has to travel between a colour swatch and a line. Collisions are
@@ -30,7 +47,7 @@ export const endLabels = {
       placed.push({
         y: last.y,
         text: String(dataset.label ?? ""),
-        colour: String(dataset.borderColor ?? "#17233a"),
+        colour: String(dataset.borderColor ?? token("color-text")),
       });
     });
     // Two series ending at the same value would print on top of each other.
@@ -53,7 +70,7 @@ export const endLabels = {
     }
 
     ctx.save();
-    ctx.font = "600 11px ui-sans-serif, system-ui, sans-serif";
+    ctx.font = `600 11px ${ChartJS.defaults.font.family}`;
     ctx.textBaseline = "middle";
     placed.forEach((label) => {
       ctx.fillStyle = label.colour;
@@ -68,6 +85,7 @@ export function Chart<T extends ChartType>({ config }: { config: ChartConfigurat
 
   useEffect(() => {
     if (!canvas.current) return undefined;
+    ChartJS.defaults.color = token("color-text-muted");
     const chart = new ChartJS(canvas.current, config as ChartConfiguration);
     return () => chart.destroy();
   }, [config]);

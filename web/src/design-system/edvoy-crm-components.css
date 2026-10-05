@@ -1,0 +1,446 @@
+/* ==========================================================================
+   Edvoy CRM Design System v1.0.0 (purple standardisation, P6) — components
+   One visual language: Business Performance purple. The native-CRM layer
+   (blue Reset, CRM violet, CRM greys, native table/nav) was retired by P6.
+   Requires edvoy-crm-design-tokens.css. Class prefix: .ecrm-
+   Layers: GLOBAL CRM · ANALYTICS · WORKFLOW (EDVOY_CRM_COMPONENT_INVENTORY.md).
+   Pending independent acceptance.
+
+   CONSUMER CONTRACT — CSS vs interaction recipes
+   • This stylesheet owns appearance only. Every interactive state is driven by
+     ARIA attributes the consumer sets (aria-current, aria-checked,
+     aria-selected, aria-pressed, aria-expanded, aria-sort, aria-disabled,
+     aria-invalid, aria-busy) or by the documented .is-* classes.
+   • Behaviour (roving focus, listbox keys, single-select press groups, modal
+     drawer focus containment/inert/return, hierarchy disclosure, truthful
+     sorting, disabled-activation guard) is provided as reference recipes in
+     gallery/edvoy-crm-gallery-recipes.js. Consumers may use those recipes or
+     an equivalent implementation; the ARIA contract is mandatory, the file is not.
+   • Business meaning (metric direction, thresholds, finding vocabulary,
+     exception logic, Reset/Apply policy) is owned by the consuming
+     application (P4). Components only render the class the consumer picks.
+
+   Literals that remain below are bounded, documented source exceptions
+   (non-scale spacing such as 3/5/7/9/11/13/22/30/34px, line metrics, glyph
+   sizes). Every colour, radius, shadow and control size is a token.
+   ========================================================================== */
+
+/* ---------- Base ---------- */
+.ecrm-root { font-family: var(--ecrm-font); color: var(--ecrm-color-text); font-variant-numeric: var(--ecrm-numeric); -webkit-font-smoothing: antialiased; background: var(--ecrm-color-page); }
+.ecrm-root *, .ecrm-root *::before, .ecrm-root *::after { box-sizing: border-box; }
+.ecrm-root button, .ecrm-root input, .ecrm-root select { font-family: inherit; }
+.ecrm-root :focus-visible { outline: var(--ecrm-focus-ring); outline-offset: var(--ecrm-focus-offset); }
+.ecrm-root [hidden] { display: none !important; }
+.ecrm-link { color: var(--ecrm-color-accent); text-decoration: none; font-weight: var(--ecrm-weight-semibold); }
+.ecrm-link:hover { color: var(--ecrm-color-accent-strong); text-decoration: underline; }
+.ecrm-sr-only { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.ecrm-meta-text { font-size: var(--ecrm-text-meta); color: var(--ecrm-color-text-muted); }
+
+/* ==========================================================================
+   GLOBAL CRM · Shell
+   Overflow policy (N3): shared nav rows never clip silently. .ecrm-topnav and
+   .ecrm-tabs scroll horizontally (keyboard-reachable: every item is a
+   focusable link/button and scrolls into view on focus); the consumer may add
+   a "More" menu, but must not hide items with overflow:hidden.
+   ========================================================================== */
+.ecrm-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--ecrm-color-page); }
+.ecrm-topbar { height: var(--ecrm-shell-header); display: flex; align-items: center; background: var(--ecrm-color-surface); border-bottom: 1px solid var(--ecrm-color-border-subtle); flex: none; min-width: 0; }
+.ecrm-topbar__mark { width: var(--ecrm-shell-rail); flex: none; display: flex; justify-content: center; color: var(--ecrm-color-rail-active); font-size: 20px; font-weight: var(--ecrm-weight-bold); }
+.ecrm-topbar__wordmark { flex: none; font-size: 26px; font-weight: var(--ecrm-weight-black); letter-spacing: -.03em; color: var(--ecrm-color-brand); padding: 0 34px 0 var(--ecrm-space-4); }
+.ecrm-topnav { display: flex; align-items: center; gap: 22px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; white-space: nowrap; font-size: var(--ecrm-text-body); color: var(--ecrm-color-text-meta); }
+.ecrm-topnav a { color: inherit; text-decoration: none; }
+.ecrm-topnav a:hover { color: var(--ecrm-color-text); }
+.ecrm-topnav [aria-current="page"] { color: var(--ecrm-color-text); font-weight: var(--ecrm-weight-bold); }
+.ecrm-topbar__tools { flex: none; display: flex; align-items: center; gap: var(--ecrm-space-9); padding: 0 var(--ecrm-space-11); color: var(--ecrm-color-text-strong-2); }
+.ecrm-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ecrm-color-avatar); color: var(--ecrm-color-text-avatar); display: flex; align-items: center; justify-content: center; font-size: var(--ecrm-text-table); font-weight: var(--ecrm-weight-bold); flex: none; }
+.ecrm-body { display: flex; flex: 1; min-height: 0; }
+.ecrm-rail { width: var(--ecrm-shell-rail); flex: none; border-right: 1px solid var(--ecrm-color-border-subtle); display: flex; flex-direction: column; align-items: center; padding-top: var(--ecrm-space-5); gap: var(--ecrm-space-3); }
+.ecrm-rail__item { width: var(--ecrm-shell-rail); height: var(--ecrm-rail-item); display: flex; align-items: center; justify-content: center; color: var(--ecrm-color-text-meta); background: none; border: 0; cursor: pointer; }
+.ecrm-rail__item:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-rail__item[aria-current="page"] { background: var(--ecrm-color-rail-active-bg); color: var(--ecrm-color-rail-active); }
+.ecrm-main { flex: 1; min-width: 0; max-width: var(--ecrm-content-max); padding: var(--ecrm-space-11) var(--ecrm-gutter) var(--ecrm-space-14); display: flex; flex-direction: column; }
+
+
+/* ==========================================================================
+   GLOBAL CRM · Page header, tabs, segmented
+   ========================================================================== */
+.ecrm-page-header { display: flex; flex-direction: column; gap: var(--ecrm-space-2); }
+.ecrm-page-header__eyebrow { font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-600); letter-spacing: .02em; color: var(--ecrm-color-text-meta); }
+.ecrm-page-header__row { display: flex; align-items: center; gap: var(--ecrm-space-5); flex-wrap: wrap; }
+.ecrm-page-header__title { margin: 0; font: var(--ecrm-text-page-title); letter-spacing: var(--ecrm-tracking-title); }
+.ecrm-page-header__desc { margin: var(--ecrm-space-1) 0 0; font-size: var(--ecrm-text-body); color: var(--ecrm-color-text-muted); text-wrap: pretty; }
+
+.ecrm-section-head { display: flex; align-items: baseline; gap: var(--ecrm-space-2) var(--ecrm-space-6); flex-wrap: wrap; }
+.ecrm-section-head__title { margin: 0; font: var(--ecrm-text-panel-title); letter-spacing: -.01em; }
+.ecrm-section-head__title--page { font: var(--ecrm-text-section-title); letter-spacing: -.015em; }
+.ecrm-section-head__ctx { font-size: var(--ecrm-text-meta); color: var(--ecrm-color-text-meta); }
+
+.ecrm-tabs { display: flex; gap: var(--ecrm-space-12); overflow-x: auto; border-bottom: 1px solid var(--ecrm-color-border); scrollbar-width: thin; }
+.ecrm-tabs__item { flex: none; font-size: var(--ecrm-text-tab); font-weight: var(--ecrm-weight-tab); color: var(--ecrm-color-text-muted); background: none; border: 0; border-bottom: 3px solid transparent; padding: var(--ecrm-space-6) var(--ecrm-space-1) var(--ecrm-space-5); margin-bottom: -1px; cursor: pointer; white-space: nowrap; text-decoration: none; }
+.ecrm-tabs__item:hover { color: var(--ecrm-color-text); }
+.ecrm-tabs__item[aria-current="page"], .ecrm-tabs__item[aria-selected="true"] { font-weight: var(--ecrm-weight-heavy); color: var(--ecrm-color-text); border-bottom-color: var(--ecrm-color-accent); }
+
+/* Segmented control — two canonical APPEARANCES (P3). Product/component context
+   chooses the appearance; neither is reserved for navigation or for selection.
+   Both accept any appropriate state attribute: aria-current (navigation),
+   aria-checked (radio), aria-selected, aria-pressed.
+     .ecrm-segmented            filled accent segment   [BL] segS
+     .ecrm-segmented--raised    raised white segment    [RC] sfPageNav/appPageNav
+     (.ecrm-segmented--nav is a retained alias of --raised from RC1) */
+.ecrm-segmented { display: inline-flex; flex-wrap: wrap; gap: var(--ecrm-space-1); padding: 3px; background: var(--ecrm-color-surface-track); border-radius: var(--ecrm-radius-md); }
+.ecrm-segmented__item { font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text-strong-2); background: transparent; border: 0; border-radius: var(--ecrm-radius-sm); padding: var(--ecrm-space-3) 11px; cursor: pointer; white-space: nowrap; text-decoration: none; }
+.ecrm-segmented__item:hover { background: var(--ecrm-color-segment-hover); }
+.ecrm-segmented__item:is([aria-current="page"], [aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]) { background: var(--ecrm-color-accent); color: var(--ecrm-color-text-inverse); font-weight: var(--ecrm-weight-bold); box-shadow: var(--ecrm-shadow-on); }
+.ecrm-segmented__item[aria-disabled="true"] { color: var(--ecrm-color-text-disabled); cursor: not-allowed; background: transparent; }
+:is(.ecrm-segmented--raised, .ecrm-segmented--nav) .ecrm-segmented__item { font-size: var(--ecrm-text-body); font-weight: var(--ecrm-weight-600); color: var(--ecrm-color-text-muted); padding: 7px var(--ecrm-space-7); border-radius: var(--ecrm-radius-7); }
+:is(.ecrm-segmented--raised, .ecrm-segmented--nav) .ecrm-segmented__item:is([aria-current="page"], [aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]) { background: var(--ecrm-color-surface); color: var(--ecrm-color-text); font-weight: var(--ecrm-weight-heavy); box-shadow: var(--ecrm-shadow-raised); }
+
+/* ==========================================================================
+   GLOBAL CRM · Buttons   (always set type="button" unless submitting a form)
+   ========================================================================== */
+.ecrm-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--ecrm-space-4); height: var(--ecrm-control-md); padding: 0 var(--ecrm-space-6); border-radius: var(--ecrm-radius-md); font-size: var(--ecrm-text-body); font-weight: var(--ecrm-weight-semibold); cursor: pointer; white-space: nowrap; border: 1px solid transparent; text-decoration: none; }
+.ecrm-btn svg { width: var(--ecrm-icon); height: var(--ecrm-icon); flex: none; }
+.ecrm-btn--lg { height: var(--ecrm-control-lg); padding: 0 var(--ecrm-space-10); font-size: var(--ecrm-text-body); }
+.ecrm-btn--sm { height: var(--ecrm-control-sm); padding: 0 var(--ecrm-space-5); font-size: var(--ecrm-text-table); }
+.ecrm-btn--primary { background: var(--ecrm-color-accent); color: var(--ecrm-color-text-inverse); font-weight: var(--ecrm-weight-bold); }
+.ecrm-btn--primary:hover { background: var(--ecrm-color-accent-hover); }
+.ecrm-btn--secondary { background: var(--ecrm-color-surface); color: var(--ecrm-color-structure); border-color: var(--ecrm-color-accent-border); font-weight: var(--ecrm-weight-bold); }
+.ecrm-btn--secondary:hover { background: var(--ecrm-color-accent-hover-tint); }
+/* Menu trigger (Export ▾): [BL] 13px / 650 / 0 13px on the secondary outline */
+.ecrm-btn--menu { font-size: var(--ecrm-text-table); font-weight: var(--ecrm-weight-semibold); padding: 0 13px; }
+.ecrm-btn--neutral { background: var(--ecrm-color-surface); color: var(--ecrm-color-text-strong-2); border-color: var(--ecrm-color-border-control); }
+.ecrm-btn--neutral:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-btn--quiet { background: transparent; color: var(--ecrm-color-accent-strong); height: auto; min-height: var(--ecrm-control-md); padding: var(--ecrm-space-3) var(--ecrm-space-4); border-radius: var(--ecrm-radius-sm); font-size: var(--ecrm-text-meta); }
+.ecrm-btn--quiet:hover { background: var(--ecrm-color-selection-hover); }
+.ecrm-btn--text { background: none; border: 0; height: auto; padding: var(--ecrm-space-2) var(--ecrm-space-3); color: var(--ecrm-color-text-muted); font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-600); text-decoration: underline; text-underline-offset: 3px; }
+.ecrm-btn--text:hover { color: var(--ecrm-color-text); }
+.ecrm-btn[aria-disabled="true"], .ecrm-btn:disabled { color: var(--ecrm-color-text-disabled); background: var(--ecrm-color-surface-disabled); border-color: var(--ecrm-color-border-disabled); box-shadow: none; cursor: not-allowed; text-decoration: none; }
+.ecrm-icon-btn { width: var(--ecrm-icon-button); height: var(--ecrm-icon-button); flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--ecrm-radius-md); border: 1px solid var(--ecrm-color-border); background: var(--ecrm-color-surface); color: var(--ecrm-color-text-strong-2); font-size: 20px; line-height: 1; cursor: pointer; }
+.ecrm-icon-btn:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-count { min-width: var(--ecrm-count-badge); height: var(--ecrm-count-badge); padding: 0 var(--ecrm-space-3); border-radius: var(--ecrm-radius-pill); background: var(--ecrm-color-accent); color: var(--ecrm-color-text-inverse); font-size: var(--ecrm-text-caption); font-weight: var(--ecrm-weight-heavy); display: inline-flex; align-items: center; justify-content: center; }
+
+/* ==========================================================================
+   GLOBAL CRM · Form controls
+   Every control needs a programmatic label: <label for>, aria-labelledby
+   (label id + value id for select triggers) or aria-label.
+   ========================================================================== */
+.ecrm-field { display: flex; flex-direction: column; gap: var(--ecrm-space-3); min-width: 0; }
+.ecrm-label { font-size: var(--ecrm-text-label); letter-spacing: var(--ecrm-tracking-label); text-transform: uppercase; color: var(--ecrm-color-text-meta); font-weight: var(--ecrm-weight-bold); display: inline-flex; align-items: center; gap: var(--ecrm-space-3); }
+.ecrm-field-name { font-size: var(--ecrm-text-table); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text-strong-2); }
+.ecrm-help-text { font-size: var(--ecrm-text-helper); color: var(--ecrm-color-text-muted); text-wrap: pretty; }
+.ecrm-select { display: flex; align-items: center; justify-content: space-between; gap: var(--ecrm-space-4); height: var(--ecrm-control-md); min-width: 0; max-width: 100%; padding: 0 var(--ecrm-space-6); background: var(--ecrm-color-surface); border: 1px solid var(--ecrm-color-accent-border); border-radius: var(--ecrm-radius-md); font-size: var(--ecrm-text-body); font-weight: var(--ecrm-weight-bold); color: var(--ecrm-color-text); cursor: pointer; text-align: left; }
+.ecrm-select:hover { background: var(--ecrm-color-surface-kpi-hover); }
+.ecrm-select__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecrm-select__chev { font-size: var(--ecrm-text-chevron); color: var(--ecrm-color-text-meta); flex: none; }
+.ecrm-select--block { width: 100%; }
+.ecrm-select--sm { height: var(--ecrm-control-sm); font-size: var(--ecrm-text-table); }
+/* Drawer field — [RC] FS(a), accepted drawer recipe.
+   Unset: 40px, white, control border, 500, primary ink.
+   Active (a value other than All is chosen): .is-active → #fbfaff, accent border, 650, structure ink. */
+.ecrm-select--drawer { width: 100%; height: var(--ecrm-control-drawer); font-weight: var(--ecrm-weight-medium); color: var(--ecrm-color-text); border-color: var(--ecrm-color-border-control); }
+.ecrm-select--drawer:hover { border-color: var(--ecrm-color-accent-border-hover); background: var(--ecrm-color-surface); }
+.ecrm-select--drawer.is-active { font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-structure); background: var(--ecrm-color-surface-field-active); border-color: var(--ecrm-color-accent-border); }
+.ecrm-select[aria-disabled="true"] { color: var(--ecrm-color-text-disabled); background: var(--ecrm-color-surface-disabled); border-color: var(--ecrm-color-border-disabled); cursor: not-allowed; }
+.ecrm-input { height: var(--ecrm-control-md); width: 100%; padding: 0 var(--ecrm-space-5); border: 1px solid var(--ecrm-color-border-control); border-radius: var(--ecrm-radius-md); background: var(--ecrm-color-surface); color: var(--ecrm-color-text); font-size: var(--ecrm-text-body); }
+.ecrm-input:focus-visible { outline: var(--ecrm-focus-ring); outline-offset: 0; border-color: var(--ecrm-color-accent); }
+/* Validation (APPROVED P5): aria-invalid + visible message linked by aria-describedby */
+.ecrm-input[aria-invalid="true"] { border-color: var(--ecrm-color-negative); }
+.ecrm-input:disabled { background: var(--ecrm-color-surface-disabled); color: var(--ecrm-color-text-disabled); border-color: var(--ecrm-color-border-disabled); }
+.ecrm-field-error { font-size: var(--ecrm-text-helper); color: var(--ecrm-color-negative); font-weight: var(--ecrm-weight-semibold); display: flex; gap: var(--ecrm-space-3); }
+.ecrm-search { display: flex; align-items: center; gap: var(--ecrm-space-3); height: var(--ecrm-control-md); padding: 0 var(--ecrm-space-5); border: 1px solid var(--ecrm-color-border); border-radius: var(--ecrm-radius-md); background: var(--ecrm-color-surface); min-width: 0; }
+.ecrm-search--sm { height: var(--ecrm-control-sm); padding: 0 var(--ecrm-space-4); }
+.ecrm-search__icon { color: var(--ecrm-color-text-meta); font-size: var(--ecrm-text-table); flex: none; }
+.ecrm-search input { border: 0; outline: 0; flex: 1; min-width: 0; background: transparent; color: var(--ecrm-color-text); font-size: var(--ecrm-text-control); }
+.ecrm-search:focus-within { outline: var(--ecrm-focus-ring); outline-offset: 0; border-color: var(--ecrm-color-accent); }
+.ecrm-checkbox { width: var(--ecrm-checkbox); height: var(--ecrm-checkbox); border-radius: var(--ecrm-radius-xs); display: inline-flex; align-items: center; justify-content: center; font-size: var(--ecrm-text-badge); flex: none; background: var(--ecrm-color-surface); color: transparent; border: 1.5px solid var(--ecrm-color-border-checkbox); }
+[aria-checked="true"] > .ecrm-checkbox, [aria-selected="true"] > .ecrm-checkbox { background: var(--ecrm-color-accent); color: var(--ecrm-color-text-inverse); border: 0; }
+.ecrm-info { width: var(--ecrm-icon); height: var(--ecrm-icon); border-radius: 50%; background: var(--ecrm-color-surface-help); color: var(--ecrm-color-text-muted); font-size: var(--ecrm-text-help-glyph); font-weight: var(--ecrm-weight-black); letter-spacing: 0; text-transform: none; display: inline-flex; align-items: center; justify-content: center; cursor: help; border: 0; padding: 0; }
+
+/* Choice chip (toggle, aria-pressed) vs Filter chip (removable applied filter) */
+.ecrm-choice-chip { font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-semibold); border-radius: var(--ecrm-radius-sm); padding: 5px 9px; cursor: pointer; border: 1px solid var(--ecrm-color-border); background: var(--ecrm-color-surface); color: var(--ecrm-color-text); }
+.ecrm-choice-chip:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-choice-chip[aria-pressed="true"] { border-color: var(--ecrm-color-accent); background: var(--ecrm-color-accent); color: var(--ecrm-color-text-inverse); }
+.ecrm-chip { display: inline-flex; align-items: center; gap: var(--ecrm-space-2); font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-600); color: var(--ecrm-color-structure); background: var(--ecrm-color-surface); border: 1px solid var(--ecrm-color-accent-border); border-radius: var(--ecrm-radius-pill); padding: var(--ecrm-space-1) var(--ecrm-space-2) var(--ecrm-space-1) var(--ecrm-space-5); }
+.ecrm-chip__remove { width: var(--ecrm-count-badge); height: var(--ecrm-count-badge); border-radius: 50%; border: 0; background: none; color: var(--ecrm-color-text-muted); font-size: var(--ecrm-text-body); line-height: 1; cursor: pointer; padding: 0; }
+.ecrm-chip__remove:hover { background: var(--ecrm-color-border); }
+
+/* Popover / listbox / menu.
+   Structure: .ecrm-popover (role=dialog when it holds search/footer controls)
+   → optional search → .ecrm-listbox[role=listbox] containing ONLY options
+   → optional .ecrm-popover__foot. Decorative checkmarks are aria-hidden. */
+.ecrm-popover-anchor { position: relative; display: inline-flex; }
+.ecrm-popover { background: var(--ecrm-color-surface); border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); box-shadow: var(--ecrm-shadow-popover); padding: var(--ecrm-space-3); display: flex; flex-direction: column; gap: var(--ecrm-space-1); width: var(--ecrm-popover-width); max-width: 100%; max-height: 300px; overflow: auto; z-index: var(--ecrm-z-popover); }
+.ecrm-popover--floating { position: absolute; top: calc(100% + var(--ecrm-space-3)); left: 0; }
+.ecrm-popover--inline { width: 100%; box-shadow: var(--ecrm-shadow-inline); border-radius: var(--ecrm-radius-md); }
+.ecrm-listbox { display: flex; flex-direction: column; gap: var(--ecrm-space-1); }
+.ecrm-popover__title { font-size: var(--ecrm-text-badge); letter-spacing: .08em; text-transform: uppercase; color: var(--ecrm-color-text-meta); font-weight: var(--ecrm-weight-bold); padding: var(--ecrm-space-3) var(--ecrm-space-5) var(--ecrm-space-2); }
+.ecrm-popover__foot { display: flex; justify-content: space-between; align-items: center; gap: var(--ecrm-space-4); border-top: 1px solid var(--ecrm-color-border-row); padding: var(--ecrm-space-4) var(--ecrm-space-2) var(--ecrm-space-1); margin-top: var(--ecrm-space-2); }
+.ecrm-option { display: flex; align-items: center; gap: var(--ecrm-space-5); width: 100%; text-align: left; padding: 7px var(--ecrm-space-5); border: 0; border-radius: var(--ecrm-radius-sm); background: transparent; color: var(--ecrm-color-text); font-size: var(--ecrm-text-table); font-weight: var(--ecrm-weight-medium); cursor: pointer; }
+.ecrm-option:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-listbox:not([aria-multiselectable="true"]) > .ecrm-option[aria-selected="true"] { background: var(--ecrm-color-selection); color: var(--ecrm-color-accent-strong); font-weight: var(--ecrm-weight-semibold); }
+.ecrm-option__hint { margin-left: auto; font-size: var(--ecrm-text-caption); color: var(--ecrm-color-text-meta); font-weight: var(--ecrm-weight-medium); }
+.ecrm-option[aria-disabled="true"] { color: var(--ecrm-color-text-disabled); cursor: not-allowed; background: transparent; }
+.ecrm-option[aria-disabled="true"] .ecrm-option__hint { color: var(--ecrm-color-text-disabled); }
+.ecrm-menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; background: none; border: 0; border-radius: var(--ecrm-radius-md); padding: var(--ecrm-space-5) var(--ecrm-space-6); cursor: pointer; }
+.ecrm-menu-item:hover { background: var(--ecrm-color-selection-hover); }
+.ecrm-menu-item__title { font-size: var(--ecrm-text-control); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text); }
+.ecrm-menu-item__desc { font-size: var(--ecrm-text-helper); color: var(--ecrm-color-text-muted); line-height: 1.4; text-wrap: pretty; }
+
+/* Tooltip + toast */
+.ecrm-tooltip { max-width: 300px; background: var(--ecrm-color-tooltip); color: var(--ecrm-color-text-inverse); font-size: var(--ecrm-text-helper); border-radius: var(--ecrm-radius-md); padding: 9px 11px; display: flex; flex-direction: column; gap: 3px; box-shadow: var(--ecrm-shadow-tooltip); z-index: var(--ecrm-z-tooltip); }
+.ecrm-tooltip__title { font-weight: var(--ecrm-weight-bold); font-size: var(--ecrm-text-meta); }
+.ecrm-tooltip__body { color: var(--ecrm-color-tooltip-muted); line-height: 1.45; white-space: pre-line; }
+.ecrm-toast { display: inline-flex; gap: var(--ecrm-space-5); align-items: center; background: var(--ecrm-color-tooltip); color: var(--ecrm-color-text-inverse); font-size: var(--ecrm-text-table); border-radius: var(--ecrm-radius-lg); padding: 11px var(--ecrm-space-8); box-shadow: var(--ecrm-shadow-toast); }
+.ecrm-toast__icon { color: var(--ecrm-color-toast-check); }
+
+/* Tags — TONES only. Which word maps to which tone (e.g. BP's Primary / Change /
+   Concentration / Context / Data quality / Risk / Opportunity) is consumer
+   vocabulary, PROJECT-SPECIFIC (P4). Every tag carries a visible word. */
+.ecrm-tag { display: inline-flex; align-items: center; font-size: var(--ecrm-text-badge); font-weight: var(--ecrm-weight-bold); letter-spacing: var(--ecrm-tracking-badge); text-transform: uppercase; border-radius: var(--ecrm-radius-pill); padding: var(--ecrm-space-1) var(--ecrm-space-4); white-space: nowrap; background: var(--ecrm-color-surface-neutral-tag); color: var(--ecrm-color-text-strong-2); }
+.ecrm-tag--primary  { background: var(--ecrm-color-accent); color: var(--ecrm-color-text-inverse); }
+.ecrm-tag--info     { background: var(--ecrm-color-info-bg); color: var(--ecrm-color-info); }
+.ecrm-tag--positive { background: var(--ecrm-color-positive-bg); color: var(--ecrm-color-positive); }
+.ecrm-tag--negative { background: var(--ecrm-color-negative-bg); color: var(--ecrm-color-negative-ink); }
+.ecrm-tag--warning  { background: var(--ecrm-color-warning-bg); color: var(--ecrm-color-warning); }
+.ecrm-tag--plain    { text-transform: none; letter-spacing: .01em; font-weight: var(--ecrm-weight-semibold); border-radius: var(--ecrm-radius-xs); padding: 1px 5px; color: var(--ecrm-color-text-plain-tag); background: var(--ecrm-color-surface-plain-tag); }
+.ecrm-tag--plain.ecrm-tag--warning { color: var(--ecrm-color-warning); background: var(--ecrm-color-warning-bg); }
+.ecrm-tag--highlight { text-transform: none; letter-spacing: 0; font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-highlight); background: var(--ecrm-color-highlight-bg); border: 1px solid var(--ecrm-color-highlight-border); padding: 1px 7px; }
+.ecrm-tag--unavailable { text-transform: none; letter-spacing: 0; font-size: var(--ecrm-text-label); color: var(--ecrm-color-text-strong-2); background: transparent; border: 1px dashed var(--ecrm-color-border-unavailable); padding: 0 7px; }
+.ecrm-tag--status { text-transform: none; letter-spacing: .04em; font-size: var(--ecrm-text-label); border-radius: var(--ecrm-radius-5); padding: 3px 7px; color: var(--ecrm-color-warning); background: var(--ecrm-color-warning-bg); }
+
+/* ==========================================================================
+   GLOBAL CRM · Surfaces & states
+   ========================================================================== */
+.ecrm-panel { background: var(--ecrm-color-surface); border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); }
+.ecrm-panel--pad { padding: var(--ecrm-space-6) var(--ecrm-space-7); }
+.ecrm-panel--subtle { background: var(--ecrm-color-surface-subtle); }
+.ecrm-divider { border: 0; border-top: 1px solid var(--ecrm-color-border-subtle); margin: 0; }
+/* Info callout — [BL] role="note": #f4f6fa / #e3e7ef / r8 / 10px 14px / icon #5d6278 / emphasis 650 */
+.ecrm-callout { display: flex; align-items: flex-start; gap: var(--ecrm-space-5); padding: var(--ecrm-space-5) var(--ecrm-space-7); background: var(--ecrm-color-surface-info); border: 1px solid var(--ecrm-color-border-info); border-radius: var(--ecrm-radius-md); font-size: var(--ecrm-text-table); color: var(--ecrm-color-text-strong-2); line-height: 1.5; text-wrap: pretty; }
+.ecrm-callout__icon { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--ecrm-color-text-muted); color: var(--ecrm-color-text-inverse); font-size: var(--ecrm-text-label); font-weight: var(--ecrm-weight-black); display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+.ecrm-callout b { color: var(--ecrm-color-text); font-weight: var(--ecrm-weight-semibold); }
+/* Warning / error callouts (APPROVED P5 validation scope): same anatomy, existing
+   semantic grounds; border = ground (no new border literal). */
+.ecrm-callout--warning { background: var(--ecrm-color-warning-bg); border-color: var(--ecrm-color-warning-bg); }
+.ecrm-callout--warning .ecrm-callout__icon { background: var(--ecrm-color-warning); }
+.ecrm-callout--error { background: var(--ecrm-color-negative-bg); border-color: var(--ecrm-color-negative-bg); }
+.ecrm-callout--error .ecrm-callout__icon { background: var(--ecrm-color-negative); }
+.ecrm-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ecrm-space-2); padding: var(--ecrm-space-11) var(--ecrm-space-8); color: var(--ecrm-color-text-muted); font-size: var(--ecrm-text-table); }
+.ecrm-empty__title { font-size: var(--ecrm-text-control); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text); }
+/* Disclosure — [RC] <details> Cutoffs (extracted candidate) */
+.ecrm-disclosure > summary { cursor: pointer; color: var(--ecrm-color-accent-strong); font-weight: var(--ecrm-weight-semibold); font-size: var(--ecrm-text-meta); border-radius: var(--ecrm-radius-sm); padding: 0 var(--ecrm-space-2); white-space: nowrap; }
+.ecrm-disclosure__body { margin-top: var(--ecrm-space-3); padding: var(--ecrm-space-4) var(--ecrm-space-5); background: var(--ecrm-color-surface-subtle); border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-md); font-size: var(--ecrm-text-meta); color: var(--ecrm-color-text-muted); }
+/* Status note (unavailable / not counted) — [RC] sfExcUnk */
+.ecrm-status-note { display: flex; align-items: baseline; gap: var(--ecrm-space-3); flex-wrap: wrap; font-size: var(--ecrm-text-helper); color: var(--ecrm-color-text-muted); }
+.ecrm-status-note__count { font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text-strong-2); }
+
+/* Compact missing value (P2). A dash alone is ambiguous, so the visible "—" is
+   aria-hidden and the cell carries .ecrm-sr-only text naming the state
+   ("No target set" vs "Comparison unavailable"); a visible legend names it too.
+   Zero is always rendered as 0, never as a dash. */
+.ecrm-missing { color: var(--ecrm-color-unavailable); font-weight: var(--ecrm-weight-medium); }
+
+/* Loading / busy (APPROVED P5, minimal). Region carries aria-busy; a separate
+   role="status" line announces start/completion; the triggering action is
+   aria-disabled while busy. Status text keeps full contrast — no dimming layer. */
+.ecrm-busy-status { font-size: var(--ecrm-text-meta); color: var(--ecrm-color-text-muted); font-weight: var(--ecrm-weight-semibold); }
+
+/* ==========================================================================
+   GLOBAL CRM · Tables
+   ========================================================================== */
+.ecrm-table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); background: var(--ecrm-color-surface); }
+.ecrm-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--ecrm-text-table); }
+.ecrm-table th { text-align: left; font-size: var(--ecrm-text-caption); font-weight: var(--ecrm-weight-bold); color: var(--ecrm-color-text-muted); padding: var(--ecrm-space-5) var(--ecrm-space-6); background: var(--ecrm-color-surface); border-bottom: 1px solid var(--ecrm-color-border); white-space: nowrap; }
+.ecrm-table td { padding: var(--ecrm-space-5) var(--ecrm-space-6); border-bottom: 1px solid var(--ecrm-color-border-row); vertical-align: middle; }
+.ecrm-table tr:last-child td { border-bottom: 0; }
+.ecrm-table .is-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ecrm-table tbody tr:hover td { background: var(--ecrm-color-surface-row-hover); }
+.ecrm-table__name { font-weight: var(--ecrm-weight-bold); color: var(--ecrm-color-text); }
+.ecrm-table__sub { display: block; font-size: var(--ecrm-text-caption); color: var(--ecrm-color-text-meta); font-weight: var(--ecrm-weight-medium); }
+.ecrm-table__sub--indent { padding-left: var(--ecrm-space-11); }
+/* Sort: aria-sort lives on <th>; the inner button is the control. Only sortable
+   headers get a button; a header without one is honestly non-sortable. */
+.ecrm-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: var(--ecrm-space-2); }
+.ecrm-sort::after { content: "↕"; font-size: var(--ecrm-text-chevron); color: var(--ecrm-color-text-meta); }
+th[aria-sort="ascending"] .ecrm-sort::after { content: "↑"; color: var(--ecrm-color-accent); }
+th[aria-sort="descending"] .ecrm-sort::after { content: "↓"; color: var(--ecrm-color-accent); }
+
+/* Analytical table — sticky identity column, grouped headers, Overall tint
+   (tinted, NOT vertically pinned), hierarchy, column/cell selection. */
+.ecrm-table--analytic th { font-size: var(--ecrm-text-caption); font-weight: var(--ecrm-weight-semibold); text-align: right; }
+/* Row headers (<th scope="row">) carry identity; reset header styling for body rows. */
+.ecrm-table--analytic tbody th { font-size: var(--ecrm-text-table); font-weight: var(--ecrm-weight-regular); color: var(--ecrm-color-text); text-align: left; white-space: normal; background: inherit; border-bottom: 1px solid var(--ecrm-color-border-row); }
+.ecrm-table--analytic tbody tr:last-child th { border-bottom: 0; }
+.ecrm-table--analytic tbody tr:hover th { background: var(--ecrm-color-surface-row-hover); }
+.ecrm-table--analytic .ecrm-th-identity,
+.ecrm-table--analytic .ecrm-td-identity { text-align: left; position: sticky; left: 0; box-shadow: inset -1px 0 0 var(--ecrm-color-border); }
+.ecrm-table--analytic .ecrm-th-identity { z-index: 2; background: var(--ecrm-color-surface); }
+.ecrm-table--analytic .ecrm-td-identity { z-index: 1; background: inherit; }
+.ecrm-table--analytic tr { background: var(--ecrm-color-surface); }
+.ecrm-table--analytic th.ecrm-th-group { text-align: center; font-size: var(--ecrm-text-badge); letter-spacing: .08em; text-transform: uppercase; color: var(--ecrm-color-text-meta); border-bottom: 1px solid var(--ecrm-color-border-row); padding: var(--ecrm-space-3) var(--ecrm-space-6); }
+.ecrm-table--analytic td { text-align: right; }
+.ecrm-table--analytic .ecrm-cell-value { display: block; font-weight: var(--ecrm-weight-bold); }
+/* Name weights — [BL] nmS: Overall 750 · parent 650 · child 550, 13.5px */
+.ecrm-table--analytic .ecrm-table__name { font-size: var(--ecrm-text-control); font-weight: var(--ecrm-weight-semibold); }
+.ecrm-table--analytic tr.is-overall .ecrm-table__name { font-weight: var(--ecrm-weight-heavy); }
+.ecrm-table--analytic tr.is-child .ecrm-table__name { font-weight: var(--ecrm-weight-child); }
+.ecrm-table--analytic tr.is-overall { background: var(--ecrm-color-surface-overall); }
+.ecrm-table--analytic tr.is-child { background: var(--ecrm-color-surface-child); }
+.ecrm-table--analytic tr.is-child .ecrm-td-identity { padding-left: var(--ecrm-space-13); }
+.ecrm-table--analytic tr[hidden] { display: none; }
+.ecrm-table--analytic .is-selected-col { background: var(--ecrm-color-selection); }
+.ecrm-table--analytic th.is-selected-col { color: var(--ecrm-color-accent); font-weight: var(--ecrm-weight-bold); }
+/* Selected cell (static specimen): structure ring + sr-only "selected" text in
+   the cell. A table cell is not an interactive ARIA widget; an interactive
+   selectable cell must contain a button with aria-pressed. */
+.ecrm-table--analytic td.is-selected-cell { box-shadow: var(--ecrm-selection-ring); }
+.ecrm-expand { width: var(--ecrm-count-badge); height: var(--ecrm-count-badge); border: 0; background: none; color: var(--ecrm-color-text-meta); cursor: pointer; border-radius: var(--ecrm-radius-xs); padding: 0; margin-right: var(--ecrm-space-2); transition: transform .15s; }
+.ecrm-expand[aria-expanded="true"] { transform: rotate(90deg); }
+.ecrm-expand:hover { background: var(--ecrm-color-surface-hover); }
+
+/* Table toolbar + pagination */
+.ecrm-table-toolbar { display: flex; align-items: center; gap: var(--ecrm-space-4) var(--ecrm-space-6); flex-wrap: wrap; margin-bottom: var(--ecrm-space-5); }
+.ecrm-table-toolbar__end { margin-left: auto; }
+.ecrm-pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--ecrm-space-6) var(--ecrm-space-11); flex-wrap: wrap; padding: var(--ecrm-space-7) 0; font-size: var(--ecrm-text-table); color: var(--ecrm-color-text-muted); } /* P6: BP purple tokens; anatomy from the CRM list, no BP paging source */
+.ecrm-pagination__meta { display: flex; align-items: center; gap: var(--ecrm-space-7); }
+.ecrm-pagination__size { background: none; border: 0; padding: var(--ecrm-space-2) var(--ecrm-space-3); font: inherit; font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text-strong-2); cursor: pointer; border-radius: var(--ecrm-radius-sm); }
+.ecrm-pagination__size:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-pagination__pages { display: flex; align-items: center; gap: var(--ecrm-space-3); }
+.ecrm-page-btn { min-width: var(--ecrm-control-sm); height: var(--ecrm-control-sm); padding: 0 var(--ecrm-space-3); border: 1px solid transparent; border-radius: var(--ecrm-radius-md); background: none; color: var(--ecrm-color-text-strong-2); font-weight: var(--ecrm-weight-semibold); font-size: var(--ecrm-text-table); cursor: pointer; }
+.ecrm-page-btn:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-page-btn[aria-current="page"] { border-color: var(--ecrm-color-accent-border); background: var(--ecrm-color-selection); color: var(--ecrm-color-accent-strong); font-weight: var(--ecrm-weight-bold); }
+.ecrm-page-btn[aria-disabled="true"] { color: var(--ecrm-color-text-disabled); cursor: not-allowed; background: none; } /* disabled: contrast exemption applies */
+.ecrm-show-more { display: flex; align-items: center; gap: var(--ecrm-space-6); flex-wrap: wrap; font-size: var(--ecrm-text-helper); color: var(--ecrm-color-text-muted); padding-top: var(--ecrm-space-5); }
+
+/* ==========================================================================
+   ANALYTICS
+   ========================================================================== */
+/* Comparison delta.
+   • Sign (+/−) and arrow DIRECTION are arithmetic: ↑ = value went up, ↓ = down.
+   • Colour and arrow PRESENCE come from the consumer's classification of
+     desirability (positive / negative / neutral). Neutral and unchanged keep
+     the sign with no arrow. A falling lower-is-better metric is ↓ in positive.
+   • Add .ecrm-sr-only text ("improvement" / "deterioration") so the meaning is
+     not conveyed by colour alone. Metric direction is consumer-owned (P4). */
+.ecrm-delta { font-size: var(--ecrm-text-caption); font-weight: var(--ecrm-weight-bold); white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ecrm-color-neutral); }
+.ecrm-delta--positive { color: var(--ecrm-color-positive); }
+.ecrm-delta--negative { color: var(--ecrm-color-negative); }
+.ecrm-delta--lg { font-size: var(--ecrm-text-emphasis); font-weight: var(--ecrm-weight-heavy); }
+.ecrm-delta--unavailable { color: var(--ecrm-color-unavailable); font-weight: var(--ecrm-weight-medium); }
+
+.ecrm-kpi { display: flex; flex-direction: column; gap: var(--ecrm-space-1); min-width: 0; padding: var(--ecrm-space-6) var(--ecrm-space-7); background: var(--ecrm-color-surface); border: 0; text-align: left; font: inherit; color: inherit; }
+button.ecrm-kpi { cursor: pointer; }
+button.ecrm-kpi:hover { background: var(--ecrm-color-surface-kpi-hover); }
+.ecrm-kpi__label { font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ecrm-kpi__value { font: var(--ecrm-text-kpi); letter-spacing: var(--ecrm-tracking-title); color: var(--ecrm-color-text); }
+.ecrm-kpi__meta { font-size: var(--ecrm-text-label); color: var(--ecrm-color-text-meta); line-height: 1.35; }
+.ecrm-kpi[aria-pressed="true"] { background: var(--ecrm-color-surface-kpi-sel); box-shadow: inset 0 -3px 0 var(--ecrm-color-accent); }
+/* The strip clips its children, so KPI focus is drawn inset (still 2px structure). */
+.ecrm-kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); overflow: hidden; background: var(--ecrm-color-surface); }
+.ecrm-kpi-strip > .ecrm-kpi:focus-visible { outline-offset: -2px; }
+.ecrm-kpi-strip > .ecrm-kpi + .ecrm-kpi { border-left: 1px solid var(--ecrm-color-border-row); }
+
+.ecrm-summary-strip { display: flex; flex-wrap: wrap; gap: var(--ecrm-space-7) var(--ecrm-space-13); padding: var(--ecrm-space-6) var(--ecrm-space-7); }
+.ecrm-summary-strip__item { display: flex; flex-direction: column; gap: var(--ecrm-space-1); }
+.ecrm-summary-strip__label { font-size: var(--ecrm-text-helper); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text-strong-2); }
+
+/* Control band — [BL] Soft band (left accent border is the recorded D-06 exception) */
+.ecrm-control-band { display: flex; align-items: center; gap: var(--ecrm-space-5) var(--ecrm-space-9); flex-wrap: wrap; background: var(--ecrm-color-band); border: 1px solid var(--ecrm-color-band-border); border-left: 4px solid var(--ecrm-color-accent); border-radius: var(--ecrm-radius-lg); padding: var(--ecrm-space-4) var(--ecrm-space-7); }
+.ecrm-control-band__label { font-size: var(--ecrm-text-label); letter-spacing: .1em; text-transform: uppercase; color: var(--ecrm-color-accent-label); font-weight: var(--ecrm-weight-black); }
+.ecrm-control-band .ecrm-segmented { background: var(--ecrm-color-surface); border: 1px solid var(--ecrm-color-band-border); }
+
+/* Findings — container does not clip, so row focus outlines stay visible.
+   Selectable finding = <button aria-pressed> in a single-select group. */
+.ecrm-findings { display: flex; flex-direction: column; border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); background: var(--ecrm-color-surface); }
+.ecrm-findings > .ecrm-finding:first-child { border-radius: var(--ecrm-radius-lg) var(--ecrm-radius-lg) 0 0; }
+.ecrm-findings > .ecrm-finding:last-child { border-radius: 0 0 var(--ecrm-radius-lg) var(--ecrm-radius-lg); border-bottom: 0; }
+.ecrm-finding { display: grid; grid-template-columns: 112px minmax(0,1fr) auto; gap: var(--ecrm-space-2) var(--ecrm-space-7); align-items: center; width: 100%; text-align: left; background: var(--ecrm-color-surface); border: 0; border-bottom: 1px solid var(--ecrm-color-border-row); padding: var(--ecrm-space-5) var(--ecrm-space-7); font: inherit; color: inherit; }
+button.ecrm-finding { cursor: pointer; }
+button.ecrm-finding:hover { background: var(--ecrm-color-surface-row-hover); }
+button.ecrm-finding[aria-pressed="true"] { background: var(--ecrm-color-surface-kpi-sel); box-shadow: var(--ecrm-selection-ring); }
+.ecrm-finding .ecrm-tag { justify-self: start; }
+.ecrm-finding__title { display: block; font-size: var(--ecrm-text-control); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text); line-height: 1.35; text-wrap: pretty; }
+.ecrm-finding__line { display: block; font-size: var(--ecrm-text-meta); color: var(--ecrm-color-text-muted); line-height: 1.4; }
+.ecrm-finding__value { font-size: var(--ecrm-text-emphasis); font-weight: var(--ecrm-weight-heavy); white-space: nowrap; }
+
+.ecrm-barlist { display: flex; flex-direction: column; }
+.ecrm-bar-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(0, 3fr) 64px minmax(150px, auto); align-items: center; gap: var(--ecrm-space-2) var(--ecrm-space-8); padding: var(--ecrm-space-3) var(--ecrm-space-2); border-radius: var(--ecrm-radius-sm); background: none; border: 0; font: inherit; color: inherit; text-align: left; width: 100%; }
+button.ecrm-bar-row { cursor: pointer; }
+button.ecrm-bar-row:hover { background: var(--ecrm-color-surface-hover); }
+.ecrm-bar-row[aria-pressed="true"] { background: var(--ecrm-color-selection); box-shadow: inset 0 0 0 1.5px var(--ecrm-color-accent); } /* [BL] bar selection 1.5px accent */
+.ecrm-bar-row__name { font-size: var(--ecrm-text-table); font-weight: var(--ecrm-weight-bold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecrm-bar-row__share { display: block; font-size: var(--ecrm-text-caption); font-weight: var(--ecrm-weight-medium); color: var(--ecrm-color-text-meta); }
+.ecrm-bar { height: 10px; border-radius: var(--ecrm-radius-3); background: var(--ecrm-color-surface-neutral); overflow: hidden; }
+.ecrm-bar__fill { display: block; height: 100%; background: var(--ecrm-color-series); border-radius: var(--ecrm-radius-3); }
+.ecrm-bar-row__value { font-weight: var(--ecrm-weight-bold); text-align: right; }
+.ecrm-bar-row__end { display: flex; align-items: center; justify-content: flex-end; gap: var(--ecrm-space-2) var(--ecrm-space-4); flex-wrap: wrap; min-width: 0; }
+
+.ecrm-chart { display: flex; flex-direction: column; gap: var(--ecrm-space-5); }
+.ecrm-chart__legend { display: flex; flex-wrap: wrap; gap: var(--ecrm-space-3) var(--ecrm-space-7); font-size: var(--ecrm-text-helper); color: var(--ecrm-color-text-muted); }
+.ecrm-chart__swatch { width: 10px; height: 10px; border-radius: var(--ecrm-radius-2); display: inline-block; margin-right: var(--ecrm-space-3); vertical-align: -1px; }
+.ecrm-chart__foot { font-size: var(--ecrm-text-label); color: var(--ecrm-color-text-meta); text-wrap: pretty; }
+
+/* Evidence card — [RC] exception card (extracted candidate).
+   Selectable recipe: the card heading is a <button aria-pressed>
+   (.ecrm-evidence__select); the card reflects it with .is-selected. Nested
+   actions (Investigate →, disclosure) stay separate controls. */
+.ecrm-evidence { display: flex; flex-direction: column; gap: var(--ecrm-space-4); border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); padding: var(--ecrm-space-5) var(--ecrm-space-6) var(--ecrm-space-6); background: var(--ecrm-color-surface); }
+.ecrm-evidence.is-selected { background: var(--ecrm-color-surface-kpi-sel); box-shadow: var(--ecrm-selection-ring); }
+.ecrm-evidence__head { display: flex; align-items: baseline; gap: var(--ecrm-space-2) var(--ecrm-space-5); flex-wrap: wrap; }
+.ecrm-evidence__select { display: inline-flex; align-items: baseline; gap: var(--ecrm-space-2) var(--ecrm-space-5); flex-wrap: wrap; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--ecrm-radius-sm); }
+.ecrm-evidence__select:hover .ecrm-evidence__title { color: var(--ecrm-color-accent-strong); }
+.ecrm-evidence__title { font-size: var(--ecrm-text-control); font-weight: var(--ecrm-weight-heavy); }
+.ecrm-evidence__count { font-size: var(--ecrm-text-meta); font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-structure); }
+.ecrm-evidence__actions { display: flex; align-items: center; gap: var(--ecrm-space-4) var(--ecrm-space-6); flex-wrap: wrap; }
+/* Investigation context — [BL] fok bar; its shadow is the scoped N2 exception */
+.ecrm-investigation { display: flex; align-items: center; gap: var(--ecrm-space-4) var(--ecrm-space-7); flex-wrap: wrap; border: 1px solid var(--ecrm-color-investigation-border); background: var(--ecrm-color-investigation-bg); border-radius: var(--ecrm-radius-lg); padding: var(--ecrm-space-5) var(--ecrm-space-7); box-shadow: var(--ecrm-shadow-investigation); }
+.ecrm-investigation__label { font-size: var(--ecrm-text-label); letter-spacing: .08em; text-transform: uppercase; color: var(--ecrm-color-highlight); font-weight: var(--ecrm-weight-heavy); }
+.ecrm-investigation__title { font-size: var(--ecrm-text-body); font-weight: var(--ecrm-weight-heavy); }
+.ecrm-investigation__end { margin-left: auto; }
+
+/* ==========================================================================
+   WORKFLOW
+   Drawer — [RC] Filters drawer anatomy + modal mechanics (accepted by brief).
+   The real modal is .ecrm-drawer (fixed, [hidden] when closed) + scrim.
+   .ecrm-drawer--specimen is a static, non-modal anatomy picture.
+   Draft / Reset / Apply policy is consumer-owned (P4).
+   ========================================================================== */
+.ecrm-drawer-scrim { position: fixed; inset: 0; z-index: var(--ecrm-z-drawer-scrim); background: var(--ecrm-color-scrim); }
+.ecrm-drawer-scrim[hidden], .ecrm-drawer[hidden] { display: none; }
+.ecrm-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: var(--ecrm-z-drawer); width: var(--ecrm-drawer-width); background: var(--ecrm-color-surface); box-shadow: var(--ecrm-shadow-drawer); display: flex; flex-direction: column; }
+.ecrm-drawer--specimen { position: relative; inset: auto; z-index: auto; height: 560px; width: 100%; max-width: 480px; box-shadow: none; border: 1px solid var(--ecrm-color-border-card); border-radius: var(--ecrm-radius-lg); overflow: hidden; }
+.ecrm-drawer__head { display: flex; align-items: flex-start; gap: var(--ecrm-space-6); padding: 22px var(--ecrm-space-11) var(--ecrm-space-9); border-bottom: 1px solid var(--ecrm-color-border-subtle); }
+.ecrm-drawer__heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--ecrm-space-2); }
+.ecrm-drawer__title { margin: 0; font: var(--ecrm-text-drawer-title); letter-spacing: -.01em; }
+.ecrm-root .ecrm-drawer__title:focus { outline: none; } /* [RC] programmatic focus target (not interactive) — source h2 outline:none */
+.ecrm-drawer__desc { font-size: var(--ecrm-text-table); color: var(--ecrm-color-text-muted); text-wrap: pretty; }
+.ecrm-drawer__body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--ecrm-space-10) var(--ecrm-space-11) var(--ecrm-space-11); display: flex; flex-direction: column; gap: var(--ecrm-space-12); }
+.ecrm-drawer__group { display: flex; flex-direction: column; gap: var(--ecrm-space-7); }
+.ecrm-drawer__group + .ecrm-drawer__group { border-top: 1px solid var(--ecrm-color-border-row); padding-top: var(--ecrm-space-11); }
+.ecrm-drawer__changes { display: flex; flex-direction: column; gap: var(--ecrm-space-2); padding: var(--ecrm-space-6) var(--ecrm-space-11) 0; font-size: var(--ecrm-text-meta); color: var(--ecrm-color-text-strong-2); }
+.ecrm-drawer__changes strong { color: var(--ecrm-color-structure); font-weight: var(--ecrm-weight-bold); }
+.ecrm-drawer__foot { border-top: 1px solid var(--ecrm-color-border-subtle); display: flex; flex-direction: column; }
+.ecrm-drawer__actions { display: flex; align-items: center; gap: var(--ecrm-space-5); flex-wrap: wrap; padding: var(--ecrm-space-7) var(--ecrm-space-11) var(--ecrm-space-9); }
+.ecrm-drawer__actions .ecrm-spacer { flex: 1; }
+
+/* Read-only detail (APPROVED P5) */
+.ecrm-detail { display: grid; grid-template-columns: minmax(140px, max-content) minmax(0,1fr); gap: var(--ecrm-space-4) var(--ecrm-space-11); margin: 0; font-size: var(--ecrm-text-table); }
+.ecrm-detail dt { color: var(--ecrm-color-text-muted); }
+.ecrm-detail dd { margin: 0; font-weight: var(--ecrm-weight-semibold); color: var(--ecrm-color-text); }
+
+/* Validation summary (APPROVED P5) */
+.ecrm-validation { display: flex; flex-direction: column; gap: var(--ecrm-space-3); }
+.ecrm-validation ul { margin: 0; padding-left: var(--ecrm-space-9); }
+
+/* ---------- Responsive baseline ---------- */
+@media (max-width: 1100px) {
+  .ecrm-bar-row { grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr) 56px minmax(130px, auto); }
+  .ecrm-topnav { gap: var(--ecrm-space-8); }
+}
+@media (max-width: 720px) {
+  .ecrm-rail { display: none; }
+  .ecrm-finding { grid-template-columns: minmax(0,1fr) auto; }
+  .ecrm-finding .ecrm-tag { grid-column: 1 / -1; }
+  .ecrm-bar-row { grid-template-columns: minmax(0,1fr) auto; }
+  .ecrm-bar-row .ecrm-bar { grid-column: 1 / -1; grid-row: 2; }
+}

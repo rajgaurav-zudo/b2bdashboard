@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edvoy CRM Design System v1.0.0 — Component Gallery</title>
+<link rel="stylesheet" href="../../../web/src/design-system/edvoy-crm-design-tokens.css">
+<link rel="stylesheet" href="../../../web/src/design-system/edvoy-crm-components.css">
+<style>
+/* Gallery scaffolding only (g- prefix): page layout, section headings,
+   specimen captions, swatches and forced-state demonstration classes.
+   No component appearance is defined here. */
+body { margin: 0; background: var(--ecrm-color-surface-subtle); }
+.g-bar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 10px 24px; background: var(--ecrm-color-tooltip); color: var(--ecrm-color-text-inverse); font-size: 13px; }
+.g-bar b { font-weight: 750; }
+.g-bar .ecrm-segmented { background: #2b2f45; }
+.g-bar .ecrm-segmented__item:not([aria-checked="true"]) { color: var(--ecrm-color-tooltip-muted); }
+.g-bar .ecrm-segmented__item:not([aria-checked="true"]):hover { background: rgba(255,255,255,.12); }
+.g-frame { margin: 0 auto; background: var(--ecrm-color-page); max-width: 100%; box-shadow: 0 0 0 1px var(--ecrm-color-border-card); }
+.g-wrap { padding: 32px 40px 80px; display: flex; flex-direction: column; gap: 56px; }
+.g-sec { display: flex; flex-direction: column; gap: 20px; scroll-margin-top: 60px; }
+.g-sec > header { display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--ecrm-color-border-subtle); padding-bottom: 12px; }
+.g-sec h2 { margin: 0; font: var(--ecrm-text-section-title); letter-spacing: -.015em; }
+.g-sec h3.g-h { margin: 0; font-size: 15px; font-weight: 750; }
+.g-sub { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.g-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.g-note { margin: 0; font-size: 12.5px; color: var(--ecrm-color-text-muted); text-wrap: pretty; max-width: 900px; line-height: 1.5; }
+.g-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.g-row--top { align-items: flex-start; }
+.g-stack { display: flex; flex-direction: column; gap: 12px; }
+.g-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.g-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start; }
+.g-w { max-width: 360px; }
+.g-cls { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-radius: 4px; padding: 2px 6px; }
+.g-cls--global { background: var(--ecrm-color-tooltip); color: var(--ecrm-color-text-inverse); }
+.g-cls--analytics { background: var(--ecrm-color-selection); color: var(--ecrm-color-accent-strong); }
+.g-cls--workflow { background: var(--ecrm-color-info-bg); color: var(--ecrm-color-info); }
+.g-cls--rc { background: var(--ecrm-color-surface); color: var(--ecrm-color-warning); border: 1px dashed var(--ecrm-color-warning); }
+.g-cls--p5 { background: var(--ecrm-color-positive-bg); color: var(--ecrm-color-positive); }
+.g-cls--project { background: var(--ecrm-color-surface-neutral); color: var(--ecrm-color-text-strong-2); }
+.g-sw { border: 1px solid var(--ecrm-color-border-card); border-radius: 8px; overflow: hidden; background: var(--ecrm-color-surface); font-size: 11.5px; }
+.g-sw i { display: block; height: 44px; border-bottom: 1px solid var(--ecrm-color-border-row); }
+.g-sw div { padding: 6px 8px; display: flex; flex-direction: column; gap: 1px; }
+.g-sw code { font-size: 10.5px; color: var(--ecrm-color-text-muted); word-break: break-all; }
+.g-state { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; flex: none; max-width: 100%; }
+.g-caption { font-size: 11px; color: var(--ecrm-color-text-meta); }
+.g-focus { outline: var(--ecrm-focus-ring) !important; outline-offset: var(--ecrm-focus-offset) !important; }
+.g-hover.ecrm-btn--primary { background: var(--ecrm-color-accent-hover); }
+.g-hover.ecrm-btn--secondary { background: var(--ecrm-color-accent-hover-tint); }
+.g-hover.ecrm-btn--neutral { background: var(--ecrm-color-surface-hover); }
+.g-hover.ecrm-btn--quiet { background: var(--ecrm-color-selection-hover); }
+.g-type { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 10px 20px; align-items: baseline; }
+.g-type code { font-size: 11.5px; color: var(--ecrm-color-text-muted); }
+.g-box { background: var(--ecrm-color-accent); height: 16px; border-radius: 2px; }
+.g-adopt { border: 1px solid var(--ecrm-color-border-card); border-radius: 10px; padding: 14px 16px; background: var(--ecrm-color-surface-subtle); font-size: 13.5px; line-height: 1.55; max-width: 900px; }
+.g-mini { border: 1px solid var(--ecrm-color-border-card); border-radius: 10px; overflow: hidden; min-width: 0; }
+.g-mini .ecrm-shell { min-height: 0; }
+.g-mini .ecrm-main { padding-bottom: 24px; }
+.g-toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.g-toc a { color: var(--ecrm-color-accent); font-weight: 650; text-decoration: none; }
+.g-toc a:hover { color: var(--ecrm-color-accent-strong); text-decoration: underline; }
+.g-specimen { width: 64px; height: 40px; border: 1px solid var(--ecrm-color-border-control); }
+.g-elev { width: 96px; height: 48px; background: var(--ecrm-color-surface); border-radius: 10px; }
+.g-mt { margin-top: 10px; }
+.g-row--end { align-items: flex-end; }
+.g-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--ecrm-color-text-muted); padding-top: 8px; }
+</style>
+</head>
+<body class="ecrm-root">
+
+<div class="g-page" id="g-page">
+<div class="g-bar" role="region" aria-label="Gallery controls">
+  <b>Edvoy CRM Design System v1.0.0</b><span>Component gallery · synthetic data · frozen on 1 October 2026</span>
+  <span style="flex:1"></span>
+  <span id="g-width-l">Frame max-width — previews layout only; media queries follow the real browser viewport</span>
+  <div class="ecrm-segmented" role="radiogroup" aria-labelledby="g-width-l" id="g-width">
+    <button type="button" class="ecrm-segmented__item" role="radio" aria-checked="true" data-w="100%">Fluid</button>
+    <button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false" data-w="1440px">1440</button>
+    <button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false" data-w="1280px">1280</button>
+    <button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false" data-w="1024px">1024</button>
+  </div>
+</div>
+
+<div class="g-frame" id="g-frame">
+<main class="g-wrap">
+
+<!-- ============ INTRO ============ -->
+<section class="g-sec" id="intro">
+  <div class="ecrm-page-header">
+    <span class="ecrm-page-header__eyebrow">Design authority</span>
+    <div class="ecrm-page-header__row"><h1 class="ecrm-page-header__title">Edvoy CRM Design System</h1><span class="ecrm-tag ecrm-tag--status">v1.0.0 · purple standardisation (P6) · frozen on 1 October 2026</span></div>
+    <p class="ecrm-page-header__desc">Extracted from Business Performance v1.3.0 (frozen baseline), and selected Business Performance v1.4.0-rc2.36 patterns (labelled RC candidates unless accepted). One purple visual language (P6): the native CRM layer is retired. Every specimen uses <code>css/edvoy-crm-components.css</code>; behaviour comes from <code>gallery/edvoy-crm-gallery-recipes.js</code>. All data is synthetic.</p>
+  </div>
+  <div class="g-adopt">
+    <b>Design authority:</b> <code>EDVOY_CRM_DESIGN_SYSTEM.md</code>, <code>css/edvoy-crm-design-tokens.css</code>, <code>css/edvoy-crm-components.css</code>, and <code>gallery/EDVOY_CRM_COMPONENT_GALLERY.html</code>.<br>
+    Inspect these before implementation. Reuse canonical components and tokens. Do not invent colours, typography, spacing systems, cards, buttons, tables or interaction patterns where a canonical pattern exists. If a new product need is not covered, propose a design-system extension explicitly rather than silently creating a project-local visual pattern.
+  </div>
+  <div class="g-row">
+    <span class="g-cls g-cls--global">Global CRM</span><span class="g-cls g-cls--analytics">Analytics</span><span class="g-cls g-cls--workflow">Workflow</span><span class="g-cls g-cls--rc">RC candidate · rc2.36 only</span><span class="g-cls g-cls--p5">Approved extension · P5</span><span class="g-cls g-cls--project">Example vocabulary · consumer-owned</span>
+  </div>
+  <nav class="g-toc" aria-label="Gallery sections"><a href="#foundations">Foundations</a><a href="#shell">Shell &amp; navigation</a><a href="#controls">Controls</a><a href="#surfaces">Surfaces &amp; states</a><a href="#analytics">Analytics</a><a href="#tables">Tables</a><a href="#workflow">Workflow</a></nav>
+</section>
+
+<!-- ============ FOUNDATIONS ============ -->
+<section class="g-sec" id="foundations">
+  <header><h2>Foundations</h2><p class="g-note">Swatches read the live CSS custom properties, so they cannot drift from the token file. Accent and structure colours never mean good or bad.</p></header>
+  <div class="g-sub"><h3 class="g-h">Surfaces &amp; text</h3><div class="g-grid" data-swatches="page surface surface-subtle surface-hover surface-row-hover surface-track surface-neutral surface-neutral-tag surface-overall surface-child surface-kpi-sel surface-info text text-strong-2 text-muted text-meta text-disabled"></div></div>
+  <div class="g-sub"><h3 class="g-h">Borders</h3><div class="g-grid" data-swatches="border-control border-checkbox border border-card border-subtle border-row border-info border-unavailable"></div></div>
+  <div class="g-sub"><h3 class="g-h">Accent · structure · selection</h3><div class="g-grid" data-swatches="accent accent-hover accent-strong accent-label structure accent-border selection selection-hover band series"></div></div>
+  <div class="g-sub"><h3 class="g-h">Comparison &amp; status</h3><div class="g-grid" data-swatches="positive positive-bg negative negative-bg neutral unavailable warning warning-bg info info-bg highlight highlight-bg investigation-bg investigation-border"></div></div>
+
+  <div class="g-sub"><h3 class="g-h">Typography · Figtree 400–800, tabular numerals</h3>
+    <div class="g-type">
+      <code>page-title · 26/750</code><span style="font:var(--ecrm-text-page-title);letter-spacing:var(--ecrm-tracking-title)">Business Performance</span>
+      <code>kpi · 26/750</code><span style="font:var(--ecrm-text-kpi);letter-spacing:var(--ecrm-tracking-title)">7,322</span>
+      <code>section-title · 21/750</code><span style="font:var(--ecrm-text-section-title)">Student Performance</span>
+      <code>panel-title · 18/700</code><span style="font:var(--ecrm-text-panel-title)">Key findings</span>
+      <code>emphasis · 15 (exception)</code><span style="font-size:var(--ecrm-text-emphasis);font-weight:var(--ecrm-weight-heavy)">+24.7%</span>
+      <code>tab · 14.5/600–750</code><span style="font-size:var(--ecrm-text-tab);font-weight:var(--ecrm-weight-heavy)">Students</span>
+      <code>body · 14</code><span style="font-size:var(--ecrm-text-body)">Students, application performance and pipeline across the organisation</span>
+      <code>control · 13.5</code><span style="font-size:var(--ecrm-text-control);font-weight:var(--ecrm-weight-semibold)">Northfield University rose most vs Sep 2025</span>
+      <code>table · 13</code><span style="font-size:var(--ecrm-text-table)">1,397 · 828 · 740</span>
+      <code>meta · 12.5</code><span class="ecrm-section-head__ctx">Institutions · Qualified · vs Previous Intake</span>
+      <code>helper · 12</code><span class="ecrm-help-text">Select a value to investigate the next level behind it.</span>
+      <code>caption · 11.5</code><span class="ecrm-table__sub">19% of total</span>
+      <code>label · 11/700 · .09em UPPER</code><span class="ecrm-label">Intake</span>
+      <code>badge · 10.5/700</code><span><span class="ecrm-tag ecrm-tag--info">Change</span></span>
+    </div>
+  </div>
+
+  <div class="g-cols">
+    <div class="g-sub"><h3 class="g-h">Spacing</h3><div class="g-stack" id="g-space"></div></div>
+    <div class="g-sub"><h3 class="g-h">Radius &amp; elevation</h3>
+      <div class="g-row">
+        <div class="g-state"><span class="g-caption">xs 4</span><div class="g-specimen" style="border-radius:var(--ecrm-radius-xs)"></div></div>
+        <div class="g-state"><span class="g-caption">sm 6</span><div class="g-specimen" style="border-radius:var(--ecrm-radius-sm)"></div></div>
+        <div class="g-state"><span class="g-caption">md 8</span><div class="g-specimen" style="border-radius:var(--ecrm-radius-md)"></div></div>
+        <div class="g-state"><span class="g-caption">lg 10</span><div class="g-specimen" style="border-radius:var(--ecrm-radius-lg)"></div></div>
+        <div class="g-state"><span class="g-caption">pill</span><div class="g-specimen" style="border-radius:var(--ecrm-radius-pill)"></div></div>
+        <div class="g-state"><span class="g-caption">7 · 5 · 3 · 2 retained</span><div class="g-row"><div class="g-specimen" style="width:28px;border-radius:var(--ecrm-radius-7)"></div><div class="g-specimen" style="width:28px;border-radius:var(--ecrm-radius-5)"></div><div class="g-specimen" style="width:28px;border-radius:var(--ecrm-radius-3)"></div><div class="g-specimen" style="width:28px;border-radius:var(--ecrm-radius-2)"></div></div></div>
+      </div>
+      <div class="g-row g-mt">
+        <div class="g-state"><span class="g-caption">popover</span><div class="g-elev" style="box-shadow:var(--ecrm-shadow-popover)"></div></div>
+        <div class="g-state"><span class="g-caption">inline dropdown</span><div class="g-elev" style="box-shadow:var(--ecrm-shadow-inline)"></div></div>
+        <div class="g-state"><span class="g-caption">raised segment</span><div class="g-elev" style="box-shadow:var(--ecrm-shadow-raised)"></div></div>
+        <div class="g-state"><span class="g-caption">investigation (N2)</span><div class="g-elev" style="box-shadow:var(--ecrm-shadow-investigation)"></div></div>
+      </div>
+      <p class="g-note">Cards and panels are flat (1px border, no shadow). Shadows belong to floating layers (popover, tooltip, toast, drawer), raised/filled segments, and one scoped in-flow exception: the investigation context bar (N2). There are no general card shadows.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SHELL ============ -->
+<section class="g-sec" id="shell">
+  <header><h2>Shell &amp; navigation</h2><p class="g-note">Navigation changes location (<code>aria-current</code>). Selection changes focus in place (<code>aria-checked</code> / <code>aria-pressed</code> / <code>aria-selected</code>) and never auto-scrolls. Both segmented appearances accept either kind of state; the product context picks the appearance (P3). Shared nav rows scroll horizontally rather than clipping items.</p></header>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Application shell · top bar + rail + main</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+    <div class="g-mini">
+      <div class="ecrm-shell">
+        <header class="ecrm-topbar">
+          <div class="ecrm-topbar__mark" aria-hidden="true">◠</div><div class="ecrm-topbar__wordmark">edvoy</div>
+          <nav class="ecrm-topnav" aria-label="Main" data-ecrm-current=""><a href="#">Home ▾</a><a href="#">Students ▾</a><a href="#">Institutions ▾</a><a href="#">Finance</a><a href="#">Task &amp; Notes</a><a href="#" aria-current="page">Leaderboards</a></nav>
+          <div class="ecrm-topbar__tools"><span aria-hidden="true">⌕</span><span aria-hidden="true">◷</span><span class="ecrm-avatar" role="img" aria-label="Signed-in user">A</span></div>
+        </header>
+        <div class="ecrm-body">
+          <nav class="ecrm-rail" aria-label="Section" data-ecrm-current="">
+            <button type="button" class="ecrm-rail__item" aria-label="Overview"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="4" width="3" height="12" rx="1" fill="currentColor"/><rect x="7" y="7" width="3" height="9" rx="1" fill="currentColor" opacity=".8"/><rect x="11.5" y="10" width="3" height="6" rx="1" fill="currentColor" opacity=".6"/></svg></button>
+            <button type="button" class="ecrm-rail__item" aria-current="page" aria-label="Institution performance"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 7.5L10 3.5l7.5 4"/><path d="M4.5 8.5v6M8 8.5v6M12 8.5v6M15.5 8.5v6"/><path d="M3 16.5h14"/></svg></button>
+            <button type="button" class="ecrm-rail__item" aria-label="Targets"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="2.5" width="12" height="15" rx="2"/><path d="M7.5 10.5l2 2 3.5-4"/></svg></button>
+          </nav>
+          <div class="ecrm-main">
+            <div class="ecrm-page-header">
+              <span class="ecrm-page-header__eyebrow">Sales</span>
+              <div class="ecrm-page-header__row"><h3 class="ecrm-page-header__title">Page title</h3><span class="ecrm-tag ecrm-tag--status">Release candidate</span></div>
+              <p class="ecrm-page-header__desc">One-sentence description of what this page answers, in business language.</p>
+            </div>
+            <nav class="ecrm-tabs g-mt" aria-label="Views" data-ecrm-current="">
+              <a href="#" class="ecrm-tabs__item" aria-current="page">Students</a><a href="#" class="ecrm-tabs__item">Applications</a><a href="#" class="ecrm-tabs__item">Application Closures</a><a href="#" class="ecrm-tabs__item">Quality &amp; Risk</a>
+            </nav>
+            <div class="g-row g-mt">
+              <nav class="ecrm-segmented ecrm-segmented--raised" aria-label="Student pages" data-ecrm-current=""><a href="#" class="ecrm-segmented__item" aria-current="page">Student Performance</a><a href="#" class="ecrm-segmented__item">Student Pipeline</a></nav>
+              <span class="ecrm-meta-text" style="margin-left:auto">Data as at 25 Sep 2026</span>
+              <button type="button" class="ecrm-btn ecrm-btn--secondary" id="g-filters-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="g-drawer"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M1.5 2.5h11L8.3 7.6v4l-2.6-1.2V7.6z"/></svg>Filters<span class="ecrm-count" id="g-filters-count" hidden></span><span class="ecrm-sr-only" id="g-filters-sr"></span></button>
+              <button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--menu" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 1.5v8M3.8 6.4L7 9.6l3.2-3.2M2 12.5h10"/></svg>Export<span aria-hidden="true">▾</span></button>
+            </div>
+            <div class="g-row g-mt" id="g-applied" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="g-note"><b>Filters</b> opens the working modal drawer (see Workflow). The tabs and segmented links switch <code>aria-current</code> for demonstration only; in a product they navigate.</p>
+  </div>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Settings page composition · list table</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+    <div class="g-mini"><div class="ecrm-main">
+      <div class="ecrm-page-header">
+        <span class="ecrm-page-header__eyebrow">Settings</span>
+        <div class="ecrm-page-header__row"><h3 class="ecrm-page-header__title">KPI Targets</h3></div>
+        <p class="ecrm-page-header__desc">Targets set for each level of the organisation, by intake.</p>
+      </div>
+      <nav class="ecrm-tabs g-mt" aria-label="Settings sections" data-ecrm-current=""><a href="#" class="ecrm-tabs__item">Manage</a><a href="#" class="ecrm-tabs__item">Downloads</a><a href="#" class="ecrm-tabs__item">Assignment Rules</a><a href="#" class="ecrm-tabs__item" aria-current="page">KPI Targets</a><a href="#" class="ecrm-tabs__item">Import</a><a href="#" class="ecrm-tabs__item">Contracts</a></nav>
+      <div class="g-row g-mt">
+        <nav class="ecrm-segmented ecrm-segmented--raised" aria-label="Target level" data-ecrm-current=""><a href="#" class="ecrm-segmented__item">Overall</a><a href="#" class="ecrm-segmented__item">Team</a><a href="#" class="ecrm-segmented__item" aria-current="page">Individual</a></nav>
+      </div>
+      <div class="ecrm-table-toolbar g-mt g-row--end">
+        <div class="ecrm-field"><span class="ecrm-label" id="g-st-in-l">Intake</span><button type="button" class="ecrm-select" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="g-st-in-l g-st-in-v"><span class="ecrm-select__value" id="g-st-in-v">Sep 2026</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+        <div class="ecrm-field"><span class="ecrm-label" id="g-st-tm-l">Team</span><button type="button" class="ecrm-select" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="g-st-tm-l g-st-tm-v"><span class="ecrm-select__value" id="g-st-tm-v">All teams</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+        <button type="button" class="ecrm-btn ecrm-btn--secondary">Reset filters</button>
+        <label class="ecrm-search ecrm-table-toolbar__end"><span class="ecrm-search__icon" aria-hidden="true">⌕</span><span class="ecrm-sr-only">Search individuals</span><input type="search" placeholder="Search individuals…"></label>
+      </div>
+      <div class="ecrm-table-wrap">
+        <table class="ecrm-table" id="g-crm-table" data-ecrm-sortable="">
+          <caption class="ecrm-sr-only">Individual targets, sample data</caption>
+          <thead><tr><th scope="col" data-ecrm-col="0" aria-sort="none"><button type="button" class="ecrm-sort">Individual</button></th><th scope="col" class="is-num" data-ecrm-col="1" aria-sort="none"><button type="button" class="ecrm-sort">Target</button></th><th scope="col" class="is-num">HE Actuals</th><th scope="col" class="is-num">HE Achieved %</th><th scope="col"><span class="ecrm-sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            <tr><td><span class="ecrm-table__name">Counsellor A</span></td><td class="is-num">12</td><td class="is-num">9</td><td class="is-num">75</td><td class="is-num"><button type="button" class="ecrm-btn ecrm-btn--quiet" aria-label="Show history for Counsellor A">Show history</button></td></tr>
+            <tr><td><span class="ecrm-table__name">Counsellor B</span></td><td class="is-num">8</td><td class="is-num">0</td><td class="is-num">0</td><td class="is-num"><button type="button" class="ecrm-btn ecrm-btn--quiet" aria-label="Show history for Counsellor B">Show history</button></td></tr>
+            <tr><td><span class="ecrm-table__name">Counsellor C</span></td><td class="is-num"><span class="ecrm-missing" aria-hidden="true" title="No target set">—</span><span class="ecrm-sr-only">No target set</span></td><td class="is-num">3</td><td class="is-num"><span class="ecrm-missing" aria-hidden="true" title="Not applicable: no target set">—</span><span class="ecrm-sr-only">Not applicable, no target set</span></td><td class="is-num"><button type="button" class="ecrm-btn ecrm-btn--quiet" aria-label="Show history for Counsellor C">Show history</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="g-legend"><span><b>0</b> = zero achieved (a real value)</span><span><b>—</b> in Target = no target set</span><span><b>—</b> in Achieved % = not applicable without a target</span><span class="ecrm-sr-only" data-ecrm-sort-status="g-crm-table" role="status"></span></div>
+      <div class="ecrm-pagination">
+        <div class="ecrm-pagination__meta"><span>47 individual targets</span><button type="button" class="ecrm-pagination__size" aria-haspopup="listbox">10 per page ▾</button></div>
+        <nav class="ecrm-pagination__pages" aria-label="Pagination"><button type="button" class="ecrm-page-btn" aria-disabled="true" title="Already on the first page">‹ Prev</button><button type="button" class="ecrm-page-btn" aria-current="page" aria-label="Page 1">1</button><button type="button" class="ecrm-page-btn" aria-label="Page 2">2</button><span aria-hidden="true">…</span><button type="button" class="ecrm-page-btn" aria-label="Page 5">5</button><button type="button" class="ecrm-page-btn">Next ›</button></nav>
+      </div>
+    </div></div>
+    <p class="g-note">P6: Settings pages now use the Business Performance purple components. The page header and tabs replace the native Settings bar, the raised segmented control replaces the native sub-tabs, the BP list table replaces the native grey table, a secondary "Reset filters" replaces the blue Reset, and pagination is restyled with purple tokens. The CRM screenshot now only informs page structure.</p>
+  </div>
+</section>
+
+<!-- ============ CONTROLS ============ -->
+<section class="g-sec" id="controls">
+  <header><h2>Controls</h2><p class="g-note">Hover and focus are forced on some specimens with gallery classes so they are visible side by side. Focus is a 2px structure-colour ring. Disabled controls stay focusable so their reason (title) is reachable, but they do not activate.</p></header>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Buttons</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+    <div class="g-row g-row--top">
+      <div class="g-state"><span class="g-caption">Primary · normal / hover / focus / disabled</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--primary">Apply</button><button type="button" class="ecrm-btn ecrm-btn--primary g-hover">Apply</button><button type="button" class="ecrm-btn ecrm-btn--primary g-focus">Apply</button><button type="button" class="ecrm-btn ecrm-btn--primary" aria-disabled="true" title="Nothing to apply yet">Apply</button></div></div>
+      <div class="g-state"><span class="g-caption">Secondary (accent outline)</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--secondary">Filters</button><button type="button" class="ecrm-btn ecrm-btn--secondary g-hover">Filters</button><button type="button" class="ecrm-btn ecrm-btn--secondary g-focus">Filters</button><button type="button" class="ecrm-btn ecrm-btn--secondary" aria-disabled="true" title="No filters available for this view">Filters</button></div></div>
+      <div class="g-state"><span class="g-caption">Menu trigger · compact</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--menu" aria-haspopup="menu" aria-expanded="false">Export <span aria-hidden="true">▾</span></button><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--sm">Show all 20</button></div></div>
+      <div class="g-state"><span class="g-caption">Neutral (cancel / dismiss)</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--neutral">Cancel</button><button type="button" class="ecrm-btn ecrm-btn--neutral g-hover">Cancel</button><button type="button" class="ecrm-btn ecrm-btn--neutral g-focus">Cancel</button></div></div>
+      <div class="g-state"><span class="g-caption">Quiet (in-row action)</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--quiet">Investigate →</button><button type="button" class="ecrm-btn ecrm-btn--quiet g-hover">Investigate →</button><button type="button" class="ecrm-btn ecrm-btn--quiet g-focus">Investigate →</button></div></div>
+      <div class="g-state"><span class="g-caption">Text (clear)</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--text">Clear all</button><button type="button" class="ecrm-btn ecrm-btn--text g-focus">Clear all</button></div></div>
+      <div class="g-state"><span class="g-caption">Large (drawer footer)</span><div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--neutral ecrm-btn--lg">Cancel</button><button type="button" class="ecrm-btn ecrm-btn--primary ecrm-btn--lg">Apply 2 changes</button></div></div>
+      <div class="g-state"><span class="g-caption">Icon button</span><button type="button" class="ecrm-icon-btn" aria-label="Close">×</button></div>
+    </div>
+  </div>
+
+  <div class="g-cols">
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Select · search · field</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+      <div class="g-row g-row--top">
+        <div class="ecrm-field"><span class="ecrm-label" id="g-in-l">Intake</span><button type="button" class="ecrm-select" aria-haspopup="dialog" aria-expanded="false" aria-labelledby="g-in-l g-in-v"><span class="ecrm-select__value" id="g-in-v">Sep 2026</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+        <div class="ecrm-field"><span class="ecrm-label" id="g-in2-l">Focus shown</span><button type="button" class="ecrm-select g-focus" aria-labelledby="g-in2-l g-in2-v"><span class="ecrm-select__value" id="g-in2-v">Sep 2026</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+        <div class="ecrm-field"><span class="ecrm-label" id="g-in3-l">Disabled</span><button type="button" class="ecrm-select" aria-disabled="true" title="Intake is fixed for this report" aria-labelledby="g-in3-l g-in3-v"><span class="ecrm-select__value" id="g-in3-v">Sep 2026</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+        <div class="ecrm-field"><span class="ecrm-label" id="g-in4-l">Compact</span><button type="button" class="ecrm-select ecrm-select--sm" aria-labelledby="g-in4-l g-in4-v"><span class="ecrm-select__value" id="g-in4-v">Institution</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+      </div>
+      <div class="ecrm-field g-w"><span class="ecrm-field-name" id="g-team-l">Business Team</span><button type="button" class="ecrm-select ecrm-select--block" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="g-team-l g-team-v"><span class="ecrm-select__value" id="g-team-v">All teams</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button></div>
+      <label class="ecrm-search g-w"><span class="ecrm-search__icon" aria-hidden="true">⌕</span><span class="ecrm-sr-only">Search institutions</span><input type="search" placeholder="Search institutions…"></label>
+      <div class="ecrm-field g-w"><span class="ecrm-label"><span id="g-cmp-l">Compare as of</span> <button type="button" class="ecrm-info" aria-label="About Compare as of: Same point in time compares the previous intake as it stood on the equivalent date">i</button></span>
+        <div class="ecrm-segmented" role="radiogroup" aria-labelledby="g-cmp-l"><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false">Latest totals</button><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="true">Same point in time</button><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false" aria-disabled="true" title="Not available for this intake">Custom date</button></div>
+        <span class="ecrm-help-text">Arrow keys move and select; Home/End jump; the disabled option is skipped.</span>
+      </div>
+    </div>
+
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Chips · multi-select · popover</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+      <div class="g-state"><span class="g-caption" id="g-preset-l">Choice chips (single-select presets, aria-pressed)</span><div class="g-row" role="group" aria-labelledby="g-preset-l" data-ecrm-press="single-required"><button type="button" class="ecrm-choice-chip" aria-pressed="true">All</button><button type="button" class="ecrm-choice-chip" aria-pressed="false">Jan–Apr</button><button type="button" class="ecrm-choice-chip" aria-pressed="false">May–Aug</button><button type="button" class="ecrm-choice-chip" aria-pressed="false">Sep–Dec</button></div></div>
+      <div class="g-state"><span class="g-caption">Applied-filter chips (removable)</span><div class="g-row"><span class="ecrm-chip">Region: Europe<button type="button" class="ecrm-chip__remove" aria-label="Remove filter Region: Europe">×</button></span><span class="ecrm-chip">Tag: Priority<button type="button" class="ecrm-chip__remove" aria-label="Remove filter Tag: Priority">×</button></span><button type="button" class="ecrm-btn ecrm-btn--text">Clear all</button></div></div>
+      <div class="ecrm-popover" role="dialog" aria-labelledby="g-tags-t">
+        <span class="ecrm-popover__title" id="g-tags-t">Institution tags</span>
+        <label class="ecrm-search ecrm-search--sm"><span class="ecrm-search__icon" aria-hidden="true">⌕</span><span class="ecrm-sr-only">Search tags</span><input placeholder="Search tags…"></label>
+        <div class="ecrm-listbox" role="listbox" aria-multiselectable="true" aria-labelledby="g-tags-t" id="g-tags-lb">
+          <div class="ecrm-option" role="option" aria-selected="true"><span class="ecrm-checkbox" aria-hidden="true">✓</span>Priority<span class="ecrm-option__hint" aria-hidden="true">8</span></div>
+          <div class="ecrm-option" role="option" aria-selected="false"><span class="ecrm-checkbox" aria-hidden="true">✓</span>Express<span class="ecrm-option__hint" aria-hidden="true">5</span></div>
+          <div class="ecrm-option" role="option" aria-selected="false"><span class="ecrm-checkbox" aria-hidden="true">✓</span>Russell Group<span class="ecrm-option__hint" aria-hidden="true">4</span></div>
+          <div class="ecrm-option" role="option" aria-selected="false" aria-disabled="true" title="Archived tags cannot be selected"><span class="ecrm-checkbox" aria-hidden="true">✓</span>Archived<span class="ecrm-option__hint">unavailable</span></div>
+        </div>
+        <div class="ecrm-popover__foot"><button type="button" class="ecrm-btn ecrm-btn--text">Clear</button><span class="ecrm-help-text" id="g-tags-n" aria-live="polite">1 selected</span><button type="button" class="ecrm-btn ecrm-btn--primary ecrm-btn--sm">Apply</button></div>
+      </div>
+      <div class="g-row g-row--top">
+        <div class="ecrm-popover"><span class="ecrm-popover__title" id="g-area-t">Single select</span><div class="ecrm-listbox" role="listbox" aria-labelledby="g-area-t"><div class="ecrm-option" role="option" aria-selected="false">All areas</div><div class="ecrm-option" role="option" aria-selected="true">UK</div><div class="ecrm-option" role="option" aria-selected="false">Canada</div></div></div>
+        <div class="ecrm-popover" role="menu" aria-label="Export"><button type="button" class="ecrm-menu-item" role="menuitem"><span class="ecrm-menu-item__title">Current view (CSV)</span><span class="ecrm-menu-item__desc">Rows and columns exactly as shown, with report context.</span></button><button type="button" class="ecrm-menu-item" role="menuitem"><span class="ecrm-menu-item__title">Full detail (CSV)</span><span class="ecrm-menu-item__desc">Every entity in scope, including collapsed levels.</span></button></div>
+      </div>
+      <p class="g-note">The listbox holds only options. Search and footer controls sit outside it inside a labelled popover. Checkmarks are decorative (aria-hidden), so names are not duplicated.</p>
+    </div>
+  </div>
+
+  <div class="g-cols">
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Tags (tones)</h3><span class="g-cls g-cls--global">Global CRM</span><span class="g-cls g-cls--project">Words are BP examples</span></div>
+      <div class="g-row"><span class="ecrm-tag">Neutral</span><span class="ecrm-tag ecrm-tag--primary">Primary</span><span class="ecrm-tag ecrm-tag--info">Info</span><span class="ecrm-tag ecrm-tag--positive">Positive</span><span class="ecrm-tag ecrm-tag--negative">Negative</span><span class="ecrm-tag ecrm-tag--warning">Warning</span></div>
+      <div class="g-row"><span class="ecrm-tag ecrm-tag--plain">Russell Group</span><span class="ecrm-tag ecrm-tag--plain ecrm-tag--warning">At Risk</span><span class="ecrm-tag ecrm-tag--highlight">High volume</span><span class="ecrm-tag ecrm-tag--unavailable">Status unavailable</span><span class="ecrm-tag ecrm-tag--status">Release candidate</span></div>
+      <p class="g-note">The system supplies tones. Which business word gets which tone, and what counts as a risk, is decided by the consuming application. Every tag carries a word.</p>
+    </div>
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Tooltip · toast</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+      <div class="g-row g-row--top">
+        <div class="ecrm-tooltip" role="tooltip"><span class="ecrm-tooltip__title">Northfield University · Qualified</span><span class="ecrm-tooltip__body">1,397 students
++15.3% vs Sep 2025 (as at 25 Sep)</span></div>
+        <div class="ecrm-toast"><span class="ecrm-toast__icon" aria-hidden="true">✓</span>Export ready</div>
+      </div>
+      <p class="g-note">Tooltips only add detail. Anything required is visible text or part of the control's accessible name.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SURFACES ============ -->
+<section class="g-sec" id="surfaces">
+  <header><h2>Surfaces &amp; states</h2></header>
+  <div class="g-cols">
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Panel · callout · disclosure</h3><span class="g-cls g-cls--global">Global CRM</span></div>
+      <div class="ecrm-panel ecrm-panel--pad"><div class="ecrm-section-head"><h4 class="ecrm-section-head__title">Panel</h4><span class="ecrm-section-head__ctx">Bordered, flat, radius lg</span></div></div>
+      <div class="ecrm-callout" role="note"><span class="ecrm-callout__icon" aria-hidden="true">i</span><span><b>Unique students, not applications.</b> Each % uses the previous stage as its denominator and is compared with the previous intake only.</span></div>
+      <div class="ecrm-callout ecrm-callout--warning" role="note"><span class="ecrm-callout__icon" aria-hidden="true">!</span><span><b>Intake in progress.</b> Values will keep changing until the intake closes.</span></div>
+      <details class="ecrm-disclosure"><summary>Values and cutoffs</summary><div class="ecrm-disclosure__body">Snapshot 25 Sep 2026 · comparison 25 Sep 2025 · minimum base 30</div></details>
+      <span class="g-cls g-cls--rc" style="align-self:flex-start">Disclosure: RC candidate</span>
+    </div>
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Empty · validation</h3><span class="g-cls g-cls--p5">Validation: approved P5</span></div>
+      <div class="ecrm-panel"><div class="ecrm-empty"><span class="ecrm-empty__title">No matches</span><span>No institutions match this selection. Clear a filter to widen the scope.</span><button type="button" class="ecrm-btn ecrm-btn--text">Clear filters</button></div></div>
+      <div class="ecrm-callout ecrm-callout--error" role="alert" id="g-val-sum"><span class="ecrm-callout__icon" aria-hidden="true">!</span><div class="ecrm-validation"><b>1 target needs attention before you can submit</b><ul><li><a class="ecrm-link" href="#g-target-input">Target (students): enter a whole number</a></li></ul></div></div>
+      <div class="ecrm-field g-w"><label class="ecrm-field-name" for="g-target-input">Target (students)</label><input class="ecrm-input" id="g-target-input" inputmode="numeric" aria-invalid="true" aria-describedby="g-err" value="12.5"><span class="ecrm-field-error" id="g-err">Enter a whole number.</span></div>
+      <p class="g-note">Built only from existing semantic tokens. The field is <code>aria-invalid</code>, its message is linked by <code>aria-describedby</code>, and the summary links to the field. Editing the value to a whole number clears the error in this demo.</p>
+    </div>
+  </div>
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Loading / busy</h3><span class="g-cls g-cls--p5">Minimal approved extension · P5</span></div>
+    <div class="ecrm-panel ecrm-panel--pad g-w" id="g-busy-region" aria-busy="false" aria-labelledby="g-busy-h" style="max-width:520px">
+      <div class="ecrm-section-head"><h4 class="ecrm-section-head__title" id="g-busy-h">Team targets</h4><span class="ecrm-section-head__ctx">Sep 2026 intake</span></div>
+      <dl class="ecrm-detail g-mt"><dt>Overall target</dt><dd>400</dd><dt>Allocated</dt><dd>380</dd></dl>
+    </div>
+    <div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--sm" id="g-busy-btn" aria-controls="g-busy-region">Refresh</button><span class="ecrm-busy-status" role="status" id="g-busy-status">Last updated 09:30</span></div>
+    <p class="g-note">Press Refresh. The region gets <code>aria-busy="true"</code>, the status line (a separate <code>role="status"</code>) announces the start and the finish, and the button is <code>aria-disabled</code> until it completes so a second press does nothing. Text keeps full contrast. There is no skeleton.</p>
+  </div>
+</section>
+
+<!-- ============ ANALYTICS ============ -->
+<section class="g-sec" id="analytics">
+  <header><h2>Analytics</h2><p class="g-note">Overview first, then details on demand. Choosing a KPI, finding, evidence card or bar changes focus in place and never scrolls. Only an explicit <b>Investigate →</b> action may move the user.</p></header>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Comparison rendering</h3><span class="g-cls g-cls--analytics">Analytics</span></div>
+    <div class="g-row g-row--top">
+      <div class="g-state"><span class="g-caption">Rose · desirable</span><span class="ecrm-delta ecrm-delta--positive">↑ +14.1%<span class="ecrm-sr-only">, improvement</span></span></div>
+      <div class="g-state"><span class="g-caption">Fell · undesirable</span><span class="ecrm-delta ecrm-delta--negative">↓ −0.7pp<span class="ecrm-sr-only">, deterioration</span></span></div>
+      <div class="g-state"><span class="g-caption">Fell · lower is better</span><span class="ecrm-delta ecrm-delta--positive">↓ −1.2pp<span class="ecrm-sr-only">, improvement</span></span></div>
+      <div class="g-state"><span class="g-caption">Rose · neutral metric</span><span class="ecrm-delta">+6.2%<span class="ecrm-sr-only">, neutral</span></span></div>
+      <div class="g-state"><span class="g-caption">Unchanged</span><span class="ecrm-delta">0.0pp<span class="ecrm-sr-only">, unchanged</span></span></div>
+      <div class="g-state"><span class="g-caption">Comparison unavailable</span><span class="ecrm-delta ecrm-delta--unavailable"><span aria-hidden="true" title="Comparison unavailable">—</span><span class="ecrm-sr-only">Comparison unavailable</span></span></div>
+    </div>
+    <div class="g-row g-row--top">
+      <div class="g-state"><span class="g-caption">Zero (a value)</span><span class="ecrm-kpi__value">0</span></div>
+      <div class="g-state"><span class="g-caption">No target set</span><span class="ecrm-kpi__value"><span class="ecrm-missing" aria-hidden="true" title="No target set">—</span><span class="ecrm-sr-only">No target set</span></span></div>
+      <div class="g-state"><span class="g-caption">Unavailable status</span><span class="ecrm-tag ecrm-tag--unavailable">Status unavailable</span></div>
+    </div>
+    <p class="g-note"><b>Sign and arrow direction are arithmetic:</b> ↑ means the value went up and ↓ means it went down. <b>Colour, and whether an arrow appears, show desirability</b>, which the consuming application classifies for each metric (higher-is-better, lower-is-better or neutral). Neutral and unchanged keep the sign and get no arrow. Hidden text names the meaning, so colour is never the only signal. <b>Zero</b> is the value 0. <b>No target set</b> and <b>Comparison unavailable</b> share the compact dash but each carry their own accessible text and legend.</p>
+  </div>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">KPI summary strip</h3><span class="g-cls g-cls--analytics">Analytics</span></div>
+    <div class="ecrm-kpi-strip" role="group" aria-label="Choose a stage to analyse" data-ecrm-press="single-required">
+      <button type="button" class="ecrm-kpi" aria-pressed="true"><span class="ecrm-kpi__label">Qualified</span><span class="ecrm-kpi__value">7,322</span><span class="ecrm-delta ecrm-delta--positive">↑ +903 · +14.1%<span class="ecrm-sr-only">, improvement</span></span></button>
+      <button type="button" class="ecrm-kpi" aria-pressed="false"><span class="ecrm-kpi__label">Applicants</span><span class="ecrm-kpi__value">4,272</span><span class="ecrm-delta ecrm-delta--positive">↑ +518 · +13.8%<span class="ecrm-sr-only">, improvement</span></span></button>
+      <button type="button" class="ecrm-kpi" aria-pressed="false"><span class="ecrm-kpi__label">Offer Holders</span><span class="ecrm-kpi__value">3,519</span><span class="ecrm-delta ecrm-delta--positive">↑ +492 · +16.3%<span class="ecrm-sr-only">, improvement</span></span></button>
+      <button type="button" class="ecrm-kpi" aria-pressed="false"><span class="ecrm-kpi__label">Deposits</span><span class="ecrm-kpi__value">907</span><span class="ecrm-delta ecrm-delta--negative">↓ −12 · −1.3%<span class="ecrm-sr-only">, deterioration</span></span></button>
+      <div class="ecrm-kpi"><span class="ecrm-kpi__label">Enrolled</span><span class="ecrm-kpi__value">154</span><span class="ecrm-delta ecrm-delta--unavailable">No previous intake</span><span class="ecrm-kpi__meta">Read-only (not selectable)</span></div>
+    </div>
+    <p class="g-note">Tab to a KPI to see the inset focus ring inside the clipped strip. Space or Enter selects it.</p>
+  </div>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Summary strip</h3><span class="g-cls g-cls--analytics">Analytics</span></div>
+    <div class="ecrm-panel ecrm-summary-strip">
+      <div class="ecrm-summary-strip__item"><span class="ecrm-summary-strip__label">Qualified</span><span class="ecrm-delta ecrm-delta--positive ecrm-delta--lg">↑ +903 (+14.1%)<span class="ecrm-sr-only">, improvement</span></span></div>
+      <div class="ecrm-summary-strip__item"><span class="ecrm-summary-strip__label">Applicant → Offer Holder %</span><span class="ecrm-delta ecrm-delta--positive ecrm-delta--lg">↑ +1.7pp<span class="ecrm-sr-only">, improvement</span></span></div>
+      <div class="ecrm-summary-strip__item"><span class="ecrm-summary-strip__label">Open pipeline</span><span class="ecrm-delta ecrm-delta--lg">+41<span class="ecrm-sr-only">, neutral</span></span></div>
+    </div>
+  </div>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Analysis control band</h3><span class="g-cls g-cls--analytics">Analytics</span></div>
+    <div class="ecrm-control-band">
+      <span class="ecrm-control-band__label" id="g-ab-l">Analyse by</span>
+      <button type="button" class="ecrm-select ecrm-select--sm" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="g-ab-l g-ab-v"><span class="ecrm-select__value" id="g-ab-v">Institution</span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button>
+      <div class="ecrm-segmented" role="radiogroup" aria-label="Measure"><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="true">Achievement</button><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false">Conversion</button></div>
+      <div class="ecrm-segmented ecrm-segmented--raised" role="radiogroup" aria-label="Period (raised appearance)"><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="true">Intake to date</button><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false">This week</button></div>
+    </div>
+    <p class="g-note">Both segmented appearances are shown as radio groups here. The raised one is not reserved for navigation (P3).</p>
+  </div>
+
+  <div class="g-cols">
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Findings list · selectable</h3><span class="g-cls g-cls--analytics">Analytics</span><span class="g-cls g-cls--project">Tag words: BP example</span></div>
+      <div class="ecrm-section-head"><h4 class="ecrm-section-head__title" id="g-kf-h">Key findings</h4><span class="ecrm-section-head__ctx">Institutions · Qualified · vs Previous Intake</span></div>
+      <div class="ecrm-findings" role="group" aria-labelledby="g-kf-h" data-ecrm-press="single">
+        <button type="button" class="ecrm-finding" aria-pressed="true"><span class="ecrm-tag ecrm-tag--primary">Primary</span><span><span class="ecrm-finding__title">Northfield University has the most qualified students</span><span class="ecrm-finding__line">1,397 · 19% of 7,322 in scope</span></span><span class="ecrm-finding__value">1,397</span></button>
+        <button type="button" class="ecrm-finding" aria-pressed="false"><span class="ecrm-tag ecrm-tag--info">Change</span><span><span class="ecrm-finding__title">Harbourside University rose most vs Sep 2025</span><span class="ecrm-finding__line">Qualified 893 · ↑ +24.7%</span></span><span class="ecrm-finding__value ecrm-delta--positive">+24.7%<span class="ecrm-sr-only">, improvement</span></span></button>
+        <button type="button" class="ecrm-finding" aria-pressed="false"><span class="ecrm-tag">Concentration</span><span><span class="ecrm-finding__title">Top 3 institutions hold 40% of qualified students</span><span class="ecrm-finding__line">Northfield 1,397 · Harbourside 893 · Westgate 647</span></span><span class="ecrm-finding__value">40%</span></button>
+        <div class="ecrm-finding"><span class="ecrm-tag ecrm-tag--warning">Data quality</span><span><span class="ecrm-finding__title">12 students have no business team</span><span class="ecrm-finding__line">Shown as Unassigned; not selectable</span></span><span></span></div>
+      </div>
+      <p class="g-note" aria-live="polite" id="g-kf-out">Selected finding: Northfield University has the most qualified students.</p>
+    </div>
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Evidence · investigation context</h3><span class="g-cls g-cls--analytics">Analytics</span><span class="g-cls g-cls--rc">Evidence card: RC candidate</span></div>
+      <div class="ecrm-investigation" role="region" aria-label="Investigation"><span class="ecrm-investigation__label">Investigating</span><span class="ecrm-investigation__title">Northfield University · Offer → Deposit</span><button type="button" class="ecrm-btn ecrm-btn--text ecrm-investigation__end">Clear</button></div>
+      <div class="g-stack" role="group" aria-label="Exceptions" data-ecrm-press="single">
+        <div class="ecrm-evidence is-selected" data-ecrm-selectable="">
+          <div class="ecrm-evidence__head"><button type="button" class="ecrm-evidence__select" aria-pressed="true"><span class="ecrm-evidence__title">Partial Deposit</span><span class="ecrm-evidence__count">6 affected students</span></button><span class="ecrm-tag ecrm-tag--warning">Separate sample</span></div>
+          <span class="ecrm-help-text">7 affected applications · counts are separate from the funnel totals</span>
+          <div class="ecrm-evidence__actions"><button type="button" class="ecrm-btn ecrm-btn--quiet">Investigate →</button><details class="ecrm-disclosure"><summary>Cutoffs</summary><div class="ecrm-disclosure__body">Payment status as at 25 Sep 2026</div></details></div>
+        </div>
+        <div class="ecrm-evidence" data-ecrm-selectable="">
+          <div class="ecrm-evidence__head"><button type="button" class="ecrm-evidence__select" aria-pressed="false"><span class="ecrm-evidence__title">Deferral awaiting approval</span><span class="ecrm-evidence__count">3 affected students</span></button></div>
+          <span class="ecrm-help-text">3 affected applications</span>
+          <div class="ecrm-evidence__actions"><button type="button" class="ecrm-btn ecrm-btn--quiet">Investigate →</button></div>
+        </div>
+      </div>
+      <div class="ecrm-status-note"><span class="ecrm-tag ecrm-tag--unavailable">Status unavailable</span><span class="ecrm-status-note__count">1 student</span><span>not counted as pending, and not a zero</span></div>
+      <p class="g-note">The card heading is the selection control (<code>aria-pressed</code>). Investigate → and Cutoffs stay separate controls. Exception rules and labels belong to the consumer.</p>
+    </div>
+  </div>
+
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Compact chart container · ranked bar list</h3><span class="g-cls g-cls--analytics">Analytics</span></div>
+    <div class="ecrm-chart">
+      <div class="ecrm-section-head"><h4 class="ecrm-section-head__title" id="g-bars-h">Qualified by Institution</h4><span class="ecrm-section-head__ctx">Students · Intake Sep 2026 · unique students</span></div>
+      <div class="ecrm-barlist" role="group" aria-labelledby="g-bars-h" data-ecrm-press="single">
+        <button type="button" class="ecrm-bar-row" aria-pressed="false"><span class="ecrm-bar-row__name">Northfield University<span class="ecrm-bar-row__share">19% of total</span></span><span class="ecrm-bar" aria-hidden="true"><span class="ecrm-bar__fill" style="width:100%"></span></span><span class="ecrm-bar-row__value">1,397</span><span class="ecrm-bar-row__end"><span class="ecrm-tag ecrm-tag--highlight">High volume</span><span class="ecrm-delta ecrm-delta--positive">↑ +15.3%<span class="ecrm-sr-only">, improvement</span></span></span></button>
+        <button type="button" class="ecrm-bar-row" aria-pressed="true"><span class="ecrm-bar-row__name">Harbourside University<span class="ecrm-bar-row__share">12% of total</span></span><span class="ecrm-bar" aria-hidden="true"><span class="ecrm-bar__fill" style="width:64%"></span></span><span class="ecrm-bar-row__value">893</span><span class="ecrm-bar-row__end"><span class="ecrm-delta ecrm-delta--positive">↑ +24.7%<span class="ecrm-sr-only">, improvement</span></span></span></button>
+        <button type="button" class="ecrm-bar-row" aria-pressed="false"><span class="ecrm-bar-row__name">Westgate College<span class="ecrm-bar-row__share">9% of total</span></span><span class="ecrm-bar" aria-hidden="true"><span class="ecrm-bar__fill" style="width:46%"></span></span><span class="ecrm-bar-row__value">647</span><span class="ecrm-bar-row__end"><span class="ecrm-delta ecrm-delta--negative">↓ −3.4%<span class="ecrm-sr-only">, deterioration</span></span></span></button>
+        <button type="button" class="ecrm-bar-row" aria-pressed="false"><span class="ecrm-bar-row__name">Lakeshore Institute<span class="ecrm-bar-row__share">5% of total</span></span><span class="ecrm-bar" aria-hidden="true"><span class="ecrm-bar__fill" style="width:24%"></span></span><span class="ecrm-bar-row__value">336</span><span class="ecrm-bar-row__end"><span class="ecrm-delta">+0.4%<span class="ecrm-sr-only">, neutral</span></span></span></button>
+      </div>
+      <div class="ecrm-show-more"><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--sm">Show all 20</button>Select a value to investigate the next level behind it.</div>
+      <span class="ecrm-chart__foot">Bar colour marks the series, not good or bad. The value and change are always shown as text.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TABLES ============ -->
+<section class="g-sec" id="tables">
+  <header><h2>Tables</h2><p class="g-note">The list table (Settings composition) is under Shell. Both tables are Business Performance components. The analytical table freezes only the identity column (header and cells carry explicit identity classes), groups headers, tints the Overall row (tinted, not vertically pinned), expands rows into their hierarchy, and sorts truthfully: parents reorder with their children, Overall stays first and missing values sort last.</p></header>
+  <div class="g-sub"><div class="g-head"><h3 class="g-h">Analytical hierarchy table</h3><span class="g-cls g-cls--analytics">Analytics</span></div>
+    <div class="ecrm-table-toolbar"><span class="ecrm-label" id="g-is-l">Intakes shown</span><div class="ecrm-segmented" role="radiogroup" aria-labelledby="g-is-l"><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="true">Current intake</button><button type="button" class="ecrm-segmented__item" role="radio" aria-checked="false">All selected</button></div><label class="ecrm-search ecrm-table-toolbar__end"><span class="ecrm-search__icon" aria-hidden="true">⌕</span><span class="ecrm-sr-only">Search institutions</span><input type="search" placeholder="Search institutions…"></label></div>
+    <div class="ecrm-table-wrap" id="g-an-wrap" role="region" aria-label="Institution table, scrolls horizontally" tabindex="0">
+      <table class="ecrm-table ecrm-table--analytic" id="g-an-table" data-ecrm-hierarchy="" data-ecrm-sortable="" style="min-width:960px">
+        <caption class="ecrm-sr-only">Achievement by institution and business area, sample data</caption>
+        <thead>
+          <tr><th scope="col" rowspan="2" class="ecrm-th-identity" style="vertical-align:bottom">Institution › Business Area</th><th scope="colgroup" colspan="6" class="ecrm-th-group">Achievement</th></tr>
+          <tr><th scope="col" class="is-selected-col" data-ecrm-col="1" aria-sort="descending"><button type="button" class="ecrm-sort">Qualified</button></th><th scope="col" data-ecrm-col="2" aria-sort="none"><button type="button" class="ecrm-sort">Applicants</button></th><th scope="col" data-ecrm-col="3" aria-sort="none"><button type="button" class="ecrm-sort">Offer Holders</button></th><th scope="col" data-ecrm-col="4" aria-sort="none"><button type="button" class="ecrm-sort">Deposits</button></th><th scope="col">CoE Received</th><th scope="col">Visa Applied</th></tr>
+        </thead>
+        <tbody>
+          <tr class="is-overall" data-ecrm-pin=""><th scope="row" class="ecrm-td-identity"><span class="ecrm-table__name">Overall</span><span class="ecrm-table__sub">20 institutions in scope</span></th><td class="is-selected-col"><span class="ecrm-cell-value">7,322</span><span class="ecrm-delta ecrm-delta--positive">↑ +14.1%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">4,272</span><span class="ecrm-delta ecrm-delta--positive">↑ +13.8%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">3,519</span><span class="ecrm-delta ecrm-delta--positive">↑ +16.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">907</span><span class="ecrm-delta ecrm-delta--positive">↑ +13.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">713</span><span class="ecrm-delta ecrm-delta--positive">↑ +13.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">677</span><span class="ecrm-delta ecrm-delta--positive">↑ +14.3%<span class="ecrm-sr-only">, improvement</span></span></td></tr>
+          <tr data-ecrm-row="nf"><th scope="row" class="ecrm-td-identity"><button type="button" class="ecrm-expand" aria-expanded="true" aria-controls="g-nf-1 g-nf-2" data-ecrm-name="Northfield University" aria-label="Collapse Northfield University">›</button><span class="ecrm-table__name">Northfield University</span><span class="ecrm-table__sub ecrm-table__sub--indent">UK · Priority</span></th><td class="is-selected-col"><span class="ecrm-cell-value">1,397</span><span class="ecrm-delta ecrm-delta--positive">↑ +15.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">828</span><span class="ecrm-delta ecrm-delta--positive">↑ +15.0%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">740</span><span class="ecrm-delta ecrm-delta--positive">↑ +21.2%<span class="ecrm-sr-only">, improvement</span></span></td><td class="is-selected-cell"><span class="ecrm-cell-value">135</span><span class="ecrm-delta">+0.1%<span class="ecrm-sr-only">, neutral</span></span><span class="ecrm-sr-only">, selected cell</span></td><td><span class="ecrm-cell-value">102</span><span class="ecrm-delta ecrm-delta--negative">↓ −0.2%<span class="ecrm-sr-only">, deterioration</span></span></td><td><span class="ecrm-cell-value">96</span><span class="ecrm-delta ecrm-delta--positive">↑ +1.5%<span class="ecrm-sr-only">, improvement</span></span></td></tr>
+          <tr class="is-child" id="g-nf-1" data-ecrm-child-of="nf"><th scope="row" class="ecrm-td-identity"><span class="ecrm-table__name">UK · South</span><span class="ecrm-table__sub">Business Area</span></th><td class="is-selected-col"><span class="ecrm-cell-value">812</span><span class="ecrm-delta ecrm-delta--positive">↑ +9.8%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">470</span><span class="ecrm-delta">+2.0%<span class="ecrm-sr-only">, neutral</span></span></td><td><span class="ecrm-cell-value">411</span><span class="ecrm-delta ecrm-delta--positive">↑ +11.4%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">77</span><span class="ecrm-delta ecrm-delta--negative">↓ −4.9%<span class="ecrm-sr-only">, deterioration</span></span></td><td><span class="ecrm-cell-value">58</span><span class="ecrm-delta">0.0%<span class="ecrm-sr-only">, unchanged</span></span></td><td><span class="ecrm-cell-value">55</span><span class="ecrm-delta ecrm-delta--unavailable"><span aria-hidden="true" title="Comparison unavailable">—</span><span class="ecrm-sr-only">Comparison unavailable</span></span></td></tr>
+          <tr class="is-child" id="g-nf-2" data-ecrm-child-of="nf"><th scope="row" class="ecrm-td-identity"><span class="ecrm-table__name">UK · North</span><span class="ecrm-table__sub">Business Area</span></th><td class="is-selected-col"><span class="ecrm-cell-value">585</span><span class="ecrm-delta ecrm-delta--positive">↑ +23.2%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">358</span><span class="ecrm-delta ecrm-delta--positive">↑ +34.6%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">329</span><span class="ecrm-delta ecrm-delta--positive">↑ +34.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">58</span><span class="ecrm-delta ecrm-delta--positive">↑ +7.4%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">44</span><span class="ecrm-delta">+0.4%<span class="ecrm-sr-only">, neutral</span></span></td><td><span class="ecrm-cell-value">41</span><span class="ecrm-delta ecrm-delta--positive">↑ +2.5%<span class="ecrm-sr-only">, improvement</span></span></td></tr>
+          <tr data-ecrm-row="hs"><th scope="row" class="ecrm-td-identity"><button type="button" class="ecrm-expand" aria-expanded="false" aria-controls="g-hs-1" data-ecrm-name="Harbourside University" aria-label="Expand Harbourside University">›</button><span class="ecrm-table__name">Harbourside University</span><span class="ecrm-table__sub ecrm-table__sub--indent">UK · Express</span></th><td class="is-selected-col"><span class="ecrm-cell-value">893</span><span class="ecrm-delta ecrm-delta--positive">↑ +24.7%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">519</span><span class="ecrm-delta ecrm-delta--positive">↑ +24.6%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">493</span><span class="ecrm-delta ecrm-delta--positive">↑ +27.1%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">82</span><span class="ecrm-delta ecrm-delta--positive">↑ +3.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">69</span><span class="ecrm-delta ecrm-delta--positive">↑ +5.9%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">64</span><span class="ecrm-delta ecrm-delta--positive">↑ +0.9%<span class="ecrm-sr-only">, improvement</span></span></td></tr>
+          <tr class="is-child" id="g-hs-1" data-ecrm-child-of="hs" hidden><th scope="row" class="ecrm-td-identity"><span class="ecrm-table__name">UK · East</span><span class="ecrm-table__sub">Business Area</span></th><td class="is-selected-col"><span class="ecrm-cell-value">502</span><span class="ecrm-delta ecrm-delta--positive">↑ +18.2%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">301</span><span class="ecrm-delta ecrm-delta--positive">↑ +19.0%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">280</span><span class="ecrm-delta ecrm-delta--positive">↑ +22.8%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">47</span><span class="ecrm-delta ecrm-delta--positive">↑ +4.4%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">39</span><span class="ecrm-delta ecrm-delta--positive">↑ +8.3%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">36</span><span class="ecrm-delta ecrm-delta--positive">↑ +2.9%<span class="ecrm-sr-only">, improvement</span></span></td></tr>
+          <tr data-ecrm-row="wg"><th scope="row" class="ecrm-td-identity"><span class="ecrm-table__name">Westgate College</span><span class="ecrm-table__sub">UK</span></th><td class="is-selected-col"><span class="ecrm-cell-value">647</span><span class="ecrm-delta ecrm-delta--negative">↓ −3.4%<span class="ecrm-sr-only">, deterioration</span></span></td><td><span class="ecrm-cell-value">902</span><span class="ecrm-delta ecrm-delta--positive">↑ +6.1%<span class="ecrm-sr-only">, improvement</span></span></td><td><span class="ecrm-cell-value">310</span><span class="ecrm-delta">+0.3%<span class="ecrm-sr-only">, neutral</span></span></td><td><span class="ecrm-cell-value">61</span><span class="ecrm-delta ecrm-delta--negative">↓ −6.2%<span class="ecrm-sr-only">, deterioration</span></span></td><td><span class="ecrm-cell-value">50</span><span class="ecrm-delta">0.0%<span class="ecrm-sr-only">, unchanged</span></span></td><td><span class="ecrm-cell-value">47</span><span class="ecrm-delta ecrm-delta--unavailable"><span aria-hidden="true" title="Comparison unavailable">—</span><span class="ecrm-sr-only">Comparison unavailable</span></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="g-legend"><span><b>—</b> in a change line = comparison unavailable (not zero)</span><span>Ring = selected cell (static specimen; tint = selected column)</span><span class="ecrm-sr-only" data-ecrm-sort-status="g-an-table" role="status"></span></div>
+    <div class="ecrm-show-more"><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--sm">Show all 20</button>Expand a row to see its business areas. Sort by Qualified, Applicants, Offer Holders or Deposits.</div>
+  </div>
+</section>
+
+<!-- ============ WORKFLOW ============ -->
+<section class="g-sec" id="workflow">
+  <header><h2>Workflow</h2><p class="g-note">Drawer anatomy and modal mechanics come from the rc2.36 Filters drawer, which the brief accepts. <b>Open filters</b> launches the real modal: focus moves to the title, Tab and Shift+Tab stay inside, the page behind is inert, Escape / × / Cancel / scrim close it, and focus returns to the trigger. The draft, Reset and Apply behaviour is <b>this demo's policy</b>, not a universal rule; each product sets its own.</p></header>
+  <div class="g-cols">
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Modal drawer · working recipe</h3><span class="g-cls g-cls--workflow">Workflow</span></div>
+      <div class="g-row"><button type="button" class="ecrm-btn ecrm-btn--secondary" id="g-open-drawer" aria-haspopup="dialog" aria-expanded="false" aria-controls="g-drawer">Open filters</button><span class="ecrm-meta-text" id="g-drawer-result" aria-live="polite">No filters applied.</span></div>
+      <div class="g-head g-mt"><h3 class="g-h">Static anatomy specimen</h3><span class="g-cls g-cls--workflow">Not a dialog</span></div>
+      <div class="ecrm-drawer ecrm-drawer--specimen" role="img" aria-label="Static picture of the drawer anatomy: header, grouped fields, change list and footer actions">
+        <div class="ecrm-drawer__head" aria-hidden="true"><div class="ecrm-drawer__heading"><span class="ecrm-drawer__title">Filters</span><span class="ecrm-drawer__desc">Choose who is included. Apply to update your selections.</span></div><span class="ecrm-icon-btn">×</span></div>
+        <div class="ecrm-drawer__body" aria-hidden="true">
+          <div class="ecrm-drawer__group"><span class="ecrm-label">Organisation</span>
+            <div class="ecrm-field"><span class="ecrm-field-name">Business Region</span><span class="ecrm-select ecrm-select--drawer is-active"><span class="ecrm-select__value">Europe</span><span class="ecrm-select__chev">▾</span></span></div>
+            <div class="ecrm-field"><span class="ecrm-field-name">Business Team</span><span class="ecrm-select ecrm-select--drawer"><span class="ecrm-select__value">All teams</span><span class="ecrm-select__chev">▾</span></span></div>
+          </div>
+        </div>
+        <div class="ecrm-drawer__foot" aria-hidden="true">
+          <div class="ecrm-drawer__changes"><strong>1 change not yet applied</strong><span><b>Business Region</b> · All → Europe</span></div>
+          <div class="ecrm-drawer__actions"><span class="ecrm-btn ecrm-btn--secondary ecrm-btn--lg">Reset filters</span><span class="ecrm-spacer"></span><span class="ecrm-btn ecrm-btn--neutral ecrm-btn--lg">Cancel</span><span class="ecrm-btn ecrm-btn--primary ecrm-btn--lg">Apply 1 change</span></div>
+        </div>
+      </div>
+      <p class="g-note">The specimen is limited to its column width (it fits at 1024). The real modal keeps <code>--ecrm-drawer-width: min(480px, 100vw)</code>.</p>
+    </div>
+    <div class="g-sub"><div class="g-head"><h3 class="g-h">Read-only detail</h3><span class="g-cls g-cls--p5">Approved extension · P5</span></div>
+      <div class="ecrm-panel ecrm-panel--pad g-stack">
+        <div class="ecrm-section-head"><h4 class="ecrm-section-head__title">Target summary</h4><span class="ecrm-tag ecrm-tag--plain">Read-only</span><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--sm ecrm-investigation__end">Edit targets</button></div>
+        <dl class="ecrm-detail"><dt>Intake</dt><dd>Sep 2026</dd><dt>Level</dt><dd>Individual</dd><dt>Target owner</dt><dd>Team Europe</dd><dt>Last changed</dt><dd>12 Sep 2026</dd></dl>
+      </div>
+      <p class="g-note">View first, with an explicit action to edit. What edit mode contains is the consumer's design. History, approval and destructive-confirm patterns are future extensions and not part of v1.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+</div>
+
+<!-- Modal drawer: direct children of <body> so the rest of the page can be made inert -->
+<div class="ecrm-drawer-scrim" hidden></div>
+<div class="ecrm-drawer" id="g-drawer" role="dialog" aria-modal="true" aria-labelledby="g-dr-h" aria-describedby="g-dr-d" hidden>
+  <div class="ecrm-drawer__head"><div class="ecrm-drawer__heading"><h2 class="ecrm-drawer__title" id="g-dr-h" tabindex="-1">Filters</h2><span class="ecrm-drawer__desc" id="g-dr-d">Choose who is included. Apply to update the page. Cancel keeps the current filters.</span></div><button type="button" class="ecrm-icon-btn" data-ecrm-drawer-close="cancel" aria-label="Close filters without applying">×</button></div>
+  <div class="ecrm-drawer__body" id="g-dr-body"></div>
+  <div class="ecrm-drawer__foot">
+    <div class="ecrm-drawer__changes" role="status" aria-live="polite" id="g-dr-changes"></div>
+    <div class="ecrm-drawer__actions"><button type="button" class="ecrm-btn ecrm-btn--secondary ecrm-btn--lg" id="g-dr-reset">Reset filters</button><span class="ecrm-spacer"></span><button type="button" class="ecrm-btn ecrm-btn--neutral ecrm-btn--lg" data-ecrm-drawer-close="cancel">Cancel</button><button type="button" class="ecrm-btn ecrm-btn--primary ecrm-btn--lg" id="g-dr-apply">Apply</button></div>
+  </div>
+</div>
+
+<script src="edvoy-crm-gallery-recipes.js"></script>
+<script>
+// Gallery demo wiring only. Behaviour comes from EcrmRecipes; data and the
+// drawer Apply/Reset policy below are DEMO policy, not system rules.
+(function () {
+  var R = window.EcrmRecipes, root = getComputedStyle(document.documentElement);
+  function $(s, c) { return (c || document).querySelector(s); }
+  function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
+
+  $$('[data-swatches]').forEach(function (g) {
+    g.getAttribute('data-swatches').split(' ').forEach(function (k) {
+      var crm = k.indexOf('crm:') === 0, name = crm ? '--ecrm-' + k.slice(4) : '--ecrm-color-' + k;
+      var v = root.getPropertyValue(name).trim(), d = document.createElement('div'); d.className = 'g-sw';
+      d.innerHTML = '<i style="background:' + v + '"></i><div><b>' + k.replace('crm:', '') + '</b><code>' + name + '</code><code>' + v + '</code></div>';
+      g.appendChild(d);
+    });
+  });
+  var sp = $('#g-space');
+  for (var i = 1; i <= 14; i++) { var v = root.getPropertyValue('--ecrm-space-' + i).trim(); sp.insertAdjacentHTML('beforeend', '<div class="g-row" style="gap:10px;font-size:11.5px"><code style="width:140px">--ecrm-space-' + i + ' · ' + v + '</code><span class="g-box" style="width:' + v + '"></span></div>'); }
+
+  R.initAll(document);
+
+  // Frame width (layout preview only)
+  $('#g-width').addEventListener('ecrm-change', function (e) { $('#g-frame').style.maxWidth = e.detail.item.getAttribute('data-w'); });
+
+  // Multi-select count
+  $('#g-tags-lb').addEventListener('ecrm-change', function () { $('#g-tags-n').textContent = $$('#g-tags-lb [aria-selected="true"]').length + ' selected'; });
+
+  // Findings output (no scrolling)
+  $('.ecrm-findings').addEventListener('ecrm-change', function () {
+    var on = $('.ecrm-findings [aria-pressed="true"] .ecrm-finding__title');
+    $('#g-kf-out').textContent = on ? 'Selected finding: ' + on.textContent + '.' : 'No finding selected.';
+  });
+
+  // Validation demo
+  var inp = $('#g-target-input');
+  inp.addEventListener('input', function () {
+    var ok = /^\d+$/.test(inp.value.trim());
+    inp.setAttribute('aria-invalid', String(!ok));
+    $('#g-err').hidden = ok; $('#g-val-sum').hidden = ok;
+  });
+
+  // Busy demo
+  var bb = $('#g-busy-btn'), reg = $('#g-busy-region'), st = $('#g-busy-status');
+  bb.addEventListener('click', function () {
+    reg.setAttribute('aria-busy', 'true'); bb.setAttribute('aria-disabled', 'true'); bb.title = 'Already refreshing'; bb.textContent = 'Refreshing…';
+    st.textContent = 'Refreshing team targets…';
+    setTimeout(function () { reg.setAttribute('aria-busy', 'false'); bb.removeAttribute('aria-disabled'); bb.removeAttribute('title'); bb.textContent = 'Refresh'; st.textContent = 'Team targets updated.'; }, 1600);
+  });
+
+  // ── Drawer demo (DEMO POLICY: draft until Apply; Reset sets the draft to All) ──
+  var FIELDS = [
+    { k: 'region', group: 'Organisation', name: 'Business Region', opts: ['All regions', 'Europe', 'Middle East', 'South Asia'] },
+    { k: 'team', group: 'Organisation', name: 'Business Team', opts: ['All teams', 'Team Europe', 'Team Gulf'] },
+    { k: 'level', group: 'Students and programmes', name: 'Study Level', opts: ['All levels', 'Undergraduate', 'Postgraduate'] }
+  ];
+  var applied = { region: 0, team: 0, level: 0 }, draft = null, openPop = null, drawer = $('#g-drawer'), body = $('#g-dr-body');
+  function build() {
+    var html = '', g = null;
+    FIELDS.forEach(function (f, idx) {
+      if (f.group !== g) { if (g) html += '</section>'; g = f.group; html += '<section class="ecrm-drawer__group" role="group" aria-labelledby="g-grp-' + idx + '"><span class="ecrm-label" id="g-grp-' + idx + '">' + g + '</span>'; }
+      html += '<div class="ecrm-field"><span class="ecrm-field-name" id="g-f-' + f.k + '-l">' + f.name + '</span>' +
+        '<button type="button" class="ecrm-select ecrm-select--drawer" id="g-f-' + f.k + '" aria-haspopup="listbox" aria-expanded="false" aria-controls="g-f-' + f.k + '-lb" aria-labelledby="g-f-' + f.k + '-l g-f-' + f.k + '-v"><span class="ecrm-select__value" id="g-f-' + f.k + '-v"></span><span class="ecrm-select__chev" aria-hidden="true">▾</span></button>' +
+        '<div class="ecrm-popover ecrm-popover--inline" hidden id="g-f-' + f.k + '-pop"><div class="ecrm-listbox" role="listbox" id="g-f-' + f.k + '-lb" aria-labelledby="g-f-' + f.k + '-l">' +
+        f.opts.map(function (o, i) { return '<div class="ecrm-option" role="option" aria-selected="false" data-i="' + i + '">' + o + '</div>'; }).join('') + '</div></div></div>';
+    });
+    body.innerHTML = html + '</section>';
+    FIELDS.forEach(function (f) {
+      var lb = $('#g-f-' + f.k + '-lb'); R.initListbox(lb);
+      $('#g-f-' + f.k).addEventListener('click', function () { togglePop(f, true); });
+      lb.addEventListener('ecrm-change', function (e) { draft[f.k] = +e.detail.item.getAttribute('data-i'); togglePop(f, false); render(); });
+    });
+  }
+  function togglePop(f, open) {
+    var pop = $('#g-f-' + f.k + '-pop'), trg = $('#g-f-' + f.k);
+    if (openPop && openPop !== f) togglePop(openPop, false);
+    open = open && pop.hidden;
+    pop.hidden = !open; trg.setAttribute('aria-expanded', String(open)); openPop = open ? f : null;
+    if (open) { var sel = $('[aria-selected="true"]', pop) || $('[role="option"]', pop); sel.setAttribute('tabindex', '0'); sel.focus({ preventScroll: true }); }
+    else trg.focus({ preventScroll: true });
+  }
+  drawer.addEventListener('keydown', function (e) { if (e.key === 'Escape' && openPop) { e.preventDefault(); togglePop(openPop, false); } });
+  function changes() { return FIELDS.filter(function (f) { return draft[f.k] !== applied[f.k]; }); }
+  function render() {
+    FIELDS.forEach(function (f) {
+      var trg = $('#g-f-' + f.k); $('#g-f-' + f.k + '-v').textContent = f.opts[draft[f.k]];
+      trg.classList.toggle('is-active', draft[f.k] !== 0);
+      $$('[role="option"]', $('#g-f-' + f.k + '-lb')).forEach(function (o, i) { o.setAttribute('aria-selected', String(i === draft[f.k])); });
+    });
+    var ch = changes(), box = $('#g-dr-changes');
+    box.innerHTML = ch.length ? '<strong>' + ch.length + ' change' + (ch.length > 1 ? 's' : '') + ' not yet applied</strong>' + ch.map(function (f) { return '<span><b>' + f.name + '</b> · ' + f.opts[applied[f.k]] + ' → ' + f.opts[draft[f.k]] + '</span>'; }).join('') : '';
+    var ap = $('#g-dr-apply'); ap.textContent = ch.length ? 'Apply ' + ch.length + ' change' + (ch.length > 1 ? 's' : '') : 'Apply';
+    if (ch.length) { ap.removeAttribute('aria-disabled'); ap.removeAttribute('title'); } else { ap.setAttribute('aria-disabled', 'true'); ap.title = 'No changes to apply'; }
+    var none = FIELDS.every(function (f) { return draft[f.k] === 0; }), rs = $('#g-dr-reset');
+    if (none) { rs.setAttribute('aria-disabled', 'true'); rs.title = 'Filters are already set to All'; } else { rs.removeAttribute('aria-disabled'); rs.removeAttribute('title'); }
+  }
+  function showApplied() {
+    var act = FIELDS.filter(function (f) { return applied[f.k] !== 0; }), n = act.length, c = $('#g-filters-count');
+    c.hidden = !n; c.textContent = n; $('#g-filters-sr').textContent = n ? ', ' + n + ' active' : '';
+    $('#g-drawer-result').textContent = n ? 'Applied: ' + act.map(function (f) { return f.name + ' = ' + f.opts[applied[f.k]]; }).join(' · ') : 'No filters applied.';
+    $('#g-applied').innerHTML = act.map(function (f) { return '<span class="ecrm-chip">' + f.name + ': ' + f.opts[applied[f.k]] + '<button type="button" class="ecrm-chip__remove" data-k="' + f.k + '" aria-label="Remove filter ' + f.name + ': ' + f.opts[applied[f.k]] + '">×</button></span>'; }).join('');
+  }
+  $('#g-applied').addEventListener('click', function (e) { var b = e.target.closest('[data-k]'); if (b) { applied[b.getAttribute('data-k')] = 0; showApplied(); $('#g-filters-btn').focus({ preventScroll: true }); } });
+  function open(trigger) { draft = { region: applied.region, team: applied.team, level: applied.level }; build(); render(); R.Drawer.open(drawer, trigger); }
+  $('#g-open-drawer').addEventListener('click', function () { open(this); });
+  $('#g-filters-btn').addEventListener('click', function () { open(this); });
+  $('#g-dr-reset').addEventListener('click', function () { FIELDS.forEach(function (f) { draft[f.k] = 0; }); render(); });
+  $('#g-dr-apply').addEventListener('click', function () { applied = { region: draft.region, team: draft.team, level: draft.level }; R.Drawer.close('apply'); });
+  drawer.addEventListener('ecrm-drawer-close', function () { openPop = null; draft = null; showApplied(); });
+  showApplied();
+})();
+</script>
+</body>
+</html>
