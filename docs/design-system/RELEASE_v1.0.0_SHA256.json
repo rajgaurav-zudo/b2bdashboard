@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "status": "frozen",
+  "frozen_on": "2026-10-01",
+  "algorithm": "SHA-256",
+  "files": {
+    "CLAUDE_DESIGN_INSTRUCTIONS.md": "f6ee3df1c0fc016b505d05a9ae7bc54f2c5fcc1c26f64d6b133aa3b103e80cd5",
+    "DESIGN_SYSTEM_V1_ACCEPTANCE.md": "1592422dba138f3eed3a65a22f12a6f071eded44cc47f270c5fdb21d7a51d43d",
+    "EDVOY_CRM_COMPONENT_GALLERY.html": "bbedf2a96a397217755644d3676ae924a8e3c46943f33ed03c4ee548248971ca",
+    "EDVOY_CRM_COMPONENT_INVENTORY.md": "07b7e3aa6ddaccee6e82902187a8d74793b875f83114995697ac41c1e2fcdf9e",
+    "EDVOY_CRM_DESIGN_SYSTEM.md": "040dcc22f8c47290cc462056a1b410e4beda212803af298d8cf70c971185251c",
+    "EDVOY_CRM_DESIGN_SYSTEM_DECISIONS.md": "3b77afdce53f811575c8932b04d37e4e9dd77af7dec77c837f77242d37d43055",
+    "Edvoy CRM Design System Gallery (standalone).html": "56e4c1148ac46419d5ac23279e85148704254eb9d6b28a6313e66dbee2266486",
+    "RELEASE_v1.0.0.md": "3e880042d492397be15e37072eee8526863e9dd1000025ea68212c53d72e2d83",
+    "VERSION": "59854984853104df5c353e2f681a15fc7924742f9a2e468c29af248dce45ce03",
+    "css/edvoy-crm-components.css": "09513122ef4b0363e01d09a8a232d6a8d1a9fcd4968f0c641ee2105374c1728b",
+    "css/edvoy-crm-design-tokens.css": "ddb9800a9e83aa13aacbaf4d37729e5e84f639bbd1abae471f36f3dc8c2b1236",
+    "css/fonts/figtree-latin-ext.woff2": "f153aa07c1b16fbb12391c2512860c97819a0a9fd014f338b2b3f12496479d13",
+    "css/fonts/figtree-latin.woff2": "8330490a01c60c196eae00b823de8102275aaa5862e7b76a7af21b8745338928",
+    "gallery/EDVOY_CRM_COMPONENT_GALLERY.html": "00edac78a0b3d364d5f9db6c9de6eb6629136b4035ad1efccb4afb0a031d52e9",
+    "gallery/edvoy-crm-gallery-recipes.js": "7abd6c9465e120428734721428413db6a3fc21fbee0a995b9690ccda8e03cc12",
+    "references/Business Performance v1.3.0.html": "b5de0b488d14721fab87dfda733a88896f8c23cd688ae73f154942ec0f906cc4",
+    "references/Business Performance v1.4.0-rc2.36.html": "f0f8826e61a7c59ab9c553c9100f9382cd47b9cc4ee6900df7edc031c1b1d88e",
+    "references/crm-kpi-targets-current.png": "8c91e4402b47b99043cabd1c6c30b549e0b191742efd12efaed370c59a0393ab"
+  }
+}

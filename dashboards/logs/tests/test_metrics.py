@@ -262,6 +262,27 @@ def test_selecting_every_team_is_not_the_same_code_path_as_selecting_none(logs):
     assert everyone["week_kpis"]["total"] == named["week_kpis"]["total"] == 5
 
 
+def test_the_region_filter_is_the_teams_in_that_region(logs):
+    logs.load([*[_log(W2, managed_by_team="China B2B SRMs") for _ in range(3)],
+               *[_log(W2, managed_by_team="China UK B2C") for _ in range(2)],
+               *[_log(W2, managed_by_team="Thai B2B SRMs") for _ in range(4)],
+               *[_log(W2, managed_by_team="Europe") for _ in range(1)],
+               *[_log(W2, managed_by_team=None) for _ in range(1)]])
+    total = lambda **p: logs.overview(week=W2.isoformat(), **p)["week_kpis"]["total"]  # noqa: E731
+    assert total(region="China") == 5
+    assert total(region="China|Thailand") == 9
+    # a team outside the mapping, and a blank one, sit in Other
+    assert total(region="Other") == 2
+    assert total(region="China", team="China UK B2C") == 2
+    # a team from another region keeps nobody, rather than everybody
+    assert total(region="China", team="Thai B2B SRMs") == 0
+
+    out = logs.overview(week=W2.isoformat(), region="China")
+    assert out["filters"]["regions"] == ["China"] and out["filters"]["teams"] == []
+    assert {r["region"]: r["n"] for r in out["regions"]} == {"China": 5, "Thailand": 4, "Other": 2}
+    assert {r["team"]: r["region"] for r in out["teams"]}["Europe"] == "Other"
+
+
 def test_the_type_filter_narrows_the_tables_but_not_the_kpi_row(logs):
     """The KPI row and the chart are *by* type; filtering them leaves one bar."""
     logs.load([*[_log(W2, log_type="Call") for _ in range(6)],

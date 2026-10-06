@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { Overview } from "../../api/types";
 import { Control } from "../../ui/FilterControl";
 import { DateRange } from "../../ui/DateRange";
-import { MultiSelect } from "../../ui/MultiSelect";
+import { RegionTeam, joinParam } from "../../ui/RegionTeam";
 
 /** Writes the filters into the URL; a null or empty value removes the key. */
 type SetParams = (changes: Record<string, string | null>) => void;
@@ -11,7 +11,7 @@ type SetParams = (changes: Record<string, string | null>) => void;
 /** What is picked, read from the URL rather than from the overview: the
  *  overview lags a click by a round trip, and a second pick made in that gap
  *  would build on the stale list and drop the first. */
-export interface Selection { teams: string[]; cycles: number[] }
+export interface Selection { regions: string[]; teams: string[]; cycles: number[] }
 
 interface PartProps {
   overview: Overview; selection: Selection; set: SetParams;
@@ -25,7 +25,7 @@ const CYCLES = [
   { i: 2, label: "September", hint: "Aug–Oct" },
 ];
 
-/** Team, date range, intake, and whether to compare with the same months a
+/** Region, team, date range, intake, and whether to compare with the same months a
  *  year earlier.
  *
  *  The date range is an intake-period window: intake year and month are the
@@ -33,18 +33,23 @@ const CYCLES = [
  *  whole current intake year, rather than to no window -- every "current"
  *  figure on the page needs one. */
 export function FilterBar({ overview, selection, set }: { overview: Overview; selection: Selection; set: SetParams }) {
-  const [open, setOpen] = useState<"team" | "when" | "intake" | null>(null);
-  const toggle = (which: "team" | "when" | "intake") =>
+  const [open, setOpen] = useState<"region" | "team" | "when" | "intake" | null>(null);
+  const toggle = (which: "region" | "team" | "when" | "intake") =>
     setOpen((current) => (current === which ? null : which));
   const close = () => setOpen(null);
 
   const { period } = overview;
   const comparing = overview.compare !== null;
-  const dirty = selection.teams.length > 0 || selection.cycles.length > 0 || !period.is_default || comparing;
+  const dirty = selection.regions.length > 0 || selection.teams.length > 0 || selection.cycles.length > 0 || !period.is_default || comparing;
 
   return (
     <div className="i360-bar">
-      <Team overview={overview} selection={selection} set={set} open={open === "team"} onToggle={() => toggle("team")} onClose={close} />
+      <RegionTeam
+        regionOptions={overview.region_options} teamOptions={overview.team_options}
+        regions={selection.regions} teams={selection.teams}
+        onChange={(next) => set({ regions: joinParam(next.regions), teams: joinParam(next.teams) })}
+        open={open === "region" || open === "team" ? open : null} onToggle={toggle} onClose={close}
+      />
       <When overview={overview} selection={selection} set={set} open={open === "when"} onToggle={() => toggle("when")} onClose={close} />
       <Intake overview={overview} selection={selection} set={set} open={open === "intake"} onToggle={() => toggle("intake")} onClose={close} />
 
@@ -62,37 +67,12 @@ export function FilterBar({ overview, selection, set }: { overview: Overview; se
         <button
           type="button"
           className="i360-clear"
-          onClick={() => set({ teams: null, from: null, to: null, cycles: null, compare: null })}
+          onClick={() => set({ regions: null, teams: null, from: null, to: null, cycles: null, compare: null })}
         >
           Clear all
         </button>
       ) : null}
     </div>
-  );
-}
-
-// --------------------------------------------------------------------------
-// team
-// --------------------------------------------------------------------------
-
-function Team({ overview, selection, set, open, onToggle, onClose }: PartProps) {
-  const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  // a few dozen teams: filtered here, not searched on the server. Counted
-  // without the Team filter, so a picked team does not hide the rest.
-  const options = overview.team_options
-    .filter((o) => o.team.toLowerCase().includes(needle))
-    .map((o) => ({ name: o.team, n: o.n }));
-  return (
-    <MultiSelect
-      label="Team" all="All teams" many={(n) => `${n} teams`}
-      chosen={selection.teams}
-      // `|`, not a comma: team names are free text
-      onChange={(next) => set({ teams: next.length ? next.join("|") : null })}
-      options={options}
-      query={q} onQuery={setQ} placeholder="Search teams…"
-      open={open} onToggle={onToggle} onClose={onClose}
-    />
   );
 }
 

@@ -5,6 +5,7 @@ import type { I360MenuView, I360Overview } from "../../api/types";
 import { n0 } from "../../format";
 import { Control } from "../../ui/FilterControl";
 import { MultiSelect } from "../../ui/MultiSelect";
+import { RegionTeam, joinParam } from "../../ui/RegionTeam";
 import { dayLabel } from "../../ui/dates";
 import { DateRange } from "../../ui/DateRange";
 
@@ -12,7 +13,7 @@ import { DateRange } from "../../ui/DateRange";
  *  `isSet` flag below, which says whether a control has a value to clear. */
 type SetParams = (changes: Record<string, string | null>) => void;
 
-/** Introducer, date range, intake, and whether to compare with last year.
+/** Region, team, introducer, date range, intake, and whether to compare with last year.
  *
  *  Every control that is set carries its own ✕, and the ✕ stops the click from
  *  reaching the button underneath it -- otherwise clearing a filter opens the
@@ -22,16 +23,23 @@ type SetParams = (changes: Record<string, string | null>) => void;
 export function FilterBar({ slug, overview, set }: {
   slug: string; overview: I360Overview; set: SetParams;
 }) {
-  const [open, setOpen] = useState<"who" | "when" | "intake" | null>(null);
-  const toggle = (which: "who" | "when" | "intake") =>
+  const [open, setOpen] = useState<"region" | "team" | "who" | "when" | "intake" | null>(null);
+  const toggle = (which: "region" | "team" | "who" | "when" | "intake") =>
     setOpen((current) => (current === which ? null : which));
 
-  const { selected, range, intake } = overview;
-  const dirty = selected.length > 0 || range.id !== "this_week"
+  const { selected, range, intake, filters } = overview;
+  const dirty = selected.length > 0 || filters.regions.length > 0 || filters.teams.length > 0 || range.id !== "this_week"
     || intake.year !== null || overview.compare;
 
   return (
     <div className="i360-bar">
+      <RegionTeam
+        regionOptions={overview.region_options} teamOptions={overview.team_options}
+        regions={filters.regions} teams={filters.teams}
+        onChange={(next) => set({ regions: joinParam(next.regions), teams: joinParam(next.teams) })}
+        open={open === "region" || open === "team" ? open : null} onToggle={toggle}
+        onClose={() => setOpen(null)}
+      />
       <Who slug={slug} overview={overview} set={set}
            open={open === "who"} onToggle={() => toggle("who")} onClose={() => setOpen(null)} />
       <When overview={overview} set={set}
@@ -53,7 +61,7 @@ export function FilterBar({ slug, overview, set }: {
         <button
           type="button"
           className="i360-clear"
-          onClick={() => set({ introducers: null, range: null, from: null, to: null,
+          onClick={() => set({ regions: null, teams: null, introducers: null, range: null, from: null, to: null,
                                intake_year: null, intake_cycle: null, compare: null })}
         >
           Clear all

@@ -16,3 +16,13 @@ export const teamLabel = (teams: string[]): string =>
 /** The same thing on the button, where "no filter" has to say something. */
 export const teamFace = (teams: string[]): string =>
   teams.length === 0 ? "All teams" : teamLabel(teams);
+
+export const regionLabel = (regions: string[]): string =>
+  regions.length === 0 ? "" : regions.length === 1 ? regions[0] ?? "" : `${regions.length} regions`;
+
+export const regionFace = (regions: string[]): string =>
+  regions.length === 0 ? "All regions" : regionLabel(regions);
+
+/** Region and team together, for a sentence; empty when neither is set. */
+export const scopeLabel = (regions: string[], teams: string[]): string =>
+  [regionLabel(regions), teamLabel(teams)].filter(Boolean).join(" · ");

@@ -145,6 +145,19 @@ export interface DatasetState {
   uploaded_by: string | null;
 }
 
+/** What a download would be read from: the newest good upload of each source. */
+export interface DownloadSource {
+  source: string;
+  name: string;
+  upload_id: number | null;
+  filename: string | null;
+  uploaded_at: string | null;
+}
+
+export interface Downloads {
+  weekly_summary: { sources: DownloadSource[] };
+}
+
 export interface SourceSummary {
   slug: string;
   display_name: string;
@@ -259,12 +272,17 @@ export interface OverviewCompare {
   tiles: Record<string, TileStats>;
 }
 
+/** A team as the filter menus list it, with the region it sits in. */
+export interface TeamOption { team: string; n: number; region: string }
+export interface RegionOption { region: string; n: number }
+
 export interface Overview {
   current_year: number;
   previous_year: number;
   period: Period;
-  filters: { teams: string[]; cycles: number[] };
-  team_options: { team: string; n: number }[];
+  filters: { teams: string[]; regions: string[]; cycles: number[] };
+  team_options: TeamOption[];
+  region_options: RegionOption[];
   compare: OverviewCompare | null;
   year_histogram: { y: number; n: number }[];
   book_size: number;
@@ -385,7 +403,7 @@ export interface LeaderboardView {
   note: string;
   week: string;
   range: { from: string; to: string; weeks: number };
-  filters: { type: string; teams: string[] };
+  filters: { type: string; teams: string[]; regions: string[] };
   log_types: { type: string; n: number }[];
   total: number;
   rows: TopRow[];
@@ -440,9 +458,10 @@ export interface LogOverview {
   days_elapsed: number;
   has_earlier: boolean;
   has_later: boolean;
-  filters: { type: string; teams: string[]; weeks: number; top: number; chart_weeks: number };
+  filters: { type: string; teams: string[]; regions: string[]; weeks: number; top: number; chart_weeks: number };
   log_types: { type: string; n: number }[];
-  teams: { team: string; n: number }[];
+  teams: TeamOption[];
+  regions: RegionOption[];
   week_kpis: {
     total: number;
     previous_total: number;
@@ -473,7 +492,7 @@ export interface LogRowsView {
   week: string;
   from: string;
   to: string;
-  filters: { type: string; teams: string[] };
+  filters: { type: string; teams: string[]; regions: string[] };
   rows: LogRow[];
 }
 
@@ -533,6 +552,9 @@ export interface I360Overview {
   anchor: string;
   scope_line: string;
   selected: string[];
+  filters: { teams: string[]; regions: string[] };
+  team_options: TeamOption[];
+  region_options: RegionOption[];
   compare: boolean;
   range: I360Range & { presets: { id: string; label: string; from?: string; to?: string }[] };
   previous_range: { from: string; to: string; label: string };
@@ -578,4 +600,42 @@ export interface I360MenuView {
   q: string;
   limit: number;
   rows: { name: string; n: number; deposits: number }[];
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline
+// ---------------------------------------------------------------------------
+
+export interface PipelineCell { total: number; active: number | null; lost: number | null }
+
+export interface PipelinePeriod { pipeline: PipelineCell; funnel: PipelineCell }
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  now: PipelinePeriod;
+  ly_asat: PipelinePeriod;
+  ly_final: PipelinePeriod;
+}
+
+export interface PipelineOverview {
+  anchor: string;
+  cutoff: string;
+  filters: {
+    mode: "calendar" | "academic"; year: number; quarters: number[]; levels: string[];
+    teams: string[]; regions: string[];
+  };
+  options: {
+    modes: { id: "calendar" | "academic"; label: string }[];
+    years: { value: number; label: string }[];
+    quarters: { q: number; label: string }[];
+    levels: { name: string; n: number }[];
+    academic_start: string;
+    team_options: TeamOption[];
+    region_options: RegionOption[];
+  };
+  scope: { label: string; last_year: string };
+  totals: { now: PipelineCell; ly_asat: PipelineCell; ly_final: PipelineCell };
+  stages: PipelineStage[];
+  data: { app_rows: number; no_intake: number; no_student_ref: number; no_stage: number; undated_deposit: number };
 }

@@ -22,10 +22,11 @@ Nothing here is imported by core or by any other dashboard.
 """
 import sys
 from collections import Counter, OrderedDict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from statistics import median
 
 sys.path.insert(0, "/srv/api")
+from app.regions import narrow, options, split  # noqa: E402
 from app.views import ViewContext, ViewError  # noqa: E402
 
 # --------------------------------------------------------------------------
@@ -189,6 +190,14 @@ where (m.stage = 'Customer' or coalesce(a.dep_any, 0) > 0)
 
 BOOK_SQL = f"with {_ROWS}, {_AGG}, {_MASTER} {_BOOK_SELECT}"
 
+# Every team a row can be filed under, for turning a Region into teams. Names
+# missing from the CRM have no team, so Unassigned is always one of them.
+KNOWN_TEAMS_SQL = """
+select distinct coalesce(nullif(srm_team, ''), 'Unassigned') as team
+  from introducers where load_id = %(intro)s
+union select 'Unassigned'
+"""
+
 YEAR_HIST_SQL = """
 select intake_year as y, count(*) as n
   from applications
@@ -317,11 +326,17 @@ class Filters:
     up to twelve months, so a comparison is always season against season.
     `teams` and `cycles` are None when not filtering; a book built with them
     simply leaves the other teams' introducers and the other intakes' rows out.
+    `teams` is what Region and Team come to together, and can be empty -- a
+    team picked outside the picked regions -- which keeps nobody. `picked` and
+    `regions` are the two menus as asked, for the bar to show back.
     """
     lo: int
     hi: int
     teams: tuple[str, ...] | None = None
     cycles: tuple[int, ...] | None = None
+    # left out of equality, so the book cache does not hold one book twice
+    picked: tuple[str, ...] = field(default=(), compare=False)
+    regions: tuple[str, ...] = field(default=(), compare=False)
 
     @property
     def shift(self) -> int:
@@ -347,7 +362,7 @@ class Filters:
             "apps": ctx.load("applications"), "intro": ctx.load("introducers"),
             "lo": self.lo, "hi": self.hi,
             "plo": self.lo - self.shift, "phi": self.hi - self.shift,
-            "teams": list(self.teams) if self.teams else None,
+            "teams": list(self.teams) if self.teams is not None else None,
             "cycles": list(self.cycles) if self.cycles else None,
         }
 
@@ -367,8 +382,8 @@ def _scope(ctx: ViewContext, params: dict) -> tuple[int, int, list[dict], Filter
 
     With no `from`/`to` the window is the whole CUR year, which is the
     unfiltered dashboard exactly. Query parameters arrive as strings:
-    `from`/`to` as YYYY-MM, `teams` joined with `|` (team names hold commas),
-    `cycles` as cycle indexes joined with commas.
+    `from`/`to` as YYYY-MM, `teams` and `regions` joined with `|` (team names
+    hold commas), `cycles` as cycle indexes joined with commas.
     """
     cur, prev, hist = _years(ctx)
     lo = _month_key(params["from"], "from") if params.get("from") else cur * 12
@@ -376,7 +391,11 @@ def _scope(ctx: ViewContext, params: dict) -> tuple[int, int, list[dict], Filter
     if lo > hi:
         lo, hi = hi, lo
 
-    teams = tuple(sorted({t.strip() for t in (params.get("teams") or "").split("|") if t.strip()}))
+    picked = tuple(sorted(set(split(params.get("teams")))))
+    regions = tuple(sorted(set(split(params.get("regions")))))
+    known = [r["team"] for r in ctx.rows(KNOWN_TEAMS_SQL, {"intro": ctx.load("introducers")})] \
+        if regions else []
+    teams = narrow(list(picked), list(regions), known)
 
     cycles: set[int] = set()
     for part in (params.get("cycles") or "").split(","):
@@ -390,7 +409,8 @@ def _scope(ctx: ViewContext, params: dict) -> tuple[int, int, list[dict], Filter
     if cycles == set(CYCLES):
         cycles = set()
 
-    return cur, prev, hist, Filters(lo, hi, teams or None, tuple(sorted(cycles)) or None)
+    return cur, prev, hist, Filters(lo, hi, None if teams is None else tuple(teams),
+                                    tuple(sorted(cycles)) or None, picked, regions)
 
 
 def _period(flt: Filters, cur: int) -> dict:
@@ -607,8 +627,8 @@ def overview(ctx: ViewContext, params: dict):
 
     totals = _totals(book)
 
-    # the Team options, counted without the Team filter so every team stays
-    # pickable while some are picked
+    # the Region and Team options, counted without either filter so every team
+    # stays pickable while some are picked
     team_counts = Counter(r["team"] for r in (book if flt.teams is None
                                               else _book(ctx, replace(flt, teams=None))))
 
@@ -649,8 +669,10 @@ def overview(ctx: ViewContext, params: dict):
     return {
         "current_year": cur, "previous_year": prev,
         "period": _period(flt, cur),
-        "filters": {"teams": list(flt.teams or ()), "cycles": list(flt.cycles or ())},
-        "team_options": [{"team": t, "n": n} for t, n in sorted(team_counts.items())],
+        "filters": {"teams": list(flt.picked), "regions": list(flt.regions),
+                    "cycles": list(flt.cycles or ())},
+        **dict(zip(("team_options", "region_options"),
+                   options([{"team": t, "n": n} for t, n in sorted(team_counts.items())]))),
         "compare": _compare(ctx, flt, definitions) if _wants_compare(params) else None,
         "year_histogram": hist,
         "book_size": len(book),

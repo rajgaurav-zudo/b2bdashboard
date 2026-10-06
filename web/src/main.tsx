@@ -5,6 +5,8 @@ import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./App";
 import { AuthProvider } from "./auth";
+import "./design-system/edvoy-crm-design-tokens.css";
+import "./design-system/edvoy-crm-components.css";
 import "./index.css";
 
 const queryClient = new QueryClient({

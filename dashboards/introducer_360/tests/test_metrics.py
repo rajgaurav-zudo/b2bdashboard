@@ -138,7 +138,7 @@ def test_one_application_appears_in_every_stage_it_passed_through(book):
     book.load([_row(at_draft="2026-06-08", at_applied="2026-06-09",
                     at_offer="2026-06-09", at_enrolled=ANCHOR)])
     widgets = book.widgets()
-    assert [widgets[w]["created"] for w in ("draft", "applied", "offer", "enrolled")] == [1, 1, 1, 1]
+    assert [widgets[w]["created"] for w in ("applied", "offer", "enrolled")] == [1, 1, 1]
 
 
 def test_created_is_active_plus_closed_in_every_stage(book):
@@ -156,8 +156,8 @@ def test_created_is_active_plus_closed_in_every_stage(book):
 
 def test_percentages_are_zero_rather_than_a_division_by_zero(book):
     book.load([_row(at_enrolled=ANCHOR)])
-    draft = book.widgets()["draft"]
-    assert (draft["created"], draft["active_pct"], draft["closed_pct"]) == (0, 0, 0)
+    applied = book.widgets()["applied"]
+    assert (applied["created"], applied["active_pct"], applied["closed_pct"]) == (0, 0, 0)
 
 
 # --------------------------------------------------------------------------
@@ -222,7 +222,24 @@ def test_a_group_is_the_sum_of_its_members(book):
 def test_every_widget_the_design_asks_for_is_on_the_page(metrics, book):
     book.load([_row(at_enrolled=ANCHOR)])
     assert [w["id"] for w in book.overview()["widgets"]] == metrics.WIDGETS
-    assert len(metrics.WIDGETS) == 8          # eight on one line, no horizontal scroll
+    assert len(metrics.WIDGETS) == 6          # six on one line, no horizontal scroll
+
+
+def test_the_funnel_starts_at_applied(metrics, book):
+    """Draft and Ready to apply are loaded but not shown: the export only
+    carries submitted applications, so both would repeat the Applied figure."""
+    book.load([_row(at_draft="2026-06-08", at_ready="2026-06-08", at_enrolled=ANCHOR)])
+    out = book.overview()
+    ids = {s["id"] for s in out["stages"]} | {w["id"] for w in out["widgets"]}
+    assert not ids & {"draft", "ready"}
+    assert out["stages"][0]["id"] == "applied"
+
+
+def test_a_draft_date_still_moves_the_anchor(book):
+    """The anchor is about the file, so a stage the cards no longer show
+    still counts towards where "today" is."""
+    book.load([_row(at_applied="2026-06-01"), _row(at_draft=ANCHOR)])
+    assert book.overview()["anchor"] == date(2026, 6, 10)
 
 
 # --------------------------------------------------------------------------
@@ -394,8 +411,30 @@ def test_the_pipeline_is_readable_without_the_master_file(book):
     book.load([_row(at_applied="2026-06-09", at_enrolled=ANCHOR, introducer_name="Acme")])
     out = book.overview(introducers="Acme")
     assert out["profile"] is None
-    assert out["widgets"][2]["created"] == 1
+    assert out["widgets"][0]["created"] == 1                       # Applied
     assert out["data"]["master_rows"] == 0
+
+
+def test_region_and_team_follow_the_introducers_srm_team(book):
+    book.load(
+        [_row(at_applied="2026-06-09", introducer_name="Lagos"),
+         _row(at_applied="2026-06-09", introducer_name="Lagos"),
+         _row(at_applied="2026-06-09", introducer_name="Dhaka"),
+         _row(at_applied="2026-06-09", introducer_name="Ghost")],   # not on the master
+        introducers=[{"partner_name": "Lagos", "srm_team": "West Africa B2B SRMs 1"},
+                     {"partner_name": "Dhaka", "srm_team": "Bangladesh B2B SRMs"}],
+    )
+    applied = lambda **p: book.widgets(range="all_time", **p)["applied"]["created"]  # noqa: E731
+    assert applied(regions="Africa") == 2
+    assert applied(teams="Bangladesh B2B SRMs") == 1
+    assert applied(regions="Other") == 1                            # Ghost is Unassigned
+    assert applied(regions="Africa", teams="Bangladesh B2B SRMs") == 0
+    assert applied(regions="Africa|Bangladesh") == 3
+
+    out = book.overview(regions="Africa")
+    assert out["filters"] == {"teams": [], "regions": ["Africa"]}
+    assert "Africa" in out["scope_line"]
+    assert {o["region"] for o in out["region_options"]} == {"Africa", "Bangladesh", "Other"}
 
 
 def test_lifetime_ignores_the_window_but_not_the_introducer(book):

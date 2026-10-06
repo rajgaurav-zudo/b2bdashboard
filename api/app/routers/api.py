@@ -1,10 +1,14 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response
 
 from .. import registry, views
 from ..auth import User, audit_actor, current_user
 from ..db import pool
 from ..ingest.reader import IngestError
 from ..ingest.service import activate, ingest_source, project_upload
+from ..reports import weekly_summary
 from ..storage import StorageError
 
 # Applied to the whole router rather than per route: a new endpoint is then
@@ -290,3 +294,48 @@ def loads(dashboard: str | None = None, current: bool = False,
             {"dashboard": dashboard, "current": current, "limit": limit},
         )
         return cur.fetchall()
+
+
+@router.get("/downloads")
+def downloads():
+    """What each download would be built from, so the page can say so before the click."""
+    with pool.connection() as conn:
+        latest = weekly_summary.latest_uploads(conn)
+    return {
+        "weekly_summary": {
+            "sources": [
+                {"source": s, "name": (latest.get(s) or {}).get("display_name", s),
+                 "upload_id": (latest.get(s) or {}).get("id"),
+                 "filename": (latest.get(s) or {}).get("filename"),
+                 "uploaded_at": (latest.get(s) or {}).get("started_at")}
+                for s in weekly_summary.SOURCES
+            ],
+        },
+    }
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get("/downloads/weekly-summary")
+def download_weekly_summary():
+    """This week's summary workbook, last week's sheet included, from the latest
+    upload of each source.
+
+    Dated in UTC, the same clock the Logs dashboard puts a log in its week by.
+    """
+    with pool.connection() as conn:
+        latest = weekly_summary.latest_uploads(conn)
+    missing = [s for s in weekly_summary.SOURCES if s not in latest]
+    if missing:
+        raise HTTPException(409, f"Upload the {', '.join(missing)} export first: the summary reads all three.")
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    try:
+        content = weekly_summary.summary(latest, weekly_summary.Periods(today))
+    except (IngestError, StorageError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    # yyyy-dd-mm-hh-mm-ss, as asked for; the page names it on the reader's own clock instead
+    name = f"Current week summary {now:%Y-%d-%m-%H-%M-%S}.xlsx"
+    return Response(content, media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

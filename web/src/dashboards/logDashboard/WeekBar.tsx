@@ -2,13 +2,14 @@ import type { LogOverview } from "../../api/types";
 import { n0 } from "../../format";
 import { Pill } from "../../ui/Primitives";
 import { TeamPicker } from "./TeamPicker";
+import { regionFace, teamFace } from "./teams";
 import { weekLabel } from "./weeks";
 
 interface Props {
   overview: LogOverview;
   onStep: (direction: -1 | 1) => void;
   onJumpToCurrent: () => void;
-  onFilter: (key: "type" | "team" | "weeks", value: string) => void;
+  onFilter: (changes: Partial<Record<"type" | "region" | "team" | "weeks", string>>) => void;
 }
 
 const RANGES = [
@@ -24,6 +25,11 @@ const RANGES = [
  *  export skipped is not stepped onto and is not treated as a zero. */
 export function WeekBar({ overview, onStep, onJumpToCurrent, onFilter }: Props) {
   const { filters } = overview;
+  // Region picks a set of teams and Team narrows it, so the Team list is the
+  // picked regions' teams, and dropping a region drops its picked teams
+  const regionOf = new Map(overview.teams.map((t) => [t.team, t.region]));
+  const inRegions = (team: string, regions: string[]) =>
+    regions.length === 0 || regions.includes(regionOf.get(team) ?? "Other");
   // where this week sits in the file, so stepping has a sense of distance
   const position = overview.weeks.findIndex((w) => w.w === overview.week) + 1;
   return (
@@ -62,16 +68,31 @@ export function WeekBar({ overview, onStep, onJumpToCurrent, onFilter }: Props) 
             as often as alone. Not a <label>, because a button is not labelable
             and the caption would point at nothing. */}
         <div className="fld">
+          <span className="cap">Region</span>
+          <TeamPicker
+            options={overview.regions.map((r) => ({ name: r.region, n: r.n }))}
+            selected={filters.regions}
+            face={regionFace} noun="region"
+            onChange={(next) => onFilter({
+              region: next.join("|"),
+              team: filters.teams.filter((t) => inRegions(t, next)).join("|"),
+            })}
+          />
+        </div>
+        <div className="fld">
           <span className="cap">Team</span>
           <TeamPicker
-            teams={overview.teams}
+            options={overview.teams
+              .filter((t) => inRegions(t.team, filters.regions))
+              .map((t) => ({ name: t.team, n: t.n }))}
             selected={filters.teams}
-            onChange={(next) => onFilter("team", next.join("|"))}
+            face={teamFace}
+            onChange={(next) => onFilter({ team: next.join("|") })}
           />
         </div>
         <label>
           Log type
-          <select value={filters.type} onChange={(e) => onFilter("type", e.target.value)}>
+          <select value={filters.type} onChange={(e) => onFilter({ type: e.target.value })}>
             <option value="">All types</option>
             {overview.log_types.map((t) => (
               <option key={t.type} value={t.type}>{t.type} ({n0(t.n)})</option>
@@ -80,7 +101,7 @@ export function WeekBar({ overview, onStep, onJumpToCurrent, onFilter }: Props) 
         </label>
         <label>
           Table range
-          <select value={String(filters.weeks)} onChange={(e) => onFilter("weeks", e.target.value)}>
+          <select value={String(filters.weeks)} onChange={(e) => onFilter({ weeks: e.target.value })}>
             {RANGES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </label>

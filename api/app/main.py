@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,6 +47,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api.router, prefix="/api")
+
+# A dashboard that is an application rather than a set of views (commission)
+# ships its own router.py; it is mounted under /api/modules/<slug> behind the
+# same auth dependency as /api.
+for _dash in registry.discover():
+    if (_dash.dir / "router.py").is_file():
+        app.include_router(_dash.load_module("router").router, prefix=f"/api/modules/{_dash.slug}",
+                           dependencies=[Depends(auth.current_user)])
 
 
 @app.get("/healthz")

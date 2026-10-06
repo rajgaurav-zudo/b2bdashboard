@@ -132,6 +132,11 @@ disagree, and the *All time* column already answers that question per row.
 
 ### Filters
 
+- **Region** groups the teams, by the mapping in `api/app/regions.py` shared
+  with the introducer dashboards. The Team menu then lists only that region's
+  teams, and with both set only the picked teams inside the picked regions
+  count. Teams the mapping does not name (`Africa`, `Europe`, `SEA`, `Contracts`
+  and the like, and `Unassigned`) sit in region `Other`.
 - **Team** narrows everything — a team's page should be a team's page. It holds
   a **set**, not a value: the regional SRM teams are read together as often as
   alone, and asking for `West Africa B2B SRMs 1` and `West Africa B2B SRMs 2`
@@ -234,8 +239,9 @@ Two changes came out of it:
 ## Views
 
 - `overview` — the whole page. Params: `week`, `weeks`, `chart_weeks`, `top`,
-  `type`, `team` (pipe-separated for several). Every view answers `filters.teams`
-  as a list.
+  `type`, `region`, `team` (pipe-separated for several). Every view answers
+  `filters.teams` and `filters.regions` as lists; `teams` carry each team's
+  `region`, and `regions` total them.
 - `rows` — the individual logs behind a number. Params: as above, plus
   `only=week` to restrict to the selected week and `limit`.
 - `leaderboard` — one top-performer table in full, for the *view more* pane.

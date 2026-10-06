@@ -46,7 +46,7 @@ into a pipeline you can put a date range across.
 So **Applied is not "applications whose status is Applied"**. It is applications
 that entered Applied inside the window, and one application appears at several
 stages because it passed through several. That is what the design's cards count,
-and it is what makes the eight-card row a funnel rather than a pie.
+and it is what makes the card row a funnel rather than a pie.
 
 The columns arrive as midnight — there is no time of day in the export — so they
 are stored as `date`. A `timestamptz` would only invite a timezone to move a row
@@ -72,25 +72,34 @@ questions and the same word is the right word in both; when they need to be
 compared, compare `Deposit paid` created against that dashboard's deposits, not
 its active count.
 
-## The eleven stages and the eight cards
+## The nine stages and the six cards
 
 Funnel order, and which card each stage is drawn on:
 
 | # | Stage | Card |
 | --- | --- | --- |
-| 1 | Draft | Draft |
-| 2 | Ready to apply | Ready to apply |
-| 3 | Applied | Applied |
-| 4 | Offer | Offer |
-| 5 | Deposit paid | **Deposits** |
-| 6 | CoE received | **Deposits** |
-| 7 | Visa applied | **Deposits** |
-| 8 | Visa granted | Visa granted |
-| 9 | Enrolled | Enrolled |
-| 10 | Partial deposit | **Awaiting outcome** |
-| 11 | Deferral awaiting approval | **Awaiting outcome** |
+| 1 | Applied | Applied |
+| 2 | Offer | Offer |
+| 3 | Deposit paid | **Deposits** |
+| 4 | CoE received | **Deposits** |
+| 5 | Visa applied | **Deposits** |
+| 6 | Visa granted | Visa granted |
+| 7 | Enrolled | Enrolled |
+| 8 | Partial deposit | **Awaiting outcome** |
+| 9 | Deferral awaiting approval | **Awaiting outcome** |
 
-Eight cards on one line, two of them groups, exactly as the design specifies. The
+Six cards on one line, two of them groups.
+
+**The funnel starts at Applied.** The design also had Draft and Ready to apply
+cards, and both dates are still loaded (`at_draft`, `at_ready`). They are not
+shown because this export only carries applications that were submitted: 441,875
+of the 441,883 rows with a Draft date also have Ready to apply and Applied dates.
+Over any window that covers an intake, the three cards read the same number, and
+over a short window they differ only by when in the week the clicks happened --
+neither is drop-off. The anchor and All time still read all nine stage dates,
+because they describe the file, not the cards. If the CRM export starts
+including applications that stopped before Applied, the two cards come back by
+adding them to `STAGES` and `WIDGETS`. The
 grouping is the design's own — *Deposits* there is Deposit + CAS + Visa Applied,
 and CoE Received is this CRM's CAS.
 
@@ -102,7 +111,7 @@ an assertion and becomes visible, which is why the group cards open one.
 
 ### The two stages that are states, and are not windowed
 
-The other nine are events. These two are not: the CRM records a partial deposit
+The other seven are events. These two are not: the CRM records a partial deposit
 and a deferral awaiting approval as flags, not as transitions, and there is no
 timestamp for either.
 
@@ -131,7 +140,7 @@ A group card whose members are all states is a state card: `Awaiting outcome`
 carries no delta and is labelled "as of", not "this week".
 
 For the same reason, the introducer-wise table's total column counts **stages
-entered** — the nine events — and not the eleven columns beside it. A total that
+entered** — the seven events — and not the nine columns beside it. A total that
 added the two states would be part one window and part all time, and it would
 move when the window did not. The state columns are still there, and still
 answer to the introducer and intake filters; they are simply not summed into a
@@ -154,6 +163,15 @@ and no figure on this page filters by it. If a course split is wanted here it is
 group-by on a column that is already there, not a re-ingest.
 
 ## Filters
+
+**Region** and **Team** — the introducer's SRM team on the master file, grouped
+into regions by `api/app/regions.py` (shared with the other dashboards). Team
+narrows Region: with both picked, only the picked teams inside the picked
+regions count, and a team from another region gives an empty page rather than
+being ignored. A partner missing from the master, or with no team, is
+`Unassigned`, which sits in region `Other` with any team the mapping does not
+name. Params `regions` and `teams`, `|`-joined; the menu counts are partners on
+the master. Without a master file every application is Unassigned.
 
 **Introducer** — the design's counsellor multi-select. Searchable because there
 are 3,605 partners with applications, not seven counsellors: the menu lists the
@@ -224,7 +242,7 @@ a due date. It needs a third source.
   language was signed off elsewhere (`web/src/index.css`), so the layout, the card
   anatomy, the interaction states and the type *scale* are the design's, and the
   palette and typeface are the platform's. Every structural rule in the handoff's
-  review list is kept: eight widgets on one line with no horizontal scroll, equal
+  review list is kept (bar the two cards dropped above): the widgets on one line with no horizontal scroll, equal
   card heights including the group cards, totals only on group cards, table cells
   mirroring the card layout, Compare off by default, per-filter clears that
   `stopPropagation`, intake starting unselected, and This week as the date
@@ -235,8 +253,8 @@ a due date. It needs a third source.
   labels are set at their intended size rather than at 9px.
 - **On a narrow screen the row folds; it never scrolls.** The rule the handoff set
   is that the pipeline does not scroll sideways, which says nothing about it being
-  one line on a phone. Below 1,080px the eight cards become four and four, below
-  760px two and two. Labels are never truncated, never wrapped to three lines, and
+  one line on a phone. Below 1,080px the six cards become three and three, below
+  760px two, two and two. Labels are never truncated, never wrapped to three lines, and
   never put behind a horizontal scrollbar — the three fixes the handoff rejected
   by name.
 - **The numbers are queries, not a multiplier.** The prototype scaled one set of
@@ -265,7 +283,7 @@ Measured on the 7 Sep export (227,236 rows):
 - **An export from before the timestamp columns existed loads cleanly and shows an
   empty pipeline.** `stats.no_stage_dates` on the load records how many rows
   carried no stage date at all, and the overview refuses with a readable message
-  rather than rendering eight zeroes, when *no* row has one.
+  rather than rendering a row of zeroes, when *no* row has one.
 
 ## Open questions
 
