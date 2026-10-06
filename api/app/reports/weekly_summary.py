@@ -6,7 +6,8 @@ Read straight from the latest archived export of each source:
     introducer_logs  Log Time, Log Type, Created By, Managed By Team (read as a business team and region)
     applications     the active-deposit columns, the application's own
                      Introducer SRM / AMT, Institution, Application Introducer Id,
-                     CurrentlyAssignedToBusinessTeam, StudentAssignedToBusinessRegion
+                     CurrentlyAssignedToBusinessTeam, StudentAssignedToBusinessRegion,
+                     Application Destination Country
 
 "This week" is the Edvoy week, Saturday to Friday, that contains `today`, and
 it is to date. "Last week" is the seven days before it. Year to date runs
@@ -76,6 +77,7 @@ COLUMNS = {
         Col("institution", "institution name", ("institution",)),
         Col("business_area", "studentassignedtobusinessarea", ("student", "business", "area"), required=True),
         Col("region", "studentassignedtobusinessregion", ("student", "business", "region")),
+        Col("destination", "application destination country", ("destination", "country")),
         # "Timestamp of 'Deposit Fully Paid' status"; the export's quotes arrive garbled
         Col("paid_at", "", ("timestamp", "deposit", "fully", "paid")),
     ],
@@ -620,6 +622,7 @@ def _deposits(applications: Export, introducers: Export, p: Periods) -> Deposits
     dep = dep.with_columns(
         pl.coalesce(clean(pl.col("introducer_id")), pl.lit("name:") + pl.col("introducer_name")).alias("key"),
         _label("srm"), _team("team"), _label("region"), _label("amt"), _label("institution"),
+        _label("destination"),
     ).join(master.select(pl.col("id").alias("key"), "country", "bc", pl.lit(True).alias("in_master")),
            on="key", how="left").with_columns(
         pl.col("country").fill_null("(not in introducer master)"),
@@ -727,12 +730,15 @@ def _overview(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
     block("D. By business team", "Business team", _grouped(d.cur, d.prev, ["team"]), horizontal=True)
     rows, rest = top10("country", "All other countries")
     block(f"E. Top 10 introducer countries ({cy} intake)", "Country", rows, rest, horizontal=True)
+    rows, rest = top10("destination", "All other destinations")
+    block(f"F. Top 10 application destination countries ({cy} intake)", "Application Destination Country",
+          rows, rest, horizontal=True)
     rows, rest = top10("institution", "All other institutions")
-    block(f"F. Top 10 institutions ({cy} intake)", "Institution", rows, rest, horizontal=True)
+    block(f"G. Top 10 institutions ({cy} intake)", "Institution", rows, rest, horizontal=True)
     lv = [_label("course_level")]
-    block("G. By course level", "Application Course Level",
+    block("H. By course level", "Application Course Level",
           _grouped(d.cur.with_columns(lv), d.prev.with_columns(lv), ["course_level"]), horizontal=True)
-    block("H. By the year the introducer was onboarded", "Introducer onboarded in",
+    block("I. By the year the introducer was onboarded", "Introducer onboarded in",
           [((o,), d.cur.filter(pl.col("cohort") == o).height, d.prev.filter(pl.col("cohort") == o).height)
            for o in _cohorts(p)])
     ws.widths.update({1: 40, 2: 13, 3: 13, 4: 10, 5: 10, 6: 3})
@@ -862,14 +868,17 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
     w.section(f"B. {cy} active deposits broken down",
               "SRM and AMT counsellor are the Introducer SRM / AMT columns on the application; business team "
               "is its CurrentlyAssignedToBusinessTeam and business region its StudentAssignedToBusinessRegion. "
-              "Country is the introducer's country on the master file.")
+              "Country is the introducer's country on the master file; destination country is the "
+              "application's Application Destination Country.")
     value_h = f"{cy} active deposits"
     for title, labels, keys in (("B1. By introducer country", ["Country"], ["country"]),
-                                ("B2. By business region", ["Business region"], ["region"]),
-                                ("B3. By SRM", ["SRM", "Business team"], ["srm", "team"]),
-                                ("B4. By business team", ["Business team"], ["team"]),
-                                ("B5. By AMT counsellor", ["AMT counsellor"], ["amt"]),
-                                ("B6. By institution", ["Institution"], ["institution"])):
+                                ("B2. By application destination country", ["Application Destination Country"],
+                                 ["destination"]),
+                                ("B3. By business region", ["Business region"], ["region"]),
+                                ("B4. By SRM", ["SRM", "Business team"], ["srm", "team"]),
+                                ("B5. By business team", ["Business team"], ["team"]),
+                                ("B6. By AMT counsellor", ["AMT counsellor"], ["amt"]),
+                                ("B7. By institution", ["Institution"], ["institution"])):
         w.section(title)
         w.share(labels, _counts(cur, keys), value_h)
 

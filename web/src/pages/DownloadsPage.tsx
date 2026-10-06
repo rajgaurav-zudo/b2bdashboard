@@ -76,12 +76,13 @@ export function DownloadsPage() {
         >
           <p className="sub" style={{ margin: "0 0 14px" }}>
             Five sheets. <b>Deposits overview</b>: the active deposits in charts, this intake year
-            against last, by intake month, business region and team, country, institution, course level and the
+            against last, by intake month, business region and team, country, application destination country, institution, course level and the
             year the introducer was onboarded. <b>Onboarding</b>: introducers by Became Customer
             Date, year to date and for the week, by business region and team, SRM and country, with the week's new
             introducers listed. <b>Activity</b>: introducer logs for the week against the one
             before, by type, per SRM, business region and business team. <b>Sales &amp; Retention</b>: active deposits by
-            intake year, by onboarding year, country, business region and team, SRM, AMT counsellor and institution, with DAA
+            intake year, by onboarding year, country, application destination country, business region and team, SRM, AMT
+            counsellor and institution, with DAA
             and partial deposits by intake month, and the introducers resurrected and missed
             out. <b>Last week</b>: last week whole against the week before: introducers
             onboarded, activity logs, and deposits by the day they were paid in full.

@@ -44,29 +44,29 @@ APPLICATIONS = csv(
     "Application Introducer Name,Application Introducer Id,Deposit Paid Status,Application Closed Lost,"
     "Deferred Initiated (No/Yes/All),Deferred Approved (No/Yes/All),Application Course Level,Actual Intake Year,"
     "Actual Intake Month,Introducer SRM User Name,CurrentlyAssignedToBusinessTeam,Introducer AMT User Name,Institution Name,"
-    "StudentAssignedToBusinessArea,Application Ref No,Timestamp of ‚Äò Deposit Fully Paid‚Äô status,StudentAssignedToBusinessRegion",
-    "Delta,d1,FullyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-01,2026-09-28 00:00:00,Africa",         # Delta: 2026 only -> resurrected
-    "Delta,d1,FullyPaid,No,Yes,Yes,Undergraduate,2026,January,Dan,East,Amy,Uni B,B2B,A-02,2026-10-03 00:00:00,Africa",        # deferred and approved: active
-    "Gamma,c1,FullyPaid,No,No,No,Postgraduate,2025,September,Asha,South,Amy,Uni A,B2B,A-03,,Asia",       # Gamma: 2025 only -> missed out
-    "Gamma,c1,FullyPaid,No,Yes,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-04,2026-10-02 00:00:00,Asia",      # deferral pending: DAA
-    "Gamma,c1,FullyPaid,Yes,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-05,2026-09-30 00:00:00,Asia",      # closed lost: nothing
-    "Gamma,c1,FullyPaid,No,No,No,Language,2026,September,Asha,South,Amy,Uni A,B2B,A-06,2026-09-29 00:00:00,Asia",           # not Academic
-    "Delta,d1,FullyPaid,No,No,No,PresessionalEnglish,2026,September,Dan,East,Amy,Uni A,B2B,A-07,,Africa",  # not Academic
-    "Delta,d1,FullyPaid,No,No,No,,2026,September,Dan,East,Amy,Uni A,B2B,A-08,,Africa",                     # no course level: out
-    "Delta,d1,FullyPaid,No,No,No,September,2026,September,Dan,East,Amy,Uni A,B2B,A-09,,Africa",            # a stray value: out
-    "Zeta,,FullyPaid,No,No,No,GCSEgradesAC,2026,May,Zed,North,Amy,Uni C,B2B,A-10,,Asia",                 # a listed level: in
-    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2B,A-11,2026-09-20 00:00:00,Asia",       # onboarded 2026: not resurrected
-    "Alpha,a1,fullyPaidWaitingForApproval,No,No,No,Postgraduate,2026,January,Asha,South,Amy,Uni C,B2B,A-12,,Asia",  # paid in full: active
-    "Beta,b1,FullyPaid,No,No,Yes,Postgraduate,2026,January,Bola,West,Amy,Uni C,B2B,A-13,,Africa",          # columns differ: DAA
-    "Beta,b1,PartiallyPaid,No,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-14,,Africa",     # PD
-    "Beta,b1,PartiallyPaid,Yes,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-15,,Africa",    # closed lost: not PD
-    ",d1,PartiallyPaid,No,Yes,Yes,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-16,,Africa",        # no name, Delta's id: PD
-    ",,PartiallyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-17,,Africa",            # no introducer at all: out
-    "Beta,b1,NotPaid,No,No,No,Postgraduate,2026,September,Bola,West,Amy,Uni C,B2B,A-18,2026-09-21 00:00:00,Africa",           # nothing, though paid in the week before once
-    "Zeta,,FullyPaid,No,No,No,Postgraduate,2026,May,Zed,North,Amy,Uni C,B2B,A-19,,Asia",                 # no id, not in master
-    " eta ,,FullyPaid,No,No,No,Postgraduate,2025,May,Bola,West,Amy,Uni C,B2B,A-22,,Africa",              # no id: Eta's by name
-    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2C,A-20,2026-09-22 00:00:00,Asia",   # not B2B: out
-    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,,A-21,,Asia",      # no business area: out
+    "StudentAssignedToBusinessArea,Application Ref No,Timestamp of ‚Äò Deposit Fully Paid‚Äô status,StudentAssignedToBusinessRegion,Application Destination Country",
+    "Delta,d1,FullyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-01,2026-09-28 00:00:00,Africa,Canada",         # Delta: 2026 only -> resurrected
+    "Delta,d1,FullyPaid,No,Yes,Yes,Undergraduate,2026,January,Dan,East,Amy,Uni B,B2B,A-02,2026-10-03 00:00:00,Africa,United Kingdom",        # deferred and approved: active
+    "Gamma,c1,FullyPaid,No,No,No,Postgraduate,2025,September,Asha,South,Amy,Uni A,B2B,A-03,,Asia,United Kingdom",       # Gamma: 2025 only -> missed out
+    "Gamma,c1,FullyPaid,No,Yes,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-04,2026-10-02 00:00:00,Asia,United Kingdom",      # deferral pending: DAA
+    "Gamma,c1,FullyPaid,Yes,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-05,2026-09-30 00:00:00,Asia,United Kingdom",      # closed lost: nothing
+    "Gamma,c1,FullyPaid,No,No,No,Language,2026,September,Asha,South,Amy,Uni A,B2B,A-06,2026-09-29 00:00:00,Asia,United Kingdom",           # not Academic
+    "Delta,d1,FullyPaid,No,No,No,PresessionalEnglish,2026,September,Dan,East,Amy,Uni A,B2B,A-07,,Africa,United Kingdom",  # not Academic
+    "Delta,d1,FullyPaid,No,No,No,,2026,September,Dan,East,Amy,Uni A,B2B,A-08,,Africa,United Kingdom",                     # no course level: out
+    "Delta,d1,FullyPaid,No,No,No,September,2026,September,Dan,East,Amy,Uni A,B2B,A-09,,Africa,United Kingdom",            # a stray value: out
+    "Zeta,,FullyPaid,No,No,No,GCSEgradesAC,2026,May,Zed,North,Amy,Uni C,B2B,A-10,,Asia,United Kingdom",                 # a listed level: in
+    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2B,A-11,2026-09-20 00:00:00,Asia,United Kingdom",       # onboarded 2026: not resurrected
+    "Alpha,a1,fullyPaidWaitingForApproval,No,No,No,Postgraduate,2026,January,Asha,South,Amy,Uni C,B2B,A-12,,Asia,United Kingdom",  # paid in full: active
+    "Beta,b1,FullyPaid,No,No,Yes,Postgraduate,2026,January,Bola,West,Amy,Uni C,B2B,A-13,,Africa,United Kingdom",          # columns differ: DAA
+    "Beta,b1,PartiallyPaid,No,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-14,,Africa,United Kingdom",     # PD
+    "Beta,b1,PartiallyPaid,Yes,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-15,,Africa,United Kingdom",    # closed lost: not PD
+    ",d1,PartiallyPaid,No,Yes,Yes,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-16,,Africa,United Kingdom",        # no name, Delta's id: PD
+    ",,PartiallyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-17,,Africa,United Kingdom",            # no introducer at all: out
+    "Beta,b1,NotPaid,No,No,No,Postgraduate,2026,September,Bola,West,Amy,Uni C,B2B,A-18,2026-09-21 00:00:00,Africa,United Kingdom",           # nothing, though paid in the week before once
+    "Zeta,,FullyPaid,No,No,No,Postgraduate,2026,May,Zed,North,Amy,Uni C,B2B,A-19,,Asia,United Kingdom",                 # no id, not in master
+    " eta ,,FullyPaid,No,No,No,Postgraduate,2025,May,Bola,West,Amy,Uni C,B2B,A-22,,Africa,United Kingdom",              # no id: Eta's by name
+    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2C,A-20,2026-09-22 00:00:00,Asia,United Kingdom",   # not B2B: out
+    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,,A-21,,Asia,United Kingdom",      # no business area: out
 )
 
 
@@ -141,13 +141,16 @@ def test_overview_comes_first_with_its_charts():
     names = [s.get("name") for s in ET.fromstring(z.read("xl/workbook.xml")).iter(f"{{{NS['m']}}}sheet")]
     assert names == ["Deposits overview", "Onboarding", "Activity", "Sales & Retention", "Last week"]
     charts = sorted(n for n in z.namelist() if n.startswith("xl/charts/"))
-    assert len(charts) == 8                                        # seven on the overview, one on Last week
+    assert len(charts) == 9                                        # eight on the overview, one on Last week
     assert "xl/drawings/drawing1.xml" in z.namelist() and "xl/worksheets/_rels/sheet1.xml.rels" in z.namelist()
     assert "'Deposits overview'!$A$" in z.read("xl/charts/chart1.xml").decode()
     s = workbook()["Deposits overview"]
     assert row_after(s, "Active deposits")[:2] == [6, 2]
     assert row_after(s, "Introducers with active deposits")[:2] == [3, 2]     # Delta, Alpha, Zeta; Gamma, Eta
     assert row_after(s, "September")[:2] == [2, 1]
+    # by Application Destination Country: Delta's A-01 is Canada, the rest the UK
+    assert row_after(s, "United Kingdom")[:2] == [5, 2]
+    assert row_after(s, "Canada")[:2] == [1, 0]
 
 
 def test_onboarding_counts():
@@ -180,6 +183,7 @@ def test_active_daa_and_pd_deposits():
     assert row_after(s, "May") == [2, 0, 0, 1, 0, 0]
     # by StudentAssignedToBusinessRegion: Delta x2; Alpha x2, Zeta x2
     assert row_after(s, "Africa")[0] == 2 and row_after(s, "Asia")[0] == 4
+    assert row_after(s, "United Kingdom")[0] == 5 and row_after(s, "Canada")[0] == 1
 
 
 def test_retention_counts_active_deposits_only():
