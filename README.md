@@ -17,22 +17,6 @@ make test     # dashboard tests (ingest + metrics)
 - `make psql` for a shell, `make logs` to follow the API, `make reset` to wipe the volume.
 - `make typecheck` runs `tsc` over the frontend.
 
-Upload a file:
-
-```bash
-curl -F "file=@introducers.csv" \
-  "http://localhost:8000/api/dashboards/introducer_performance/datasets/introducers/uploads?uploaded_by=raj"
-```
-
-Re-upload the same file and it records a no-op. Re-upload a changed one and you get:
-
-```json
-{"status":"ready","rows":17600,"added":14,"removed":2,"changed_rows":31,
- "summary":"Introducers master: +14 added · 31 changed · -2 removed (17,600 rows)"}
-```
-
-Then `GET /api/dashboards/{slug}/changelog` for the feed, and
-`GET /api/changelog/{id}/rows` for which records changed and which fields moved.
 
 ## Reading the numbers
 
