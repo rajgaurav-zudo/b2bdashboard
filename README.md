@@ -17,7 +17,6 @@ make test     # dashboard tests (ingest + metrics)
 - `make psql` for a shell, `make logs` to follow the API, `make reset` to wipe the volume.
 - `make typecheck` runs `tsc` over the frontend.
 
-
 ## Reading the numbers
 
 Metrics are computed in Postgres and served per dashboard:
