@@ -2,10 +2,11 @@
 
 Read straight from the latest archived export of each source:
 
-    introducers      Became Customer Date, SRM / team / country, the CRM `_id`
-    introducer_logs  Log Time, Log Type, Created By, Managed By Team
+    introducers      Became Customer Date, SRM, BusinessTeam, BusinessRegion, country, the CRM `_id`
+    introducer_logs  Log Time, Log Type, Created By, Managed By Team (read as a business team and region)
     applications     the active-deposit columns, the application's own
-                     Introducer SRM / AMT, Institution, Application Introducer Id
+                     Introducer SRM / AMT, Institution, Application Introducer Id,
+                     CurrentlyAssignedToBusinessTeam, StudentAssignedToBusinessRegion
 
 "This week" is the Edvoy week, Saturday to Friday, that contains `today`, and
 it is to date. "Last week" is the seven days before it. Year to date runs
@@ -46,7 +47,9 @@ COLUMNS = {
         Col("id", "_id", ()),
         Col("name", "partner name", ("partner", "name"), required=True),
         Col("country", "country", ("country",)),
-        Col("team", "partner managed by team(srm)", ("managed", "team")),
+        Col("team", "businessteam", ("business", "team")),
+        Col("srm_team", "partner managed by team(srm)", ("managed", "team")),
+        Col("region", "businessregion", ("business", "region")),
         Col("srm", "partner managed by user(srm)", ("managed", "user")),
         Col("became_customer", "became customer date", ("became", "customer"), required=True),
     ],
@@ -68,10 +71,11 @@ COLUMNS = {
         Col("intake_year", "actual intake year", ("actual", "intake", "year"), required=True),
         Col("intake_month", "actual intake month", ("actual", "intake", "month")),
         Col("srm", "introducer srm user name", ("srm", "user")),
-        Col("team", "introducer srm team name", ("srm", "team")),
+        Col("team", "currentlyassignedtobusinessteam", ("currently", "business", "team")),
         Col("amt", "introducer amt user name", ("amt", "user")),
         Col("institution", "institution name", ("institution",)),
         Col("business_area", "studentassignedtobusinessarea", ("student", "business", "area"), required=True),
+        Col("region", "studentassignedtobusinessregion", ("student", "business", "region")),
         # "Timestamp of 'Deposit Fully Paid' status"; the export's quotes arrive garbled
         Col("paid_at", "", ("timestamp", "deposit", "fully", "paid")),
     ],
@@ -376,7 +380,7 @@ def build(introducers: Export, logs: Export, applications: Export, p: Periods) -
     d = _deposits(applications, introducers, p)
     _overview(wb.add_sheet("Deposits overview"), d, applications, p)
     _onboarding(wb.add_sheet("Onboarding"), introducers, p)
-    _activity(wb.add_sheet("Activity"), logs, p)
+    _activity(wb.add_sheet("Activity"), logs, introducers, p)
     _sales(wb.add_sheet("Sales & Retention"), d, applications, p)
     _last_week(wb.add_sheet("Last week"), d, introducers, logs, applications, Periods.last_week_of(p.today))
     return wb.save()
@@ -385,7 +389,7 @@ def build(introducers: Export, logs: Export, applications: Export, p: Periods) -
 def _master(introducers: Export) -> pl.DataFrame:
     return introducers.frame.select(
         clean(pl.col("id")).alias("id"),
-        _label("name"), _label("country"), _team("team"), _label("srm"),
+        _label("name"), _label("country"), _team("team"), _label("srm"), _label("srm_team"), _label("region"),
         _date("became_customer").alias("bc"),
     )
 
@@ -398,7 +402,7 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
 
     ws.set(1, 1, "Onboarding — introducers by Became Customer Date", H1)
     ws.set(2, 1, f"Source: introducers master, {_source_note(introducers)}. Latest Became Customer Date in "
-                 f"the file: {_fmt(bc_max)}. SRM, SRM team and country are the introducer's current values "
+                 f"the file: {_fmt(bc_max)}. SRM, business team (BusinessTeam), business region (BusinessRegion) and country are the introducer's current values "
                  "on the master.", NOTE)
     w = Writer(ws)
     yh = f"{p.cy} YTD\n(1 Jan – {p.today:%d %b})"
@@ -406,11 +410,13 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
     w.section(f"A. Year to date: {p.cy} vs the same period of {p.ly}")
     w.compare(["Introducers onboarded"], [(("All introducers",), on["ytd"].height, on["lytd"].height)],
               yh, lyh, total=False)
-    w.section("A1. By SRM team")
-    w.compare(["SRM team"], _grouped(on["ytd"], on["lytd"], ["team"]), yh, lyh)
-    w.section("A2. By SRM (with team)")
-    w.compare(["SRM", "SRM team"], _grouped(on["ytd"], on["lytd"], ["srm", "team"]), yh, lyh)
-    w.section("A3. By country")
+    w.section("A1. By business region")
+    w.compare(["Business region"], _grouped(on["ytd"], on["lytd"], ["region"]), yh, lyh)
+    w.section("A2. By business team")
+    w.compare(["Business team"], _grouped(on["ytd"], on["lytd"], ["team"]), yh, lyh)
+    w.section("A3. By SRM (with business team)")
+    w.compare(["SRM", "Business team"], _grouped(on["ytd"], on["lytd"], ["srm", "team"]), yh, lyh)
+    w.section("A4. By country")
     w.compare(["Country"], _grouped(on["ytd"], on["lytd"], ["country"]), yh, lyh)
 
     wh, pwh = f"{p.cur}\n{_span(p.week)}", f"{p.prev}\n{_span(p.last_week)}"
@@ -422,14 +428,16 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
               f"{p.prev} is {_fmt(p.last_week[0])} – {_fmt(p.last_week[1])}.")
     w.compare(["Introducers onboarded"], [(("All introducers",), on["wk"].height, on["pwk"].height)],
               wh, pwh, total=False)
-    w.section("B1. By SRM team")
-    w.compare(["SRM team"], _grouped(on["wk"], on["pwk"], ["team"]), wh, pwh)
-    w.section("B2. By SRM (with team)")
-    w.compare(["SRM", "SRM team"], _grouped(on["wk"], on["pwk"], ["srm", "team"]), wh, pwh)
-    w.section("B3. By country")
+    w.section("B1. By business region")
+    w.compare(["Business region"], _grouped(on["wk"], on["pwk"], ["region"]), wh, pwh)
+    w.section("B2. By business team")
+    w.compare(["Business team"], _grouped(on["wk"], on["pwk"], ["team"]), wh, pwh)
+    w.section("B3. By SRM (with business team)")
+    w.compare(["SRM", "Business team"], _grouped(on["wk"], on["pwk"], ["srm", "team"]), wh, pwh)
+    w.section("B4. By country")
     w.compare(["Country"], _grouped(on["wk"], on["pwk"], ["country"]), wh, pwh)
-    w.section(f"B4. Introducers onboarded {p.cur.lower()} ({on['wk'].height})")
-    w.header(["Introducer", "Country", "SRM team", "SRM", "Became Customer Date"])
+    w.section(f"B5. Introducers onboarded {p.cur.lower()} ({on['wk'].height})")
+    w.header(["Introducer", "Country", "Business team", "SRM", "Became Customer Date"])
     for x in on["wk"].sort(["bc", "name"]).iter_rows(named=True):
         for k, v in enumerate([x["name"], x["country"], x["team"], x["srm"]], 1):
             ws.set(w.r, k, v, _st())
@@ -439,7 +447,7 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
     ws.freeze = "A4"
 
 
-def _logs(logs: Export) -> pl.DataFrame:
+def _logs(logs: Export, introducers: Export) -> pl.DataFrame:
     lg = logs.frame
     # one row per CRM log id when the export has one, as the Logs dashboard keeps it
     if lg["id"].null_count() < lg.height:
@@ -448,12 +456,25 @@ def _logs(logs: Export) -> pl.DataFrame:
     return lg.select(
         _log_day("log_time").alias("day"),
         clean(pl.col("log_type")).replace_strict(LOG_TYPES, default="Other").alias("type"),
-        _label("srm"), _team("team"),
-    )
+        _label("srm"), _label("team").alias("srm_team"), _team("team"),
+    ).join(_business_teams(introducers), on="srm_team", how="left") \
+        .with_columns(pl.coalesce("business_team", "team").alias("team"),
+                      pl.col("region").fill_null(BLANK)).drop("srm_team", "business_team")
 
 
-def _activity(ws: Sheet, logs: Export, p: Periods) -> None:
-    lg = _logs(logs)
+def _business_teams(introducers: Export) -> pl.DataFrame:
+    """The log export names the SRM team (Managed By Team), not the business
+    team or region. The master carries all three for each introducer; an SRM
+    team reads as the business team and region its introducers are most often on."""
+    return _master(introducers).filter((pl.col("srm_team") != BLANK) & (pl.col("team") != BLANK)) \
+        .group_by("srm_team", "team", "region").len() \
+        .sort(["len", "team", "region"], descending=[True, False, False]) \
+        .unique("srm_team", keep="first", maintain_order=True) \
+        .select("srm_team", pl.col("team").alias("business_team"), "region")
+
+
+def _activity(ws: Sheet, logs: Export, introducers: Export, p: Periods) -> None:
+    lg = _logs(logs, introducers)
     log_max = lg["day"].max()
     lc, lp = lg.filter(_between("day", p.week)), lg.filter(_between("day", p.last_week))
 
@@ -462,7 +483,8 @@ def _activity(ws: Sheet, logs: Export, p: Periods) -> None:
                  "Week = Saturday – Friday, dated by Log Time in UTC as the Logs dashboard does. "
                  f"{p.cur} {_span(p.week)} is {'the whole week' if p.closed else 'to date'}; "
                  f"{p.prev.lower()} is {_span(p.last_week)}. "
-                 "SRM = the log's Created By; SRM team = its Managed By Team.", NOTE)
+                 "SRM = the log's Created By; business team and region = the BusinessTeam and BusinessRegion "
+                 "the introducer master pairs with its Managed By Team.", NOTE)
     wh, pwh = f"{p.cur}\n{_span(p.week)}", f"{p.prev}\n{_span(p.last_week)}"
     w = Writer(ws)
     w.section("A. Total logs and by log type")
@@ -512,8 +534,10 @@ def _activity(ws: Sheet, logs: Export, p: Periods) -> None:
 
     w.section("B. SRM-wise")
     wide("srm", "SRM (Created By)")
-    w.section("C. SRM team-wise")
-    wide("team", "SRM team (Managed By Team)")
+    w.section("C. Business region-wise")
+    wide("region", "Business region")
+    w.section("D. Business team-wise")
+    wide("team", "Business team")
     ws.widths.update({1: 34, **{c: 11 for c in range(2, 17)}})
     ws.freeze = "B4"
 
@@ -595,7 +619,7 @@ def _deposits(applications: Export, introducers: Export, p: Periods) -> Deposits
     # country and Became Customer Date.
     dep = dep.with_columns(
         pl.coalesce(clean(pl.col("introducer_id")), pl.lit("name:") + pl.col("introducer_name")).alias("key"),
-        _label("srm"), _team("team"), _label("amt"), _label("institution"),
+        _label("srm"), _team("team"), _label("region"), _label("amt"), _label("institution"),
     ).join(master.select(pl.col("id").alias("key"), "country", "bc", pl.lit(True).alias("in_master")),
            on="key", how="left").with_columns(
         pl.col("country").fill_null("(not in introducer master)"),
@@ -699,15 +723,16 @@ def _overview(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
     months = set(d.dep["month"].to_list())
     block("B. By Actual Intake Month", "Actual Intake Month",
           [((m,), d.n("Active", cy, m), d.n("Active", ly, m)) for m in MONTHS + [BLANK] if m in months])
-    block("C. By SRM team", "SRM team", _grouped(d.cur, d.prev, ["team"]), horizontal=True)
+    block("C. By business region", "Business region", _grouped(d.cur, d.prev, ["region"]), horizontal=True)
+    block("D. By business team", "Business team", _grouped(d.cur, d.prev, ["team"]), horizontal=True)
     rows, rest = top10("country", "All other countries")
-    block(f"D. Top 10 introducer countries ({cy} intake)", "Country", rows, rest, horizontal=True)
+    block(f"E. Top 10 introducer countries ({cy} intake)", "Country", rows, rest, horizontal=True)
     rows, rest = top10("institution", "All other institutions")
-    block(f"E. Top 10 institutions ({cy} intake)", "Institution", rows, rest, horizontal=True)
+    block(f"F. Top 10 institutions ({cy} intake)", "Institution", rows, rest, horizontal=True)
     lv = [_label("course_level")]
-    block("F. By course level", "Application Course Level",
+    block("G. By course level", "Application Course Level",
           _grouped(d.cur.with_columns(lv), d.prev.with_columns(lv), ["course_level"]), horizontal=True)
-    block("G. By the year the introducer was onboarded", "Introducer onboarded in",
+    block("H. By the year the introducer was onboarded", "Introducer onboarded in",
           [((o,), d.cur.filter(pl.col("cohort") == o).height, d.prev.filter(pl.col("cohort") == o).height)
            for o in _cohorts(p)])
     ws.widths.update({1: 40, 2: 13, 3: 13, 4: 10, 5: 10, 6: 3})
@@ -721,13 +746,13 @@ def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applic
     wh, pwh = f"{p.cur}\n{_span(p.week)}", f"{p.prev}\n{_span(p.last_week)}"
     i = _master(introducers)
     on, pon = i.filter(_between("bc", p.week)), i.filter(_between("bc", p.last_week))
-    lg = _logs(logs)
+    lg = _logs(logs, introducers)
     lc, lp = lg.filter(_between("day", p.week)), lg.filter(_between("day", p.last_week))
     # Paid in full that week: dated by the export's "Timestamp of 'Deposit Fully
     # Paid' status", whatever the intake year. Those since closed lost, or no
     # longer paid in full, are left out and counted in the note.
     a = d.a.filter(pl.col("academic") & pl.col("b2b")).with_columns(
-        _team("team"), _label("institution"),
+        _team("team"), _label("region"), _label("institution"),
         pl.when(pl.col("year").is_null()).then(pl.lit(BLANK))
         .otherwise(pl.col("month") + " " + pl.col("year").cast(pl.Utf8)).alias("intake"),
     )
@@ -764,15 +789,19 @@ def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applic
     w.compare(["Log type"], [((t,), lc.filter(pl.col("type") == t).height, lp.filter(pl.col("type") == t).height)
                              for t in TYPES + (["Other"] if lc.filter(pl.col("type") == "Other").height
                                                + lp.filter(pl.col("type") == "Other").height else [])], wh, pwh)
-    w.section("B1. Activity logs by SRM team (Managed By Team)")
-    w.compare(["SRM team"], _grouped(lc, lp, ["team"]), wh, pwh)
+    w.section("B1. Activity logs by business region")
+    w.compare(["Business region"], _grouped(lc, lp, ["region"]), wh, pwh)
+    w.section("B2. Activity logs by business team")
+    w.compare(["Business team"], _grouped(lc, lp, ["team"]), wh, pwh)
 
-    w.section("C. Introducers onboarded by SRM team")
-    w.compare(["SRM team"], _grouped(on, pon, ["team"]), wh, pwh)
-    w.section("C1. Introducers onboarded by country")
+    w.section("C. Introducers onboarded by business region (BusinessRegion)")
+    w.compare(["Business region"], _grouped(on, pon, ["region"]), wh, pwh)
+    w.section("C1. Introducers onboarded by business team (BusinessTeam)")
+    w.compare(["Business team"], _grouped(on, pon, ["team"]), wh, pwh)
+    w.section("C2. Introducers onboarded by country")
     w.compare(["Country"], _grouped(on, pon, ["country"]), wh, pwh)
-    w.section(f"C2. Introducers onboarded {p.cur.lower()} ({on.height})")
-    w.header(["Introducer", "Country", "SRM team", "SRM", "Became Customer Date"])
+    w.section(f"C3. Introducers onboarded {p.cur.lower()} ({on.height})")
+    w.header(["Introducer", "Country", "Business team", "SRM", "Became Customer Date"])
     for x in on.sort(["bc", "name"]).iter_rows(named=True):
         for k, v in enumerate([x["name"], x["country"], x["team"], x["srm"]], 1):
             ws.set(w.r, k, v, _st())
@@ -785,9 +814,11 @@ def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applic
                            fp.filter(pl.col("state") == "Active").height),
                           (("DAA — deferral awaiting approval",), fc.filter(pl.col("state") == "DAA").height,
                            fp.filter(pl.col("state") == "DAA").height)], wh, pwh)
-    w.section("D1. Deposits fully paid by SRM team (Introducer SRM Team on the application)")
-    w.compare(["SRM team"], _grouped(fc, fp, ["team"]), wh, pwh)
-    w.section("D2. Deposits fully paid by intake (Actual Intake Month and Year)")
+    w.section("D1. Deposits fully paid by business region (StudentAssignedToBusinessRegion)")
+    w.compare(["Business region"], _grouped(fc, fp, ["region"]), wh, pwh)
+    w.section("D2. Deposits fully paid by business team (CurrentlyAssignedToBusinessTeam)")
+    w.compare(["Business team"], _grouped(fc, fp, ["team"]), wh, pwh)
+    w.section("D3. Deposits fully paid by intake (Actual Intake Month and Year)")
     w.compare(["Intake"], _grouped(fc, fp, ["intake"]), wh, pwh)
     ws.widths.update(dict(enumerate([40, 34, 30, 18, 22, 10, 14], 1)))
     ws.freeze = "A4"
@@ -829,14 +860,16 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
                for o in _cohorts(p)], cyh, lyh)
 
     w.section(f"B. {cy} active deposits broken down",
-              "SRM, SRM team and AMT counsellor are the Introducer SRM / AMT columns on the application. "
+              "SRM and AMT counsellor are the Introducer SRM / AMT columns on the application; business team "
+              "is its CurrentlyAssignedToBusinessTeam and business region its StudentAssignedToBusinessRegion. "
               "Country is the introducer's country on the master file.")
     value_h = f"{cy} active deposits"
     for title, labels, keys in (("B1. By introducer country", ["Country"], ["country"]),
-                                ("B2. By SRM", ["SRM", "SRM team"], ["srm", "team"]),
-                                ("B3. By SRM team", ["SRM team"], ["team"]),
-                                ("B4. By AMT counsellor", ["AMT counsellor"], ["amt"]),
-                                ("B5. By institution", ["Institution"], ["institution"])):
+                                ("B2. By business region", ["Business region"], ["region"]),
+                                ("B3. By SRM", ["SRM", "Business team"], ["srm", "team"]),
+                                ("B4. By business team", ["Business team"], ["team"]),
+                                ("B5. By AMT counsellor", ["AMT counsellor"], ["amt"]),
+                                ("B6. By institution", ["Institution"], ["institution"])):
         w.section(title)
         w.share(labels, _counts(cur, keys), value_h)
 
@@ -846,7 +879,7 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
         ws.set(rc, 1, count_label, Style(bold=True))
         ws.set(rc + 1, 1, deposits_label, Style(bold=True))
         w.r += 3
-        w.header(["Introducer", "Country", "SRM team", "SRM", "Became Customer Date", f"{cy} active deposits",
+        w.header(["Introducer", "Country", "Business team", "SRM", "Became Customer Date", f"{cy} active deposits",
                   f"{ly} active deposits"], height=30)
         first = w.r
         for x in df.iter_rows(named=True):
