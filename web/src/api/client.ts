@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { accessToken } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  DatasetState, LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
+  DatasetState, Downloads, LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
@@ -163,7 +163,7 @@ export function useActivateLoad() {
  *  Everything derived from a load is dropped rather than guessing which. */
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   for (const key of ["view", "changelog", "loads", "uploads", "datasets",
-                     "dashboard", "dashboards", "sources"]) {
+                     "dashboard", "dashboards", "sources", "downloads"]) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
 }
@@ -184,5 +184,37 @@ export function useUpload() {
       return res.json() as Promise<UploadResult>;
     },
     onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useDownloads() {
+  return useQuery({
+    queryKey: ["downloads"],
+    queryFn: () => get<Downloads>("/downloads"),
+  });
+}
+
+/** Fetch a file and hand it to the browser to save.
+ *
+ *  A plain <a href> would not carry the bearer token, so the file is fetched
+ *  like any other call and saved through an object URL. The name is the one
+ *  the API puts in Content-Disposition, which knows the date it was built for. */
+export function useDownload() {
+  return useMutation({
+    mutationFn: async ({ path, fallbackName, name: fixedName }:
+      { path: string; fallbackName: string; name?: string }) => {
+      const res = await fetch(BASE + path, { headers: await authHeaders() });
+      if (!res.ok) throw new ApiError(await detail(res), res.status);
+      const name = fixedName
+        ?? /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1]
+        ?? fallbackName;
+      const url = URL.createObjectURL(await res.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+      return name;
+    },
   });
 }

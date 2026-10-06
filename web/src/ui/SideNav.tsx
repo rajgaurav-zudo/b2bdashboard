@@ -68,6 +68,8 @@ function TopBar() {
     trail = ["Data", "Uploads"];
   } else if (pathname === "/changelog") {
     trail = ["Data", "Changelog"];
+  } else if (pathname === "/downloads") {
+    trail = ["Data", "Downloads"];
   } else {
     trail = ["Dashboards"];
   }
@@ -135,6 +137,8 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
               fallback rendered as a dot */}
           <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
                hint="What every upload changed, in every dashboard" />
+          <Row to="/downloads" rail={rail} mark="↓" label="Downloads"
+               hint="This week's summary as an Excel workbook" />
         </div>
       </nav>
 

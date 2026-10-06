@@ -145,6 +145,19 @@ export interface DatasetState {
   uploaded_by: string | null;
 }
 
+/** What a download would be read from: the newest good upload of each source. */
+export interface DownloadSource {
+  source: string;
+  name: string;
+  upload_id: number | null;
+  filename: string | null;
+  uploaded_at: string | null;
+}
+
+export interface Downloads {
+  weekly_summary: { sources: DownloadSource[] };
+}
+
 export interface SourceSummary {
   slug: string;
   display_name: string;

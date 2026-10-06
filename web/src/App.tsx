@@ -6,6 +6,7 @@ import { authRequired, supabase, useAuth } from "./auth";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { DashboardShell } from "./pages/DashboardShell";
 import { DataPage } from "./pages/DataPage";
+import { DownloadsPage } from "./pages/DownloadsPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage, NotPermitted } from "./pages/LoginPage";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -62,6 +63,7 @@ export function App() {
             and one log of what it did */}
         <Route path="/uploads" element={<DataPage />} />
         <Route path="/changelog" element={<ChangelogPage />} />
+        <Route path="/downloads" element={<DownloadsPage />} />
         <Route path="/d/:slug" element={<DashboardShell />}>
           <Route index element={<OverviewPage />} />
         </Route>
