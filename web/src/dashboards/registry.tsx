@@ -5,6 +5,7 @@ import { Introducer360 } from "./introducer360";
 import { IntroducerPerformance } from "./introducerPerformance";
 import { LogDashboard } from "./logDashboard";
 import { Pipeline } from "./pipeline";
+import { Pulse } from "./pulse";
 
 /** Mirror of the backend registry. A dashboard without an entry here still gets
  *  its Data and Changelog tabs; only the bespoke overview is missing. */
@@ -14,4 +15,5 @@ export const OVERVIEWS: Record<string, ComponentType<{ slug: string }>> = {
   logs: LogDashboard,
   pipeline: Pipeline,
   commission: Commission,
+  pulse: Pulse,
 };
