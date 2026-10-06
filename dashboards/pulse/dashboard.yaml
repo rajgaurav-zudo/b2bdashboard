@@ -1,0 +1,37 @@
+slug: pulse
+name: B2B Pulse
+version: 1
+schema: dash_pulse
+
+description: >
+  Everything that happened in a date range, from all three exports at once:
+  introducers onboarded (Became Customer Date), activity logged (Log Time) and
+  applications reaching each stage (the stage timestamps). Filter by business
+  area, region and team, and by actual intake. Click any number for the records
+  behind it.
+
+dimensions: [area, region, team, country, introducer]
+
+# All three platform sources, projected into this dashboard's own tables. Area,
+# region and team are the CRM's own Business* columns: StudentAssignedToBusiness*
+# / CurrentlyAssignedToBusinessTeam on an application, Business* on the master.
+# A log has none, so it takes its introducer's from the master. See context.md.
+datasets:
+  introducers:
+    display_name: Introducers master
+    source: introducers
+    table: introducers
+    natural_key: [partner_name]
+    required_columns: ["Partner Name"]
+  applications:
+    display_name: Applications
+    source: applications
+    table: applications
+    natural_key: [app_uid]
+    required_columns: ["Application Status"]
+  logs:
+    display_name: Introducer activity log
+    source: introducer_logs
+    table: logs
+    natural_key: [log_uid]
+    required_columns: ["Introducers Name", "Log Type", "Log Time"]

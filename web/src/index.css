@@ -865,3 +865,18 @@ td.i360-c.tot b{color:var(--ink)}
 .pl-d.up{color:var(--good)}
 .pl-d.down{color:var(--bad)}
 .pl-d.flat{color:var(--faint)}
+
+/* B2B Pulse */
+.pulse-tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+button.pulse-tile{position:relative;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.pulse-tile .metric-l{font-weight:600}
+.pulse-table td.on,.pulse-table th.on{background:var(--ecrm-color-surface-kpi-sel)}
+.pulse-table td.txt{position:relative;min-width:180px}
+.pulse-bar{position:absolute;left:0;top:4px;bottom:4px;background:var(--ecrm-color-accent);opacity:.12;border-radius:0 3px 3px 0}
+.pulse-key{position:relative}
+.pulse-n{all:unset;cursor:pointer;color:var(--ecrm-color-accent);font-variant-numeric:tabular-nums}
+.pulse-n:hover{text-decoration:underline}
+.pulse-n:focus-visible{outline:var(--ecrm-focus-ring);outline-offset:2px}
+.pulse-zero{color:var(--faint)}
+.pulse-records td{white-space:nowrap}
+.pulse-records td.pulse-note{white-space:normal;min-width:280px;max-width:520px}
