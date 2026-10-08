@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     auth_allowed_emails: list[str] = []
     auth_allowed_domains: list[str] = []
 
+    # --- Google Sheet sync -----------------------------------------------------
+    # A service account's JSON key and the one sheet it may overwrite (shared
+    # with the account as Editor). Either missing turns the sync off.
+    google_service_account_file: str = ""
+    google_sheet_id: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

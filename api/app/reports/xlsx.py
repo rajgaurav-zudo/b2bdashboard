@@ -328,6 +328,9 @@ def _text(text: str, size: int, bold: bool = False) -> str:
             f"<a:t>{escape(text)}</a:t></a:r></a:p></c:rich>")
 
 
+LOG_SPREAD = 10   # biggest bar this many times the smallest non-zero one: log scale
+
+
 def _chart_xml(sheet: Sheet, chart: Chart) -> str:
     first, last, cat_col = chart.cats
     rows = range(first, last + 1)
@@ -338,6 +341,17 @@ def _chart_xml(sheet: Sheet, chart: Chart) -> str:
 
     cats = "".join(f'<c:pt idx="{i}"><c:v>{escape(str(_cached(sheet, r, cat_col) or ""))}</c:v></c:pt>'
                    for i, r in enumerate(rows))
+    # A chart whose biggest bar dwarfs its smallest draws on a log scale, so
+    # the small ones stay visible; the title says so. One whose values are all
+    # tiny steps its axis in whole numbers.
+    nums = [v for _, col in chart.series for r in rows
+            if isinstance(v := _cached(sheet, r, col), (int, float)) and not isinstance(v, bool)]
+    pos = [v for v in nums if v > 0]
+    log = bool(pos) and max(pos) >= LOG_SPREAD * min(pos)
+    title = f"{chart.title} (log scale)" if log else chart.title
+    scaling = ('<c:scaling><c:logBase val="10"/><c:orientation val="minMax"/><c:min val="0.1"/></c:scaling>'
+               if log else '<c:scaling><c:orientation val="minMax"/></c:scaling>')
+    unit = '<c:majorUnit val="1"/>' if not log and nums and max(nums) <= 5 else ""
     ser = []
     for k, (name, col) in enumerate(chart.series):
         vals = "".join(f'<c:pt idx="{i}"><c:v>{_num(v)}</c:v></c:pt>' for i, r in enumerate(rows)
@@ -366,7 +380,7 @@ def _chart_xml(sheet: Sheet, chart: Chart) -> str:
         '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" '
         f'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="{_REL}">'
         '<c:roundedCorners val="0"/><c:chart>'
-        f'<c:title><c:tx>{_text(chart.title, 1100, bold=True)}</c:tx><c:overlay val="0"/></c:title>'
+        f'<c:title><c:tx>{_text(title, 1100, bold=True)}</c:tx><c:overlay val="0"/></c:title>'
         '<c:autoTitleDeleted val="0"/><c:plotArea><c:layout/>'
         f'<c:barChart><c:barDir val="{"bar" if hz else "col"}"/><c:grouping val="clustered"/><c:varyColors val="0"/>'
         + "".join(ser)
@@ -379,12 +393,12 @@ def _chart_xml(sheet: Sheet, chart: Chart) -> str:
         '<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="800"/></a:pPr><a:endParaRPr lang="en-GB"/></a:p></c:txPr>'
         '<c:crossAx val="20"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/>'
         '<c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>'
-        f'<c:valAx><c:axId val="20"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="{1 if hz else 0}"/>'
+        f'<c:valAx><c:axId val="20"/>{scaling}<c:delete val="{1 if hz else 0}"/>'
         f'<c:axPos val="{"b" if hz else "l"}"/>' + ("" if hz else grid)
-        + '<c:numFmt formatCode="#,##0" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
+        + f'<c:numFmt formatCode="{"General" if log else "#,##0"}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>'
         '<c:tickLblPos val="nextTo"/>' + no_line +
         '<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="800"/></a:pPr><a:endParaRPr lang="en-GB"/></a:p></c:txPr>'
-        '<c:crossAx val="10"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>'
+        f'<c:crossAx val="10"/><c:crosses val="autoZero"/><c:crossBetween val="between"/>{unit}</c:valAx>'
         '</c:plotArea>'
         + ('<c:legend><c:legendPos val="t"/><c:overlay val="0"/></c:legend>' if len(chart.series) > 1 else "")
         + '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>'

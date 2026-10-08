@@ -154,8 +154,15 @@ export interface DownloadSource {
   uploaded_at: string | null;
 }
 
+/** The Google Sheet the weekly summary syncs to. Not configured = no button. */
+export interface GoogleSheetSync {
+  configured: boolean;
+  url: string | null;
+  synced_at: string | null;
+}
+
 export interface Downloads {
-  weekly_summary: { sources: DownloadSource[] };
+  weekly_summary: { sources: DownloadSource[]; google_sheet: GoogleSheetSync };
 }
 
 export interface SourceSummary {

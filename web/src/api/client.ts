@@ -194,6 +194,20 @@ export function useDownloads() {
   });
 }
 
+/** Write the weekly summary over the configured Google Sheet. */
+export function useSheetSync() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${BASE}/downloads/weekly-summary/sync`,
+        { method: "POST", headers: await authHeaders() });
+      if (!res.ok) throw new ApiError(await detail(res), res.status);
+      return res.json() as Promise<{ synced_at: string; sheet_url: string }>;
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["downloads"] }),
+  });
+}
+
 /** Fetch a file and hand it to the browser to save.
  *
  *  A plain <a href> would not carry the bearer token, so the file is fetched
