@@ -8,7 +8,7 @@ from ..auth import User, audit_actor, current_user
 from ..db import pool
 from ..ingest.reader import IngestError
 from ..ingest.service import activate, ingest_source, project_upload
-from ..reports import weekly_summary
+from ..reports import sheets_sync, weekly_summary
 from ..storage import StorageError
 
 # Applied to the whole router rather than per route: a new endpoint is then
@@ -310,11 +310,29 @@ def downloads():
                  "uploaded_at": (latest.get(s) or {}).get("started_at")}
                 for s in weekly_summary.SOURCES
             ],
+            "google_sheet": {
+                "configured": sheets_sync.configured(),
+                "url": sheets_sync.sheet_url(),
+                "synced_at": sheets_sync.last_synced(),
+            },
         },
     }
 
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _weekly_summary(now: datetime) -> bytes:
+    """The summary workbook as of `now`, from the latest upload of each source."""
+    with pool.connection() as conn:
+        latest = weekly_summary.latest_uploads(conn)
+    missing = [s for s in weekly_summary.SOURCES if s not in latest]
+    if missing:
+        raise HTTPException(409, f"Upload the {', '.join(missing)} export first: the summary reads all three.")
+    try:
+        return weekly_summary.summary(latest, weekly_summary.Periods(now.date()))
+    except (IngestError, StorageError) as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.get("/downloads/weekly-summary")
@@ -324,18 +342,21 @@ def download_weekly_summary():
 
     Dated in UTC, the same clock the Logs dashboard puts a log in its week by.
     """
-    with pool.connection() as conn:
-        latest = weekly_summary.latest_uploads(conn)
-    missing = [s for s in weekly_summary.SOURCES if s not in latest]
-    if missing:
-        raise HTTPException(409, f"Upload the {', '.join(missing)} export first: the summary reads all three.")
     now = datetime.now(timezone.utc)
-    today = now.date()
-    try:
-        content = weekly_summary.summary(latest, weekly_summary.Periods(today))
-    except (IngestError, StorageError) as exc:
-        raise HTTPException(409, str(exc)) from exc
+    content = _weekly_summary(now)
     # yyyy-dd-mm-hh-mm-ss, as asked for; the page names it on the reader's own clock instead
     name = f"Current week summary {now:%Y-%d-%m-%H-%M-%S}.xlsx"
     return Response(content, media_type=XLSX,
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@router.post("/downloads/weekly-summary/sync")
+def sync_weekly_summary():
+    """The same workbook, written over the configured Google Sheet."""
+    if not sheets_sync.configured():
+        raise HTTPException(409, "Google Sheet sync is not set up on this server.")
+    content = _weekly_summary(datetime.now(timezone.utc))
+    try:
+        return sheets_sync.push(content)
+    except sheets_sync.SyncError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc

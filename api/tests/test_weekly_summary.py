@@ -13,7 +13,7 @@ from datetime import date, datetime
 sys.path.insert(0, "/srv/api")
 
 from app.reports.weekly_summary import Periods, build, read_export  # noqa: E402
-from app.reports.xlsx import Formula, Workbook, col_letter  # noqa: E402
+from app.reports.xlsx import Chart, Formula, Workbook, col_letter  # noqa: E402
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 WHEN = datetime(2026, 10, 6, 9, 0)
@@ -44,29 +44,29 @@ APPLICATIONS = csv(
     "Application Introducer Name,Application Introducer Id,Deposit Paid Status,Application Closed Lost,"
     "Deferred Initiated (No/Yes/All),Deferred Approved (No/Yes/All),Application Course Level,Actual Intake Year,"
     "Actual Intake Month,Introducer SRM User Name,CurrentlyAssignedToBusinessTeam,Introducer AMT User Name,Institution Name,"
-    "StudentAssignedToBusinessArea,Application Ref No,Timestamp of ‚Äò Deposit Fully Paid‚Äô status,StudentAssignedToBusinessRegion",
-    "Delta,d1,FullyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-01,2026-09-28 00:00:00,Africa",         # Delta: 2026 only -> resurrected
-    "Delta,d1,FullyPaid,No,Yes,Yes,Undergraduate,2026,January,Dan,East,Amy,Uni B,B2B,A-02,2026-10-03 00:00:00,Africa",        # deferred and approved: active
-    "Gamma,c1,FullyPaid,No,No,No,Postgraduate,2025,September,Asha,South,Amy,Uni A,B2B,A-03,,Asia",       # Gamma: 2025 only -> missed out
-    "Gamma,c1,FullyPaid,No,Yes,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-04,2026-10-02 00:00:00,Asia",      # deferral pending: DAA
-    "Gamma,c1,FullyPaid,Yes,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-05,2026-09-30 00:00:00,Asia",      # closed lost: nothing
-    "Gamma,c1,FullyPaid,No,No,No,Language,2026,September,Asha,South,Amy,Uni A,B2B,A-06,2026-09-29 00:00:00,Asia",           # not Academic
-    "Delta,d1,FullyPaid,No,No,No,PresessionalEnglish,2026,September,Dan,East,Amy,Uni A,B2B,A-07,,Africa",  # not Academic
-    "Delta,d1,FullyPaid,No,No,No,,2026,September,Dan,East,Amy,Uni A,B2B,A-08,,Africa",                     # no course level: out
-    "Delta,d1,FullyPaid,No,No,No,September,2026,September,Dan,East,Amy,Uni A,B2B,A-09,,Africa",            # a stray value: out
-    "Zeta,,FullyPaid,No,No,No,GCSEgradesAC,2026,May,Zed,North,Amy,Uni C,B2B,A-10,,Asia",                 # a listed level: in
-    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2B,A-11,2026-09-20 00:00:00,Asia",       # onboarded 2026: not resurrected
-    "Alpha,a1,fullyPaidWaitingForApproval,No,No,No,Postgraduate,2026,January,Asha,South,Amy,Uni C,B2B,A-12,,Asia",  # paid in full: active
-    "Beta,b1,FullyPaid,No,No,Yes,Postgraduate,2026,January,Bola,West,Amy,Uni C,B2B,A-13,,Africa",          # columns differ: DAA
-    "Beta,b1,PartiallyPaid,No,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-14,,Africa",     # PD
-    "Beta,b1,PartiallyPaid,Yes,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-15,,Africa",    # closed lost: not PD
-    ",d1,PartiallyPaid,No,Yes,Yes,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-16,,Africa",        # no name, Delta's id: PD
-    ",,PartiallyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-17,,Africa",            # no introducer at all: out
-    "Beta,b1,NotPaid,No,No,No,Postgraduate,2026,September,Bola,West,Amy,Uni C,B2B,A-18,2026-09-21 00:00:00,Africa",           # nothing, though paid in the week before once
-    "Zeta,,FullyPaid,No,No,No,Postgraduate,2026,May,Zed,North,Amy,Uni C,B2B,A-19,,Asia",                 # no id, not in master
-    " eta ,,FullyPaid,No,No,No,Postgraduate,2025,May,Bola,West,Amy,Uni C,B2B,A-22,,Africa",              # no id: Eta's by name
-    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2C,A-20,2026-09-22 00:00:00,Asia",   # not B2B: out
-    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,,A-21,,Asia",      # no business area: out
+    "StudentAssignedToBusinessArea,Application Ref No,Timestamp of ‚Äò Deposit Fully Paid‚Äô status,StudentAssignedToBusinessRegion,Application Destination Country,Student Nationality",
+    "Delta,d1,FullyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-01,2026-09-28 00:00:00,Africa,Canada,Kenya",         # Delta: 2026 only -> resurrected
+    "Delta,d1,FullyPaid,No,Yes,Yes,Undergraduate,2026,January,Dan,East,Amy,Uni B,B2B,A-02,2026-10-03 00:00:00,Africa,United Kingdom,Kenya",        # deferred and approved: active
+    "Gamma,c1,FullyPaid,No,No,No,Postgraduate,2025,September,Asha,South,Amy,Uni A,B2B,A-03,,Asia,United Kingdom,India",       # Gamma: 2025 only -> missed out
+    "Gamma,c1,FullyPaid,No,Yes,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-04,2026-10-02 00:00:00,Asia,United Kingdom,India",      # deferral pending: DAA
+    "Gamma,c1,FullyPaid,Yes,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni A,B2B,A-05,2026-09-30 00:00:00,Asia,United Kingdom,India",      # closed lost: nothing
+    "Gamma,c1,FullyPaid,No,No,No,Language,2026,September,Asha,South,Amy,Uni A,B2B,A-06,2026-09-29 00:00:00,Asia,United Kingdom,India",           # not Academic
+    "Delta,d1,FullyPaid,No,No,No,PresessionalEnglish,2026,September,Dan,East,Amy,Uni A,B2B,A-07,,Africa,United Kingdom,India",  # not Academic
+    "Delta,d1,FullyPaid,No,No,No,,2026,September,Dan,East,Amy,Uni A,B2B,A-08,,Africa,United Kingdom,India",                     # no course level: out
+    "Delta,d1,FullyPaid,No,No,No,September,2026,September,Dan,East,Amy,Uni A,B2B,A-09,,Africa,United Kingdom,India",            # a stray value: out
+    "Zeta,,FullyPaid,No,No,No,GCSEgradesAC,2026,May,Zed,North,Amy,Uni C,B2B,A-10,,Asia,United Kingdom,India",                 # a listed level: in
+    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2B,A-11,2026-09-20 00:00:00,Asia,United Kingdom,India",       # onboarded 2026: not resurrected
+    "Alpha,a1,fullyPaidWaitingForApproval,No,No,No,Postgraduate,2026,January,Asha,South,Amy,Uni C,B2B,A-12,,Asia,United Kingdom,India",  # paid in full: active
+    "Beta,b1,FullyPaid,No,No,Yes,Postgraduate,2026,January,Bola,West,Amy,Uni C,B2B,A-13,,Africa,United Kingdom,India",          # columns differ: DAA
+    "Beta,b1,PartiallyPaid,No,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-14,,Africa,United Kingdom,India",     # PD
+    "Beta,b1,PartiallyPaid,Yes,No,No,Postgraduate,2025,September,Bola,West,Amy,Uni C,B2B,A-15,,Africa,United Kingdom,India",    # closed lost: not PD
+    ",d1,PartiallyPaid,No,Yes,Yes,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-16,,Africa,United Kingdom,India",        # no name, Delta's id: PD
+    ",,PartiallyPaid,No,No,No,Postgraduate,2026,September,Dan,East,Amy,Uni A,B2B,A-17,,Africa,United Kingdom,India",            # no introducer at all: out
+    "Beta,b1,NotPaid,No,No,No,Postgraduate,2026,September,Bola,West,Amy,Uni C,B2B,A-18,2026-09-21 00:00:00,Africa,United Kingdom,India",           # nothing, though paid in the week before once
+    "Zeta,,FullyPaid,No,No,No,Postgraduate,2026,May,Zed,North,Amy,Uni C,B2B,A-19,,Asia,United Kingdom,India",                 # no id, not in master
+    " eta ,,FullyPaid,No,No,No,Postgraduate,2025,May,Bola,West,Amy,Uni C,B2B,A-22,,Africa,United Kingdom,India",              # no id: Eta's by name
+    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,B2C,A-20,2026-09-22 00:00:00,Asia,United Kingdom,China",   # not B2B: out
+    "Alpha,a1,FullyPaid,No,No,No,Postgraduate,2026,September,Asha,South,Amy,Uni C,,A-21,,Asia,United Kingdom,India",      # no business area: out
 )
 
 
@@ -128,7 +128,16 @@ def test_last_week_sheet_compares_last_week_with_the_week_before():
     assert "Last week\n26 Sep – 02 Oct" in heads and "Week before\n19 Sep – 25 Sep" in heads
 
 
-def test_overview_comes_first_with_its_charts():
+def ytd_row(cells: dict[str, object], measure: str, label: str) -> list[object]:
+    """On the YTD sheet: the full year (this year, last, change, % change), then
+    each quarter (this year, last, % change), of `label`'s row in `measure`'s block."""
+    rows = sorted(int(k[1:]) for k in cells if k[1:].isdigit())
+    starts = [r for r in rows if cells.get(f"A{r}") == measure]
+    r = next(r for r in rows if r >= starts[0] and cells.get(f"B{r}") == label)
+    return [cells.get(f"{col_letter(c)}{r}") for c in range(3, 19)]
+
+
+def test_ytd_comes_first_with_its_charts():
     content = build(
         read_export("introducers", "i.csv", INTRODUCERS, WHEN),
         read_export("introducer_logs", "l.csv", LOGS, WHEN),
@@ -139,15 +148,47 @@ def test_overview_comes_first_with_its_charts():
     for name in z.namelist():
         ET.fromstring(z.read(name))                                # every part is well-formed XML
     names = [s.get("name") for s in ET.fromstring(z.read("xl/workbook.xml")).iter(f"{{{NS['m']}}}sheet")]
-    assert names == ["Deposits overview", "Onboarding", "Activity", "Sales & Retention", "Last week"]
+    assert names == ["YTD - Year to Date Summary", "Onboarding", "Activity", "Sales & Retention", "Last week"]
     charts = sorted(n for n in z.namelist() if n.startswith("xl/charts/"))
-    assert len(charts) == 8                                        # seven on the overview, one on Last week
+    # on YTD: the headline, the areas, each area's regions (B2B, B2C),
+    # destinations, nationalities; then one on Last week
+    assert len(charts) == 7
     assert "xl/drawings/drawing1.xml" in z.namelist() and "xl/worksheets/_rels/sheet1.xml.rels" in z.namelist()
-    assert "'Deposits overview'!$A$" in z.read("xl/charts/chart1.xml").decode()
-    s = workbook()["Deposits overview"]
-    assert row_after(s, "Active deposits")[:2] == [6, 2]
-    assert row_after(s, "Introducers with active deposits")[:2] == [3, 2]     # Delta, Alpha, Zeta; Gamma, Eta
-    assert row_after(s, "September")[:2] == [2, 1]
+    assert "'YTD - Year to Date Summary'!$A$" in z.read("xl/charts/chart1.xml").decode()
+    # nothing to the right of the quarters: the per-quarter side table is gone
+    refs = [c.get("r") for c in ET.fromstring(z.read("xl/worksheets/sheet1.xml")).iter(f"{{{NS['m']}}}c")]
+    assert not [r for r in refs if r.rstrip("0123456789") in ("T", "U", "V")]
+    # growth in subtle green, decline in red
+    styles = z.read("xl/styles.xml").decode()
+    assert "38761D" in styles and "C00000" in styles
+
+
+def test_ytd_counts_every_business_area_by_quarter():
+    s = workbook()["YTD - Year to Date Summary"]
+    # Every area, introducer or not: A-17 (no introducer) and A-20 (B2C) count;
+    # A-21 (no area), the closed-lost and the non-Academic ones do not.
+    # Deposits 2026: Jan A-02 A-12, May A-10 A-19, Sep A-01 A-11 A-20; 2025: May A-22, Sep A-03
+    assert ytd_row(s, "Deposits", "All business areas") == [7, 2, 5, 2.5, 2, 0, None, 2, 1, 1, 3, 1, 2, 0, 0, None]
+    assert ytd_row(s, "PD", "All business areas")[:4] == [2, 1, 1, 1]       # A-16, A-17; A-14
+    assert ytd_row(s, "DAA", "All business areas")[:4] == [2, 0, 2, None]   # A-04, A-13
+    assert ytd_row(s, "Deposits", "B2B")[:2] == [6, 2]
+    assert ytd_row(s, "Deposits", "B2C")[:2] == [1, 0]
+    assert ytd_row(s, "Deposits", "Total")[:2] == [7, 2]
+    assert "(blank)" not in s.values()                              # A-21's blank area is no row
+    # each area by StudentAssignedToBusinessRegion, B2B's first
+    assert ytd_row(s, "Deposits", "Asia")[:2] == [4, 1]
+    assert ytd_row(s, "Deposits", "Africa")[:2] == [2, 1]
+    assert any(v == "C2. B2C — by Business Region" for v in s.values())
+    # Delta's A-01 is Canada, the rest the UK; A-01 and A-02 are Kenyan, A-20 Chinese, the rest Indian
+    assert ytd_row(s, "Deposits", "United Kingdom")[:2] == [6, 2]
+    assert ytd_row(s, "Deposits", "Canada")[:2] == [1, 0]
+    assert ytd_row(s, "Deposits", "India")[:2] == [4, 2]
+    assert ytd_row(s, "Deposits", "Kenya")[:2] == [2, 0]
+    assert ytd_row(s, "Deposits", "China")[:2] == [1, 0]
+    # a row with nothing this year or last is left out, though other measures have it
+    rows = {int(k[1:]) for k in s if k[1:].isdigit()}
+    blank = [r for r in rows if isinstance(s.get(f"C{r}"), int) and not s.get(f"C{r}") and not s.get(f"D{r}")]
+    assert blank == []
 
 
 def test_onboarding_counts():
@@ -180,6 +221,7 @@ def test_active_daa_and_pd_deposits():
     assert row_after(s, "May") == [2, 0, 0, 1, 0, 0]
     # by StudentAssignedToBusinessRegion: Delta x2; Alpha x2, Zeta x2
     assert row_after(s, "Africa")[0] == 2 and row_after(s, "Asia")[0] == 4
+    assert row_after(s, "United Kingdom")[0] == 5 and row_after(s, "Canada")[0] == 1
 
 
 def test_retention_counts_active_deposits_only():
@@ -218,3 +260,22 @@ def test_team_names_drop_srm_and_amt():
     names = ["West Africa B2B SRMs 1", "MENA B2B SRMs", "CIS B2B SRM", "AMT Team London", "SRMs", None]
     out = pl.DataFrame({"team": names}).select(_team("team"))["team"].to_list()
     assert out == ["West Africa B2B 1", "MENA B2B", "CIS B2B", "Team London", "(blank)", "(blank)"]
+
+
+def test_a_chart_with_a_wide_spread_draws_on_a_log_scale():
+    """Small bars beside big ones would vanish on a linear axis."""
+    def chart(values: list[int]) -> str:
+        wb = Workbook()
+        ws = wb.add_sheet("S")
+        for i, v in enumerate(values, 1):
+            ws.set(i, 1, f"k{i}")
+            ws.set(i, 2, v)
+        ws.charts.append(Chart("Deposits", (1, len(values), 1), [("cy", 2)], at=(1, 4)))
+        return zipfile.ZipFile(io.BytesIO(wb.save())).read("xl/charts/chart1.xml").decode()
+
+    wide = chart([1163, 270, 14, 0])
+    assert '<c:logBase val="10"/>' in wide and "Deposits (log scale)" in wide
+    narrow = chart([282, 235, 144])
+    assert "logBase" not in narrow and "log scale" not in narrow
+    tiny = chart([1, 1, 0])                      # whole-number steps, not 0.2 rounded to "0"
+    assert "logBase" not in tiny and '<c:majorUnit val="1"/>' in tiny

@@ -1,4 +1,5 @@
-import { useDownload, useDownloads } from "../api/client";
+import { useDownload, useDownloads, useSheetSync } from "../api/client";
+import type { GoogleSheetSync } from "../api/types";
 import { when } from "../format";
 import { Band, Section, Spinner } from "../ui/Primitives";
 
@@ -45,6 +46,31 @@ function SummaryButton({ label, title, blocked }: { label: string; title: string
   );
 }
 
+/** The same summary, written over one Google Sheet: same link every time,
+ *  contents replaced whole. */
+function SyncButton({ sheet, blocked }: { sheet: GoogleSheetSync; blocked: boolean }) {
+  const sync = useSheetSync();
+  return (
+    <div>
+      <button
+        type="button"
+        className="btn"
+        disabled={sync.isPending || blocked}
+        aria-busy={sync.isPending}
+        onClick={() => sync.mutate()}
+      >
+        {sync.isPending ? "Syncing…" : "Sync to Google Sheet"}
+      </button>
+      {sync.isError ? <Band tone="warn">{sync.error.message}</Band> : null}
+      <p className="sub" style={{ marginTop: 8 }}>
+        {sync.isSuccess ? "Synced. " : null}
+        {sheet.url ? <a href={sheet.url} target="_blank" rel="noreferrer">Open the sheet</a> : null}
+        {sheet.synced_at ? ` · Last synced ${when(sheet.synced_at)}` : " · Not synced yet"}
+      </p>
+    </div>
+  );
+}
+
 /** Files built from the data, to take away.
  *
  *  A download reads the newest good upload of each source it needs, so it is
@@ -55,6 +81,7 @@ export function DownloadsPage() {
   const sources = data?.weekly_summary.sources ?? [];
   const missing = sources.filter((s) => !s.upload_id);
   const blocked = isLoading || missing.length > 0;
+  const sheet = data?.weekly_summary.google_sheet;
 
   return (
     <>
@@ -75,13 +102,15 @@ export function DownloadsPage() {
             `Its Last week sheet: ${edvoyWeek(1)}, against the week before.`}
         >
           <p className="sub" style={{ margin: "0 0 14px" }}>
-            Five sheets. <b>Deposits overview</b>: the active deposits in charts, this intake year
-            against last, by intake month, business region and team, country, institution, course level and the
-            year the introducer was onboarded. <b>Onboarding</b>: introducers by Became Customer
+            Five sheets. <b>YTD - Year to Date Summary</b>: deposits, PD and DAA for this actual
+            intake year against last, for the full year and each quarter, across every business
+            area, then each area by business region, and by application destination country and
+            student nationality, each table with its charts. <b>Onboarding</b>: introducers by Became Customer
             Date, year to date and for the week, by business region and team, SRM and country, with the week's new
             introducers listed. <b>Activity</b>: introducer logs for the week against the one
             before, by type, per SRM, business region and business team. <b>Sales &amp; Retention</b>: active deposits by
-            intake year, by onboarding year, country, business region and team, SRM, AMT counsellor and institution, with DAA
+            intake year, by onboarding year, country, application destination country, business region and team, SRM, AMT
+            counsellor and institution, with DAA
             and partial deposits by intake month, and the introducers resurrected and missed
             out. <b>Last week</b>: last week whole against the week before: introducers
             onboarded, activity logs, and deposits by the day they were paid in full.
@@ -89,9 +118,13 @@ export function DownloadsPage() {
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
             <SummaryButton label="This week's summary" title="Current week summary" blocked={blocked} />
+            {sheet?.configured ? <SyncButton sheet={sheet} blocked={blocked} /> : null}
           </div>
           <p className="sub" style={{ marginTop: 8 }}>
             The first download after a new upload reads the full exports and takes a few seconds.
+            {sheet?.configured
+              ? " Syncing builds the same workbook and writes it over the Google Sheet, replacing everything in it."
+              : null}
           </p>
           {missing.length > 0 ? (
             <Band tone="warn">

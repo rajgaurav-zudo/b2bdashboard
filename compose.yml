@@ -30,6 +30,10 @@ services:
       # in config.py is on, so anything that does not say this explicitly is
       # protected -- and the API prints a loud line at boot when it is off.
       AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      # Google Sheet sync (Downloads): the service account key, mounted read-only
+      # from ./secrets (git-ignored), and the sheet it overwrites. Unset = off.
+      GOOGLE_SERVICE_ACCOUNT_FILE: /srv/secrets/google-service-account.json
+      GOOGLE_SHEET_ID: ${GOOGLE_SHEET_ID:-}
       # colima's virtiofs mount does not emit inotify events; poll instead
       WATCHFILES_FORCE_POLLING: "true"
     depends_on:
@@ -40,6 +44,7 @@ services:
       - ./dashboards:/srv/dashboards
       - ./sources:/srv/sources
       - ./data/uploads:/srv/data/uploads
+      - ./secrets:/srv/secrets:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /srv/api --reload-dir /srv/dashboards --reload-dir /srv/sources
 
   web:

@@ -18,3 +18,6 @@ web/tsconfig.tsbuildinfo
 
 # local-only compose overrides: pins the dev stack to the db container
 compose.override.yml
+
+# Google service account key for the Sheets sync
+secrets/

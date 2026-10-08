@@ -6,14 +6,15 @@ Read straight from the latest archived export of each source:
     introducer_logs  Log Time, Log Type, Created By, Managed By Team (read as a business team and region)
     applications     the active-deposit columns, the application's own
                      Introducer SRM / AMT, Institution, Application Introducer Id,
-                     CurrentlyAssignedToBusinessTeam, StudentAssignedToBusinessRegion
+                     CurrentlyAssignedToBusinessTeam, StudentAssignedToBusinessArea / Region,
+                     Application Destination Country, Student Nationality
 
 "This week" is the Edvoy week, Saturday to Friday, that contains `today`, and
 it is to date. "Last week" is the seven days before it. Year to date runs
 from 1 January to `today`, against the same span of last year.
 
-Sheets, in order: Deposits overview (the active deposits in charts), Onboarding,
-Activity, Sales & Retention, and Last week -- last week, whole, against the
+Sheets, in order: YTD - Year to Date Summary (deposits, PD and DAA by intake
+year and quarter, in tables and charts), Onboarding, Activity, Sales & Retention, and Last week -- last week, whole, against the
 week before it: introducers onboarded, activity logs, and deposits by the date
 they were paid in full. The applications export is a snapshot with no history,
 so a deposit paid last week counts only if it is still paid in full today.
@@ -25,13 +26,15 @@ PartiallyPaid is PD. This report counts fullyPaidWaitingForApproval as paid;
 the dashboards (sources/context.md) count FullyPaid alone. Only the eight
 Academic course levels in ACADEMIC count; anything else, a blank included, is
 left out. Only applications whose StudentAssignedToBusinessArea is B2B count:
-the export carries every business area, and this is the introducer business. Every sheet opens with a note that
+the export carries every business area, and this is the introducer business.
+The YTD sheet is the exception: it counts every business area (a blank one
+aside), with or without an introducer. Every sheet opens with a note that
 says so, and says which files it was read from.
 """
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
 import polars as pl
@@ -76,6 +79,8 @@ COLUMNS = {
         Col("institution", "institution name", ("institution",)),
         Col("business_area", "studentassignedtobusinessarea", ("student", "business", "area"), required=True),
         Col("region", "studentassignedtobusinessregion", ("student", "business", "region")),
+        Col("destination", "application destination country", ("destination", "country")),
+        Col("nationality", "student nationality", ("student", "nationality")),
         # "Timestamp of 'Deposit Fully Paid' status"; the export's quotes arrive garbled
         Col("paid_at", "", ("timestamp", "deposit", "fully", "paid")),
     ],
@@ -257,6 +262,18 @@ def _span(span: tuple[date, date]) -> str:
     return f"{span[0]:%d %b} – {span[1]:%d %b}"
 
 
+UP, DOWN = "38761D", "C00000"      # subtle green, red
+
+
+def _trend(nf: str, value, total: bool = False) -> Style:
+    """A Change or % change cell: green for growth, red for decline. Coloured by
+    the value at build time; the workbook is rebuilt for every download."""
+    st = _st(nf, total=total)
+    if isinstance(value, (int, float)) and value:
+        st = replace(st, color=UP if value > 0 else DOWN)
+    return st
+
+
 def _pct(cur: float, prev: float) -> float | str:
     return "" if prev == 0 else (cur - prev) / prev
 
@@ -292,8 +309,8 @@ class Writer:
 
         def tail(r: int, cv: int, pv: int, tot: bool) -> None:
             C, P = ref(r, cc), ref(r, pc)
-            ws.set(r, pc + 1, Formula(f"{C}-{P}", cv - pv), _st(DLT, total=tot))
-            ws.set(r, pc + 2, Formula(f'IF({P}=0,"",({C}-{P})/{P})', _pct(cv, pv)), _st(PCT, total=tot))
+            ws.set(r, pc + 1, Formula(f"{C}-{P}", cv - pv), _trend(DLT, cv - pv, tot))
+            ws.set(r, pc + 2, Formula(f'IF({P}=0,"",({C}-{P})/{P})', _pct(cv, pv)), _trend(PCT, _pct(cv, pv), tot))
 
         for labels, cv, pv in rows:
             for k, lab in enumerate(labels, 1):
@@ -378,7 +395,7 @@ def _source_note(e: Export) -> str:
 def build(introducers: Export, logs: Export, applications: Export, p: Periods) -> bytes:
     wb = Workbook()
     d = _deposits(applications, introducers, p)
-    _overview(wb.add_sheet("Deposits overview"), d, applications, p)
+    _ytd(wb.add_sheet(YTD_SHEET), applications, p)
     _onboarding(wb.add_sheet("Onboarding"), introducers, p)
     _activity(wb.add_sheet("Activity"), logs, introducers, p)
     _sales(wb.add_sheet("Sales & Retention"), d, applications, p)
@@ -519,7 +536,7 @@ def _activity(ws: Sheet, logs: Export, introducers: Export, p: Periods) -> None:
                 sums[2 * j + 1] += pv
                 ws.set(w.r, c, cv, _st(INT))
                 ws.set(w.r, c + 1, pv, _st(INT))
-                ws.set(w.r, c + 2, Formula(f"{ref(w.r, c)}-{ref(w.r, c + 1)}", cv - pv), _st(DLT))
+                ws.set(w.r, c + 2, Formula(f"{ref(w.r, c)}-{ref(w.r, c + 1)}", cv - pv), _trend(DLT, cv - pv))
                 c += 3
             w.r += 1
         ws.set(w.r, 1, "Total", _st(total=True))
@@ -529,7 +546,7 @@ def _activity(ws: Sheet, logs: Export, introducers: Export, p: Periods) -> None:
                 ws.set(w.r, c + off, Formula(f"SUM({L(c + off)}{first}:{L(c + off)}{max(first, w.r - 1)})",
                                              sums[2 * j + off]), _st(INT, total=True))
             ws.set(w.r, c + 2, Formula(f"{ref(w.r, c)}-{ref(w.r, c + 1)}", sums[2 * j] - sums[2 * j + 1]),
-                   _st(DLT, total=True))
+                   _trend(DLT, sums[2 * j] - sums[2 * j + 1], total=True))
         w.r += 2
 
     w.section("B. SRM-wise")
@@ -540,6 +557,34 @@ def _activity(ws: Sheet, logs: Export, introducers: Export, p: Periods) -> None:
     wide("team", "Business team")
     ws.widths.update({1: 34, **{c: 11 for c in range(2, 17)}})
     ws.freeze = "B4"
+
+
+def _state() -> pl.Expr:
+    """Active, DAA or PD, as the module docstring defines them; null for any
+    other application and for a Closed Lost one."""
+    # an export without the deferral columns reads as never deferred
+    di = clean(pl.col("deferral_initiated")).fill_null("No")
+    da = clean(pl.col("deferral_approved")).fill_null("No")
+    status = _letters("deposit_paid_status")
+    live = clean(pl.col("closed_lost")).fill_null("No").eq("No")
+    return (pl.when(~live).then(None)
+            .when(status.is_in(PAID_IN_FULL) & di.eq(da)).then(pl.lit("Active"))
+            .when(status.is_in(PAID_IN_FULL)).then(pl.lit("DAA"))
+            .when(status == "partiallypaid").then(pl.lit("PD"))
+            .alias("state"))
+
+
+def _academic() -> pl.Expr:
+    return _letters("course_level").is_in([c.lower() for c in ACADEMIC]).alias("academic")
+
+
+def _year() -> pl.Expr:
+    return clean(pl.col("intake_year")).str.extract(r"(\d{4})").cast(pl.Int32, strict=False).alias("year")
+
+
+def _month() -> pl.Expr:
+    month = clean(pl.col("intake_month")).str.to_titlecase()
+    return pl.when(month.is_in(MONTHS)).then(month).otherwise(pl.lit(BLANK)).alias("month")
 
 
 @dataclass
@@ -586,23 +631,10 @@ def _deposits(applications: Export, introducers: Export, p: Periods) -> Deposits
     a = a.with_columns(norm.alias("_n")).join(by_name, on="_n", how="left") \
         .with_columns(pl.coalesce(clean(pl.col("introducer_id")), pl.col("_mid")).alias("introducer_id")) \
         .drop("_n", "_mid")
-    level = _letters("course_level")
-    # an export without the deferral columns reads as never deferred
-    di = clean(pl.col("deferral_initiated")).fill_null("No")
-    da = clean(pl.col("deferral_approved")).fill_null("No")
-    status = _letters("deposit_paid_status")
-    live = clean(pl.col("closed_lost")).fill_null("No").eq("No")
-    month = clean(pl.col("intake_month")).str.to_titlecase()
     a = a.with_columns(
-        level.is_in([c.lower() for c in ACADEMIC]).alias("academic"),
+        _academic(),
         clean(pl.col("business_area")).str.to_uppercase().eq("B2B").fill_null(False).alias("b2b"),
-        pl.when(~live).then(None)
-        .when(status.is_in(PAID_IN_FULL) & di.eq(da)).then(pl.lit("Active"))
-        .when(status.is_in(PAID_IN_FULL)).then(pl.lit("DAA"))
-        .when(status == "partiallypaid").then(pl.lit("PD"))
-        .alias("state"),
-        clean(pl.col("intake_year")).str.extract(r"(\d{4})").cast(pl.Int32, strict=False).alias("year"),
-        pl.when(month.is_in(MONTHS)).then(month).otherwise(pl.lit(BLANK)).alias("month"),
+        _state(), _year(), _month(),
         _date("paid_at").alias("paid"),
     )
     held = a.filter(pl.col("state").is_not_null() & pl.col("year").is_in([cy, ly]))
@@ -620,6 +652,7 @@ def _deposits(applications: Export, introducers: Export, p: Periods) -> Deposits
     dep = dep.with_columns(
         pl.coalesce(clean(pl.col("introducer_id")), pl.lit("name:") + pl.col("introducer_name")).alias("key"),
         _label("srm"), _team("team"), _label("region"), _label("amt"), _label("institution"),
+        _label("destination"),
     ).join(master.select(pl.col("id").alias("key"), "country", "bc", pl.lit(True).alias("in_master")),
            on="key", how="left").with_columns(
         pl.col("country").fill_null("(not in introducer master)"),
@@ -655,88 +688,181 @@ def _cohorts(p: Periods) -> list[str]:
     return order
 
 
-def _definitions(applications: Export, p: Periods) -> str:
-    return (f"Source: applications, {_source_note(applications)}. Active deposit = Deposit Paid Status FullyPaid "
-            "or fullyPaidWaitingForApproval, with Deferred Initiated and Deferred Approved both No or both Yes, "
-            "not Closed Lost, on an application with an introducer; Academic course levels and "
-            "StudentAssignedToBusinessArea B2B only, as on Sales & Retention, which has the full definitions "
-            f"and what is left out. Intake = Actual Intake Year. The {p.cy} intake year is still in progress.")
+YTD_SHEET = "YTD - Year to Date Summary"
+MEASURES = [("Deposits", "Active"), ("PD", "PD"), ("DAA", "DAA")]
+QUARTERS = ["Q1 (Jan–Mar)", "Q2 (Apr–Jun)", "Q3 (Jul–Sep)", "Q4 (Oct–Dec)"]
+QUARTER_OF = {m: i // 3 + 1 for i, m in enumerate(MONTHS)}
+YTD_TOP = 20
 
 
-def _overview(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
-    """The active deposits at a glance: a headline table, then each breakdown
-    as a small table with its chart beside it."""
-    cy, ly = p.cy, p.ly
+def _ytd_frame(applications: Export, p: Periods) -> tuple[pl.DataFrame, dict[str, dict[int, int]]]:
+    """Active, DAA and PD applications for this year's and last year's intake,
+    in every business area and with or without an introducer, each with the
+    quarter of its intake month (0 when the month is blank). Also what was
+    left out, per reason and intake year."""
+    a = applications.frame.with_columns(
+        _state(), _year(), _month(), _academic(), clean(pl.col("business_area")).alias("area"),
+    ).filter(pl.col("state").is_not_null() & pl.col("year").is_in([p.cy, p.ly]))
+
+    def per_year(df: pl.DataFrame) -> dict[int, int]:
+        return {r["year"]: r["len"] for r in df.group_by("year").len().iter_rows(named=True)}
+
+    left_out = {"non_acad": per_year(a.filter(~pl.col("academic"))),
+                "no_area": per_year(a.filter(pl.col("academic") & pl.col("area").is_null()))}
+    a = a.filter(pl.col("academic") & pl.col("area").is_not_null()).with_columns(
+        pl.col("month").replace_strict(QUARTER_OF, default=0, return_dtype=pl.Int8).alias("q"),
+        _label("region"), _label("destination"), _label("nationality"),
+    )
+    return a, left_out
+
+
+def _ytd_table(w: Writer, label: str, df: pl.DataFrame, key: str, p: Periods, title: str,
+               top: int | None = None, totals: bool = True) -> None:
+    """Deposits, PD and DAA per `key`, one block of rows each: the full intake
+    year and each quarter, this year against last. Under it, a chart of the
+    deposits per key. `top` keeps the biggest keys and folds the rest into one
+    row, which the chart leaves out."""
+    ws, cy, ly = w.ws, p.cy, p.ly
     cyh, lyh = f"{cy} intake", f"{ly} intake"
-    ws.set(1, 1, f"Deposits overview — active deposits, {cy} intake vs {ly} intake", H1)
-    ws.set(2, 1, _definitions(applications, p), NOTE_WRAP)
-    ws.merges.append("A2:N2")
-    ws.heights[2] = 40
-    w = Writer(ws)
+    order = df.group_by(key).agg(
+        *[((pl.col("state") == s) & (pl.col("year") == y)).sum().alias(f"{s}{y}")
+          for s in ("Active", "PD", "DAA") for y in (cy, ly)])
+    order = order.sort([f"Active{cy}", f"Active{ly}", f"PD{cy}", f"DAA{cy}", key],
+                       descending=[True, True, True, True, False])
+    keys = order[key].to_list()
+    if top is not None and len(keys) > top:
+        other = f"All others ({len(keys) - top})"
+        df = df.with_columns(pl.when(pl.col(key).is_in(keys[:top])).then(pl.col(key))
+                             .otherwise(pl.lit(other)).alias(key))
+        keys = keys[:top] + [other]
+    n: dict[tuple, int] = {}
+    for r in df.group_by(key, "state", "year").len().iter_rows():
+        n[(r[0], r[1], r[2], 0)] = r[3]
+    for r in df.filter(pl.col("q") > 0).group_by(key, "state", "year", "q").len().iter_rows():
+        n[(r[0], r[1], r[2], r[3])] = r[4]
 
-    w.section("A. Headline")
-    w.compare(["Deposits by introducers"], [
-        (("Active deposits",), d.n("Active", cy), d.n("Active", ly)),
-        (("DAA — deferral awaiting approval",), d.n("DAA", cy), d.n("DAA", ly)),
-        (("PD — partial deposits",), d.n("PD", cy), d.n("PD", ly)),
-        (("Introducers with active deposits",), d.cur["key"].n_unique(), d.prev["key"].n_unique()),
-    ], cyh, lyh, total=False)
-    for label, v in (("Introducers resurrected", d.resurrected.height), ("Introducers missed out", d.missed.height)):
-        ws.set(w.r, 1, label, _st(bold=True))
-        ws.set(w.r, 2, v, _st(INT, bold=True))
-        w.r += 1
-    ws.set(w.r, 1, f"Resurrected: not onboarded in {cy}, no active deposit for {ly}, some for {cy}. Missed out: "
-                   f"active deposits for {ly}, none for {cy}. Both are listed on Sales & Retention.", NOTE)
+    # two header rows: the period over its columns, then the years
+    h = w.r
+    groups = [("Full year", 3, [cyh, lyh, "Change", "% change"])] + \
+             [(q, 7 + 3 * j, [str(cy), str(ly), "% change"]) for j, q in enumerate(QUARTERS)]
+    for c, name in ((1, "Measure"), (2, label)):
+        ws.set(h, c, name, HDR)
+        ws.set(h + 1, c, "", HDR)
+        ws.merges.append(f"{L(c)}{h}:{L(c)}{h + 1}")
+    for name, start, subs in groups:
+        for k, sub in enumerate(subs):
+            ws.set(h, start + k, name if k == 0 else "", HDR)
+            ws.set(h + 1, start + k, sub, HDR)
+        ws.merges.append(f"{L(start)}{h}:{L(start + len(subs) - 1)}{h}")
+    ws.heights[h + 1] = 30
     w.r += 2
 
-    def block(title: str, label: str, rows: list[tuple[tuple[str, ...], int, int]],
-              rest: tuple[str, int, int] | None = None, horizontal: bool = False) -> None:
-        """A table of active deposits per `label`, with its chart to the right.
-        `rest` is a row for everything outside the top rows; it is in the table
-        and its total but not the chart."""
-        w.section(title)
-        top = w.r
-        w.header([label, cyh, lyh], height=30)
+    pairs = [(3, 4, 0)] + [(7 + 3 * j, 8 + 3 * j, j + 1) for j in range(4)]   # (this year, last year, quarter)
+
+    def tail(r: int, cc: int, pc: int, cv: int, pv: int, change: bool, tot: bool) -> None:
+        C, P = ref(r, cc), ref(r, pc)
+        if change:
+            ws.set(r, pc + 1, Formula(f"{C}-{P}", cv - pv), _trend(DLT, cv - pv, tot))
+        ws.set(r, pc + 1 + change, Formula(f'IF({P}=0,"",({C}-{P})/{P})', _pct(cv, pv)), _trend(PCT, _pct(cv, pv), tot))
+
+    measure = Style(bold=True, border=True, wrap=True, valign="center")
+    top_row, deposits = w.r, []    # the deposit block's key rows: the chart's bars
+    for mname, state in MEASURES:
+        # a row with nothing in it from end to end is left out, and so is a
+        # measure with no rows left
+        rows = [k for k in keys if n.get((k, state, cy, 0), 0) or n.get((k, state, ly, 0), 0)]
+        if not rows:
+            continue
         first = w.r
-        for row in rows + ([((rest[0],), rest[1], rest[2])] if rest else []):
-            ws.set(w.r, 1, row[0][0], _st())
-            ws.set(w.r, 2, row[1], _st(INT))
-            ws.set(w.r, 3, row[2], _st(INT))
+        for k in rows:
+            ws.set(w.r, 2, k, _st())
+            for cc, pc, q in pairs:
+                cv, pv = n.get((k, state, cy, q), 0), n.get((k, state, ly, q), 0)
+                ws.set(w.r, cc, cv, _st(INT))
+                ws.set(w.r, pc, pv, _st(INT))
+                tail(w.r, cc, pc, cv, pv, q == 0, False)
+            if state == "Active" and (top is None or k != keys[-1] or len(keys) <= top):
+                deposits.append(w.r)
             w.r += 1
-        ws.set(w.r, 1, "Total", _st(total=True))
-        for c in (2, 3):
-            ws.set(w.r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{max(first, w.r - 1)})",
-                                   sum(r[c - 1] for r in rows) + (rest[c - 1] if rest else 0)), _st(INT, total=True))
-        w.r += 1
-        height = max(15, round(1.4 * len(rows)) + 6) if horizontal else 15
-        if rows:
-            ws.charts.append(Chart(title.split(". ", 1)[1], (first, first + len(rows) - 1, 1),
-                                   [(cyh, 2), (lyh, 3)], at=(top, 7), size=(height, 10), horizontal=horizontal))
-        w.r = max(w.r, top + height) + 2
+        if totals:
+            ws.set(w.r, 2, "Total", _st(total=True))
+            for cc, pc, q in pairs:
+                cv = sum(n.get((k, state, cy, q), 0) for k in rows)
+                pv = sum(n.get((k, state, ly, q), 0) for k in rows)
+                for c, v in ((cc, cv), (pc, pv)):
+                    ws.set(w.r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{w.r - 1})", v), _st(INT, total=True))
+                tail(w.r, cc, pc, cv, pv, q == 0, True)
+            w.r += 1
+        ws.set(first, 1, mname, measure)
+        for r in range(first + 1, w.r):
+            ws.set(r, 1, "", measure)
+        if w.r - 1 > first:
+            ws.merges.append(f"A{first}:A{w.r - 1}")
+    end = w.r
 
-    def top10(key: str, other: str) -> tuple[list[tuple[tuple[str, ...], int, int]], tuple[str, int, int] | None]:
-        g = _grouped(d.cur, d.prev, [key])
-        rest = g[10:]
-        return g[:10], ((f"{other} ({len(rest)})", sum(r[1] for r in rest), sum(r[2] for r in rest))
-                        if rest else None)
+    w.r = end + 1
+    # the headline charts its measures, one row each; the rest their deposits per key
+    cats = (top_row, end - 1, 1) if not totals else (deposits[0], deposits[-1], 2) if deposits else None
+    if end == top_row or cats is None:
+        return
+    shown = cats[1] - cats[0] + 1
+    many = shown > 6
+    height = max(15, round(1.4 * shown) + 6) if many else 15
+    ws.charts.append(Chart(title, cats, [(cyh, 3), (lyh, 4)], at=(w.r, 2), size=(height, 10), horizontal=many))
+    w.r += height + 2
 
-    months = set(d.dep["month"].to_list())
-    block("B. By Actual Intake Month", "Actual Intake Month",
-          [((m,), d.n("Active", cy, m), d.n("Active", ly, m)) for m in MONTHS + [BLANK] if m in months])
-    block("C. By business region", "Business region", _grouped(d.cur, d.prev, ["region"]), horizontal=True)
-    block("D. By business team", "Business team", _grouped(d.cur, d.prev, ["team"]), horizontal=True)
-    rows, rest = top10("country", "All other countries")
-    block(f"E. Top 10 introducer countries ({cy} intake)", "Country", rows, rest, horizontal=True)
-    rows, rest = top10("institution", "All other institutions")
-    block(f"F. Top 10 institutions ({cy} intake)", "Institution", rows, rest, horizontal=True)
-    lv = [_label("course_level")]
-    block("G. By course level", "Application Course Level",
-          _grouped(d.cur.with_columns(lv), d.prev.with_columns(lv), ["course_level"]), horizontal=True)
-    block("H. By the year the introducer was onboarded", "Introducer onboarded in",
-          [((o,), d.cur.filter(pl.col("cohort") == o).height, d.prev.filter(pl.col("cohort") == o).height)
-           for o in _cohorts(p)])
-    ws.widths.update({1: 40, 2: 13, 3: 13, 4: 10, 5: 10, 6: 3})
-    ws.freeze = "A4"
+
+def _ytd(ws: Sheet, applications: Export, p: Periods) -> None:
+    """Deposits, PD and DAA by Actual Intake Year, this year's against last,
+    for the full year and each quarter: overall, by business area, by region
+    within each area, by destination country and by student nationality."""
+    cy, ly = p.cy, p.ly
+    df, left_out = _ytd_frame(applications, p)
+    blank_month = {y: df.filter((pl.col("year") == y) & (pl.col("q") == 0)).height for y in (cy, ly)}
+
+    def per_year(d: dict[int, int]) -> str:
+        return f"{d.get(cy, 0):,} for {cy}, {d.get(ly, 0):,} for {ly}"
+
+    ws.set(1, 1, f"Year to date summary — deposits, PD and DAA, {cy} intake vs {ly} intake", H1)
+    ws.set(2, 1, f"Source: applications, {_source_note(applications)}. Deposits = active deposits: Deposit Paid "
+                 "Status FullyPaid or fullyPaidWaitingForApproval, with Deferred Initiated and Deferred Approved "
+                 "both No or both Yes. DAA = paid in full with those two differing. PD = PartiallyPaid. None Closed "
+                 "Lost; Academic course levels only. Unlike the other sheets, every business area counts, with or "
+                 "without an introducer; a blank Business Area is left out "
+                 f"({per_year(left_out['no_area'])}), as are non-Academic levels ({per_year(left_out['non_acad'])}). "
+                 "Intake = Actual Intake Year; quarters by Actual Intake Month, and an application with no month "
+                 f"counts in the full year but in no quarter ({per_year(blank_month)}). The {cy} intake year is "
+                 "still in progress.", NOTE_WRAP)
+    ws.merges.append("A2:R2")
+    ws.heights[2] = 54
+    w = Writer(ws)
+
+    w.section("A. Headline — all business areas")
+    _ytd_table(w, "Business areas", df.with_columns(pl.lit("All business areas").alias("all")), "all", p,
+               f"Deposits, PD and DAA — {cy} vs {ly} intake", totals=False)
+
+    w.section("B. By Business Area")
+    _ytd_table(w, "Business area", df, "area", p, "Deposits by business area")
+
+    areas = df.filter(pl.col("state") == "Active").group_by("area").len().sort(["len", "area"], descending=[True, False])
+    areas = areas["area"].to_list() + sorted(set(df["area"].to_list()) - set(areas["area"].to_list()))
+    for i, area in enumerate(areas, 1):
+        w.section(f"C{i}. {area} — by Business Region")
+        _ytd_table(w, "Business region", df.filter(pl.col("area") == area), "region", p,
+                   f"{area} deposits by business region")
+
+    w.section("D. By application destination country",
+              f"The {YTD_TOP} with the most {cy} deposits; the chart shows them, the table folds any others into one row.")
+    _ytd_table(w, "Application Destination Country", df, "destination", p,
+               "Deposits by application destination country", top=YTD_TOP)
+
+    w.section("E. By student nationality",
+              f"The {YTD_TOP} with the most {cy} deposits; the chart shows them, the table folds any others into one row.")
+    _ytd_table(w, "Student Nationality", df, "nationality", p, "Deposits by student nationality", top=YTD_TOP)
+
+    ws.widths.update({1: 12, 2: 32, 3: 11, 4: 11, 5: 9, 6: 9})
+    ws.widths.update({c: 8 for c in range(7, 19)})
+    ws.freeze = "C4"
 
 
 def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applications: Export,
@@ -767,7 +893,7 @@ def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applic
                  f"the introducers master, {_source_note(introducers)}. Activity logs: Log Time in UTC, one row per "
                  f"log id, {_source_note(logs)}. Deposits fully paid: the application's \"Timestamp of 'Deposit "
                  f"Fully Paid' status\" in the week, any intake year, on {_source_note(applications)}; counted when "
-                 "the application has an introducer, an Academic course level and StudentAssignedToBusinessArea "
+                 "the application has an introducer, an Academic course level and Business Area "
                  "B2B, and is today an active deposit or DAA. The applications export keeps no history, so a "
                  "deposit since closed lost or no longer paid in full drops out"
                  + (f": {dropped} paid in these two weeks did." if dropped else "; none paid in these two weeks did."),
@@ -814,7 +940,7 @@ def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applic
                            fp.filter(pl.col("state") == "Active").height),
                           (("DAA — deferral awaiting approval",), fc.filter(pl.col("state") == "DAA").height,
                            fp.filter(pl.col("state") == "DAA").height)], wh, pwh)
-    w.section("D1. Deposits fully paid by business region (StudentAssignedToBusinessRegion)")
+    w.section("D1. Deposits fully paid by Business Region")
     w.compare(["Business region"], _grouped(fc, fp, ["region"]), wh, pwh)
     w.section("D2. Deposits fully paid by business team (CurrentlyAssignedToBusinessTeam)")
     w.compare(["Business team"], _grouped(fc, fp, ["team"]), wh, pwh)
@@ -835,7 +961,7 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
                  "DAA = the same paid statuses where those two columns differ. PD = Deposit Paid Status "
                  f"PartiallyPaid. Intake = Actual Intake Year and Actual Intake Month. Application Course Level "
                  f"{', '.join(ACADEMIC)} only; active deposits on any other course level left out: {cy} "
-                 f"{non_acad.get(cy, 0)}, {ly} {non_acad.get(ly, 0)}. StudentAssignedToBusinessArea B2B only; "
+                 f"{non_acad.get(cy, 0)}, {ly} {non_acad.get(ly, 0)}. Business Area B2B only; "
                  f"Academic active deposits on other business areas left out: {cy} {non_b2b.get(cy, 0)}, "
                  f"{ly} {non_b2b.get(ly, 0)}. Every table from A2 on counts active "
                  f"deposits only. The {cy} intake year is still in progress.", NOTE_WRAP)
@@ -861,15 +987,18 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
 
     w.section(f"B. {cy} active deposits broken down",
               "SRM and AMT counsellor are the Introducer SRM / AMT columns on the application; business team "
-              "is its CurrentlyAssignedToBusinessTeam and business region its StudentAssignedToBusinessRegion. "
-              "Country is the introducer's country on the master file.")
+              "is its CurrentlyAssignedToBusinessTeam and business region its Business Region. "
+              "Country is the introducer's country on the master file; destination country is the "
+              "application's Application Destination Country.")
     value_h = f"{cy} active deposits"
     for title, labels, keys in (("B1. By introducer country", ["Country"], ["country"]),
-                                ("B2. By business region", ["Business region"], ["region"]),
-                                ("B3. By SRM", ["SRM", "Business team"], ["srm", "team"]),
-                                ("B4. By business team", ["Business team"], ["team"]),
-                                ("B5. By AMT counsellor", ["AMT counsellor"], ["amt"]),
-                                ("B6. By institution", ["Institution"], ["institution"])):
+                                ("B2. By application destination country", ["Application Destination Country"],
+                                 ["destination"]),
+                                ("B3. By business region", ["Business region"], ["region"]),
+                                ("B4. By SRM", ["SRM", "Business team"], ["srm", "team"]),
+                                ("B5. By business team", ["Business team"], ["team"]),
+                                ("B6. By AMT counsellor", ["AMT counsellor"], ["amt"]),
+                                ("B7. By institution", ["Institution"], ["institution"])):
         w.section(title)
         w.share(labels, _counts(cur, keys), value_h)
 
