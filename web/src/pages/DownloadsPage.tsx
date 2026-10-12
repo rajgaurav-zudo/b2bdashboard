@@ -102,10 +102,19 @@ export function DownloadsPage() {
             `Its Last week sheet: ${edvoyWeek(1)}, against the week before.`}
         >
           <p className="sub" style={{ margin: "0 0 14px" }}>
-            Five sheets. <b>YTD - Year to Date Summary</b>: deposits, PD and DAA for this actual
+            Eight sheets. <b>YTD - Year to Date Summary</b>: deposits, PD and DAA for this actual
             intake year against last, for the full year and each quarter, across every business
             area, then each area by business region, and by application destination country and
-            student nationality, each table with its charts. <b>Onboarding</b>: introducers by Became Customer
+            student nationality, each table with its charts. <b>{new Date().getFullYear() + 1} sales
+            sheet</b>: the same for next year's intake against this year's. <b>Deposit funnel
+            movement</b>: active deposits by the stage each stands at now (offered, CoE received, visa
+            applied, visa granted, enrolled), this intake year against last, for the full year, each
+            quarter and each business area. <b>Sametime Last Year</b>: this intake year's
+            applications by today against last year's on the same date a year ago, counting how many had
+            reached each stage by then, how many were still open in it and how many were closed lost
+            there, with the closed lost rate (applied, offered, deposit, CoE,
+            visa applied, visa granted, enrolled), by quarter and business area.
+            <b>Onboarding</b>: introducers by Became Customer
             Date, year to date and for the week, by business region and team, SRM and country, with the week's new
             introducers listed. <b>Activity</b>: introducer logs for the week against the one
             before, by type, per SRM, business region and business team. <b>Sales &amp; Retention</b>: active deposits by

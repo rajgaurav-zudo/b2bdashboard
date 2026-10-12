@@ -34,6 +34,7 @@ class Style:
     wrap: bool = False
     halign: str | None = None     # left / center / right
     valign: str | None = None     # top / center / bottom
+    indent: int = 0               # steps in from the left edge
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,10 @@ class Sheet:
         self.merges: list[str] = []
         self.freeze: str | None = None    # top-left cell of the scrolling area, e.g. "A4"
         self.charts: list[Chart] = []
+        # row grouping: each detail row's outline level (hidden until expanded),
+        # and the summary rows above them, drawn collapsed
+        self.outline: dict[int, int] = {}
+        self.collapsed: set[int] = set()
 
     def set(self, row: int, col: int, value: object, style: Style | None = None) -> None:
         self.cells[(row, col)] = (value, style)
@@ -136,6 +141,10 @@ class Workbook:
         for r in sorted(rows):
             cells = "".join(self._cell(r, c, v, st) for c, v, st in sorted(rows[r], key=lambda x: x[0]))
             ht = f' ht="{sheet.heights[r]}" customHeight="1"' if r in sheet.heights else ""
+            if r in sheet.outline:
+                ht += f' outlineLevel="{sheet.outline[r]}" hidden="1"'
+            if r in sheet.collapsed:
+                ht += ' collapsed="1"'
             body.append(f'<row r="{r}"{ht}>{cells}</row>')
         for r in sorted(set(sheet.heights) - set(rows)):
             body.append(f'<row r="{r}" ht="{sheet.heights[r]}" customHeight="1"/>')
@@ -156,8 +165,11 @@ class Workbook:
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            f'<sheetViews><sheetView workbookViewId="0" showGridLines="0">{pane}</sheetView></sheetViews>'
-            '<sheetFormatPr defaultRowHeight="13"/>'
+            # a group's summary row sits above its details
+            + ('<sheetPr><outlinePr summaryBelow="0"/></sheetPr>' if sheet.outline else "")
+            + f'<sheetViews><sheetView workbookViewId="0" showGridLines="0">{pane}</sheetView></sheetViews>'
+            + (f'<sheetFormatPr defaultRowHeight="13" outlineLevelRow="{max(sheet.outline.values())}"/>'
+               if sheet.outline else '<sheetFormatPr defaultRowHeight="13"/>')
             + (f"<cols>{cols}</cols>" if cols else "")
             + f'<sheetData>{"".join(body)}</sheetData>'
             + (f'<mergeCells count="{len(sheet.merges)}">{merges}</mergeCells>' if merges else "")
@@ -183,8 +195,10 @@ class Workbook:
                              '<bgColor indexed="64"/></patternFill></fill>')
                 fill_id = len(fills) - 1
             align = ""
-            if st.wrap or st.halign or st.valign:
-                align = ("<alignment" + (f' horizontal="{st.halign}"' if st.halign else "")
+            if st.wrap or st.halign or st.valign or st.indent:
+                halign = st.halign or ("left" if st.indent else None)
+                align = ("<alignment" + (f' horizontal="{halign}"' if halign else "")
+                         + (f' indent="{st.indent}"' if st.indent else "")
                          + (f' vertical="{st.valign}"' if st.valign else "")
                          + (' wrapText="1"' if st.wrap else "") + "/>")
             fmt_id = fmts.get(st.num_fmt, 0) if st.num_fmt else 0
