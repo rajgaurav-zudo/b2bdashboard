@@ -1,6 +1,6 @@
 """A small .xlsx writer on the standard library.
 
-Only what the reports use: text, numbers, dates and formulas, a handful of
+Only what the reports use: text (rich text too), numbers, dates and formulas, a handful of
 cell styles, column widths, row heights, merged cells, a frozen header and
 bar / column charts drawn from cells on their own sheet.
 A workbook is a zip of XML parts, and writing those directly is less code
@@ -44,6 +44,14 @@ class Formula:
     value: float | int | str | None = None
 
 
+@dataclass(frozen=True)
+class Rich:
+    """Text in runs with fonts of their own: (text, Style) pairs, of which
+    only the font -- bold, italic, size, colour -- applies; the cell's own
+    style still sets its border, fill and alignment."""
+    runs: tuple[tuple[str, Style], ...]
+
+
 @dataclass
 class Chart:
     """A clustered bar or column chart over a block of cells on its sheet.
@@ -76,6 +84,13 @@ def ref(row: int, col: int) -> str:
     return f"{col_letter(col)}{row}"
 
 
+def _sheet_pr(sheet: "Sheet") -> str:
+    # the schema fixes the order: tab colour first, then the outline
+    inner = (f'<tabColor rgb="FF{sheet.tab}"/>' if sheet.tab else "") \
+        + ('<outlinePr summaryBelow="0"/>' if sheet.outline else "")
+    return f"<sheetPr>{inner}</sheetPr>" if inner else ""
+
+
 class Sheet:
     def __init__(self, name: str):
         self.name = name
@@ -85,6 +100,7 @@ class Sheet:
         self.merges: list[str] = []
         self.freeze: str | None = None    # top-left cell of the scrolling area, e.g. "A4"
         self.charts: list[Chart] = []
+        self.tab: str | None = None       # colour of the sheet's tab, e.g. "9B77D2"
         # row grouping: each detail row's outline level (hidden until expanded),
         # and the summary rows above them, drawn collapsed
         self.outline: dict[int, int] = {}
@@ -130,6 +146,10 @@ class Workbook:
             return f'<c r="{r}"{s}><v>{_num(value)}</v></c>'
         if isinstance(value, date):
             return f'<c r="{r}"{s}><v>{(value - _EPOCH).days}</v></c>'
+        if isinstance(value, Rich):
+            runs = "".join(f'<r><rPr>{self._font(st, "rFont")}</rPr><t xml:space="preserve">{escape(t)}</t></r>'
+                           for t, st in value.runs)
+            return f'<c r="{r}"{s} t="inlineStr"><is>{runs}</is></c>'
         text = escape(str(value))
         return f'<c r="{r}"{s} t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>'
 
@@ -166,7 +186,7 @@ class Workbook:
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
             # a group's summary row sits above its details
-            + ('<sheetPr><outlinePr summaryBelow="0"/></sheetPr>' if sheet.outline else "")
+            + _sheet_pr(sheet)
             + f'<sheetViews><sheetView workbookViewId="0" showGridLines="0">{pane}</sheetView></sheetViews>'
             + (f'<sheetFormatPr defaultRowHeight="13" outlineLevelRow="{max(sheet.outline.values())}"/>'
                if sheet.outline else '<sheetFormatPr defaultRowHeight="13"/>')
@@ -177,6 +197,11 @@ class Workbook:
             + "</worksheet>"
         )
 
+    def _font(self, st: Style, name: str = "name") -> str:
+        """A style's font; a rich text run names its typeface in rFont."""
+        return (("<b/>" if st.bold else "") + ("<i/>" if st.italic else "")
+                + f'<sz val="{st.size}"/><color rgb="FF{st.color}"/><{name} val="{escape(self.font)}"/>')
+
     def _styles_xml(self) -> str:
         # Custom number formats start at 164; lower ids are Excel's built-ins.
         fmts = {}
@@ -186,9 +211,7 @@ class Workbook:
         fonts, fills, xfs = [], ['<fill><patternFill patternType="none"/></fill>',
                                  '<fill><patternFill patternType="gray125"/></fill>'], []
         for st in self._styles:
-            font = (("<b/>" if st.bold else "") + ("<i/>" if st.italic else "")
-                    + f'<sz val="{st.size}"/><color rgb="FF{st.color}"/><name val="{escape(self.font)}"/>')
-            fonts.append(f"<font>{font}</font>")
+            fonts.append(f"<font>{self._font(st)}</font>")
             fill_id = 0
             if st.fill:
                 fills.append(f'<fill><patternFill patternType="solid"><fgColor rgb="FF{st.fill}"/>'
@@ -347,7 +370,8 @@ LOG_SPREAD = 10   # biggest bar this many times the smallest non-zero one: log s
 
 def _chart_xml(sheet: Sheet, chart: Chart) -> str:
     first, last, cat_col = chart.cats
-    rows = range(first, last + 1)
+    # a grouped detail row is hidden, and a chart leaves hidden rows out
+    rows = [r for r in range(first, last + 1) if r not in sheet.outline]
     quoted = "'" + sheet.name.replace("'", "''") + "'"
 
     def rng(col: int) -> str:
