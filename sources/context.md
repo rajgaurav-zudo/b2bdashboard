@@ -243,3 +243,17 @@ not, and the two sections of the page disagreed.
    deposit count, which is the definition, but it means the 383 approved
    deferrals in the 2026 Academic headline cannot be read off the page. A fourth
    figure is a small change if it turns out to be wanted.
+
+## Where the weekly summary reads these differently
+
+The weekly summary workbook (Data → Downloads) is a report, not a dashboard, and
+departs from the rules above in three places, each stated in its sheet notes and
+in [api/app/reports/context.md](../api/app/reports/context.md):
+
+- It counts `fullyPaidWaitingForApproval` as paid in full (open question 1 above
+  is settled the other way there), and a paid-in-full row whose two deferral
+  columns disagree in either direction is DAA.
+- `Language` and `PresessionalEnglish` are reported on a YTD - Language sheet of
+  their own; they count nowhere else.
+- The YTD, funnel, Sametime and Closed Lost sheets count every business area; the
+  B2B sheets count `StudentAssignedToBusinessArea = B2B` only.

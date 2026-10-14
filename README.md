@@ -4,12 +4,33 @@ A dashboard platform for CRM exports. Upload the files, they land in Postgres, a
 upload writes a changelog saying exactly what changed since the last one. Each dashboard
 is self-contained: its own schema, migrations, ingest rules and spec.
 
+## What's in it
+
+| Dashboard | What it answers | Spec |
+|---|---|---|
+| Introducer performance | Which partners used to pay us and stopped, and who to call first | [context](dashboards/introducer_performance/context.md) |
+| Introducer 360 | One introducer end to end: every stage, when, against the same window a year earlier | [context](dashboards/introducer_360/context.md) |
+| Log dashboard | How much contact the team has with its introducers, week by week (Saturday to Friday) | [context](dashboards/logs/context.md) |
+| Pipeline | Every application rolled up to unique students by actual intake, at the furthest stage reached | [context](dashboards/pipeline/context.md) |
+| B2B Pulse | Everything that happened in a date range across all three exports: onboarded, activity logged, applications reaching each stage | [context](dashboards/pulse/context.md) |
+| Commission | Contract terms per institution, imported from the contracts workbook and published by a person | [context](dashboards/commission/context.md) |
+
+Three exports feed them: the introducers master, the introducer logs and the applications
+export ([sources/sources.yaml](sources/sources.yaml)). Definitions every dashboard shares —
+intake period, course level, deposit state — are in [sources/context.md](sources/context.md).
+
+**Data → Downloads** builds the **weekly summary** workbook from the latest upload of each
+export: YTD (Academic and Language), next year's sales sheet, deposit funnel movement,
+Sametime Last Year, Closed Lost Deposits, and the B2B onboarding, activity logs, sales and
+retention and last-week sheets. It can also be written over a Google Sheet. See
+[api/app/reports/context.md](api/app/reports/context.md).
+
 ## Running it
 
 ```bash
 make vm       # colima VM: 4 cpu / 8 GB / 60 GB   (once per boot)
 make up       # build and start db + api + web
-make test     # dashboard tests (ingest + metrics)
+make test     # platform, report and dashboard tests, against the local database
 ```
 
 - App: http://localhost:5173
@@ -73,8 +94,12 @@ See [docs/architecture.md](docs/architecture.md) for the design and the decision
 | Introducer ingest + tests | working, 14 tests |
 | Metrics API (tiles, funnel, drill-down) | working, 20 tests |
 | Drill-down side pane (group / sort / expand) | working, client-side from `/views/members` |
-| React + TypeScript frontend | working |
-| Hosting, object storage | undecided; the repo runs locally only |
+| Region and Team filters on every dashboard | working |
+| Introducer 360, Log, Pipeline, B2B Pulse and Commission dashboards | working, each with ingest/metrics or importer tests |
+| Weekly summary workbook (Data → Downloads) | working, `api/tests/test_weekly_summary.py` |
+| Google Sheet sync of the weekly summary | working when a service-account key and sheet id are set; off otherwise |
+| React + TypeScript frontend, Edvoy CRM Design System v1.0.0 | working |
+| Hosting, object storage | none; the repo runs locally only |
 
 `legacy/introducer-dashboard.html` is the original single-file version, kept as the
 provenance of both the metric definitions and the visual design. It parses both exports in
