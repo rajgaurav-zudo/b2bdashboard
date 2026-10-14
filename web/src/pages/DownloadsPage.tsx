@@ -102,17 +102,35 @@ export function DownloadsPage() {
             `Its Last week sheet: ${edvoyWeek(1)}, against the week before.`}
         >
           <p className="sub" style={{ margin: "0 0 14px" }}>
-            Five sheets. <b>YTD - Year to Date Summary</b>: deposits, PD and DAA for this actual
+            Ten sheets. <b>YTD - Academic</b>: deposits, PD and DAA for this actual
             intake year against last, for the full year and each quarter, across every business
             area, then each area by business region, and by application destination country and
-            student nationality, each table with its charts. <b>Onboarding</b>: introducers by Became Customer
+            student nationality, each table with its charts, for the academic course levels. <b>YTD -
+            Language</b>: the same for the language and pre-sessional course levels, each row expanding into the
+            two. <b>{new
+            Date().getFullYear() + 1} sales sheet</b>: the academic sheet for next year's intake against
+            this year's. <b>Deposit funnel
+            movement</b>: active deposits by the stage each stands at now (offered, CoE received, visa
+            applied, visa granted, enrolled), this intake year against last, for the full year, each
+            quarter and each business area. <b>Sametime Last Year</b>: this intake year's
+            applications by today against last year's on the same date a year ago, counting how many had
+            reached each stage by then, how many were still open in it and how many were closed lost
+            there, with the closed lost rate (applied, offered, deposit, CoE,
+            visa applied, visa granted, enrolled), by quarter and business area. <b>Closed Lost
+            Deposits</b>: this intake year's deposits, PD and DAA, created, active and closed lost with the
+            closed lost % (green under 20%, amber to 50%, red above), for the full year and each quarter, each
+            row expanding into the stage they were closed in (offered, CoE received, visa applied, visa granted,
+            enrolled), across every business area, then by business area and region, destination country,
+            student nationality, introducer (with its business team and SRM) and institution, and the closed
+            lost by closure reason.
+            <b>B2B - Onboarding</b>: introducers by Became Customer
             Date, year to date and for the week, by business region and team, SRM and country, with the week's new
-            introducers listed. <b>Activity</b>: introducer logs for the week against the one
-            before, by type, per SRM, business region and business team. <b>Sales &amp; Retention</b>: active deposits by
+            introducers listed. <b>B2B - Activity Logs</b>: introducer logs for the week against the one
+            before, by type, per SRM, business region and business team. <b>B2B - Sales and Retention</b>: active deposits by
             intake year, by onboarding year, country, application destination country, business region and team, SRM, AMT
             counsellor and institution, with DAA
-            and partial deposits by intake month, and the introducers resurrected and missed
-            out. <b>Last week</b>: last week whole against the week before: introducers
+            and partial deposits by intake month, and, by business team, the introducers resurrected and missed
+            out. <b>B2B Summary Last Week</b>: last week whole against the week before: introducers
             onboarded, activity logs, and deposits by the day they were paid in full.
           </p>
 

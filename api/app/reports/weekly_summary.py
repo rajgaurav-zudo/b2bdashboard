@@ -7,14 +7,23 @@ Read straight from the latest archived export of each source:
     applications     the active-deposit columns, the application's own
                      Introducer SRM / AMT, Institution, Application Introducer Id,
                      CurrentlyAssignedToBusinessTeam, StudentAssignedToBusinessArea / Region,
-                     Application Destination Country, Student Nationality
+                     Application Destination Country, Student Nationality,
+                     Application Status / Sub-Status and the timestamp of each status
 
 "This week" is the Edvoy week, Saturday to Friday, that contains `today`, and
 it is to date. "Last week" is the seven days before it. Year to date runs
 from 1 January to `today`, against the same span of last year.
 
-Sheets, in order: YTD - Year to Date Summary (deposits, PD and DAA by intake
-year and quarter, in tables and charts), Onboarding, Activity, Sales & Retention, and Last week -- last week, whole, against the
+Sheets, in order: YTD - Academic (deposits, PD and DAA by intake
+year and quarter, in tables and charts), YTD - Language (the same for the
+Language and PresessionalEnglish course levels, which count nowhere else), the
+Academic one for next year's intake
+against this year's (e.g. "2027 sales sheet"), Deposit funnel movement (active
+deposits by the stage each stands at now, by year, quarter and business area),
+Sametime Last Year (this intake year's applications created at and active in
+each stage by today, against last year's on the same date a year ago), Closed
+Lost Deposits (this intake year's deposits, PD and DAA created, active and
+closed lost, by the stage each was closed in), B2B - Onboarding, B2B - Activity Logs, B2B - Sales and Retention, and B2B Summary Last Week -- last week, whole, against the
 week before it: introducers onboarded, activity logs, and deposits by the date
 they were paid in full. The applications export is a snapshot with no history,
 so a deposit paid last week counts only if it is still paid in full today.
@@ -41,7 +50,7 @@ import polars as pl
 
 from ..ingest.reader import Col, IngestError, clean, normalize_header, read_table, resolve_index
 from ..storage import storage
-from .xlsx import Chart, Formula, Sheet, Style, Workbook, col_letter as L, ref
+from .xlsx import Chart, Formula, Rich, Sheet, Style, Workbook, col_letter as L, ref
 
 SOURCES = ("introducers", "introducer_logs", "applications")
 
@@ -83,6 +92,17 @@ COLUMNS = {
         Col("nationality", "student nationality", ("student", "nationality")),
         # "Timestamp of 'Deposit Fully Paid' status"; the export's quotes arrive garbled
         Col("paid_at", "", ("timestamp", "deposit", "fully", "paid")),
+        Col("status", "application status", ()),
+        Col("sub_status", "application sub-status", ()),
+        # when each stage was reached: "Timestamp of 'Offer' status" and so on
+        Col("applied_at", "timestamp of applied status", ("timestamp", "applied")),
+        Col("offer_at", "timestamp of offer status", ("timestamp", "offer")),
+        Col("coe_at", "timestamp of coe received status", ("timestamp", "coe")),
+        Col("visa_applied_at", "timestamp of visa| applied status", ("timestamp", "visa", "applied")),
+        Col("visa_granted_at", "timestamp of visa| granted status", ("timestamp", "visa", "granted")),
+        Col("enrolled_at", "timestamp of enrolled status", ("timestamp", "enrolled")),
+        Col("closed_at", "timestamp of application marked as closed", ("marked", "closed")),
+        Col("closure_reason", "application closure reason", ("closure", "reason")),
     ],
 }
 
@@ -95,6 +115,8 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July", "Augus
 PAID_IN_FULL = ["fullypaid", "fullypaidwaitingforapproval"]
 ACADEMIC = ["ALevel", "ASLevel", "Doctorate", "Foundation", "GCSEgradesAC", "Postgraduate", "PreMasters",
             "Undergraduate"]
+LANGUAGE = ["Language", "PresessionalEnglish"]     # their own YTD sheet, and no other
+LEVEL_NAMES = {"language": "Language", "presessionalenglish": "Pre-sessional"}   # as the Language sheet names them
 
 
 @dataclass
@@ -242,12 +264,23 @@ H2 = Style(bold=True, size=11, color="1F3864")
 NOTE = Style(italic=True, size=9, color="595959")
 NOTE_WRAP = Style(italic=True, size=9, color="595959", wrap=True, valign="top")
 HDR = Style(bold=True, color="FFFFFF", fill="1F3864", border=True, wrap=True, halign="center", valign="center")
+HDR_ALT = replace(HDR, fill="2F5597")   # every other column group: a lighter shade of the same blue
 INT = '#,##0;-#,##0;"-"'
 DLT = '+#,##0;-#,##0;"-"'
 PCT = '+0.0%;-0.0%;"-"'
 SHARE = '0.0%;-0.0%;"-"'
 DAY = "dd mmm yyyy"
 TFILL = "D9E1F2"
+# #5b21b69c over white: a tab takes a solid colour, so the transparency is
+# worked into it rather than dropped.
+B2B_TAB = "9B77D2"
+
+
+def _b2b(wb: Workbook, name: str) -> Sheet:
+    """A sheet of the B2B set, which share a tab colour so they read as a group."""
+    sheet = wb.add_sheet(name)
+    sheet.tab = B2B_TAB
+    return sheet
 
 
 def _st(nf: str | None = None, bold: bool = False, total: bool = False) -> Style:
@@ -292,19 +325,81 @@ class Writer:
             self.ws.set(self.r, 1, note, NOTE)
             self.r += 1
 
-    def header(self, cols: list[str], height: float | None = None) -> None:
+    def header(self, cols: list[str], height: float | None = None, alt: set[int] = frozenset()) -> None:
+        """`alt`: the columns in the lighter shade, setting one kind of data apart."""
         for c, h in enumerate(cols, 1):
-            self.ws.set(self.r, c, h, HDR)
+            self.ws.set(self.r, c, h, HDR_ALT if c in alt else HDR)
         if height:
             self.ws.heights[self.r] = height
         self.r += 1
 
+    def _groups(self, rows: list[tuple[tuple[str, ...], tuple[int, ...]]],
+                nest: str | None) -> list[list[tuple[tuple[str, ...], tuple[int, ...]]]]:
+        """`rows` one group each, or with `nest` the rows sharing a first label
+        together, biggest group first, so that one summary row can stand above
+        them."""
+        if not nest:
+            return [[x] for x in rows]
+        by: dict[str, list] = {}
+        for labels, vals in rows:
+            by.setdefault(labels[0], []).append((labels, vals))
+        return sorted(by.values(), key=lambda m: ([-sum(v[j] for _, v in m) for j in range(len(m[0][1]))],
+                                                  str(m[0][0][0])))
+
+    def _body(self, rows: list[tuple[tuple[str, ...], tuple[int, ...]]], nl: int, nest: str | None,
+              put) -> bool:
+        """Lays `rows` down from the current row: labels, then `put(row, labels,
+        values, details)` for the rest. With `nest`, a first label shared by several rows
+        becomes a summary row over them ("2 teams"), its `details` the (first,
+        last) of the rows under it, which are grouped and start collapsed.
+        Says whether any group was made."""
+        ws, nested = self.ws, False
+        for members in self._groups(rows, nest):
+            if len(members) == 1:
+                labels, vals = members[0]
+                for k, lab in enumerate(labels, 1):
+                    ws.set(self.r, k, lab, _st())
+                put(self.r, labels, vals, None)
+                self.r += 1
+                continue
+            nested, top, n = True, self.r, len(members)
+            ws.set(top, 1, members[0][0][0], _st())
+            ws.set(top, 2, f"{n} {nest}", _st())
+            for k in range(3, nl + 1):
+                ws.set(top, k, "", _st())
+            put(top, members[0][0][:1], tuple(sum(v[j] for _, v in members) for j in range(len(members[0][1]))),
+                (top + 1, top + n))
+            ws.collapsed.add(top)
+            for i, (labels, vals) in enumerate(members, 1):
+                r = top + i
+                ws.set(r, 1, "", _st())
+                for k, lab in enumerate(labels[1:], 2):
+                    ws.set(r, k, lab, replace(_st(), indent=1))
+                put(r, labels, vals, None)
+                ws.outline[r] = 1
+            self.r = top + n + 1
+        return nested
+
+    @staticmethod
+    def _sum(c: int, first: int, last: int, nested: bool) -> str:
+        """A column's total. Under groups it is SUBTOTAL, which skips the summary
+        rows' own SUBTOTALs, so nothing counts twice."""
+        span = f"{L(c)}{first}:{L(c)}{max(first, last)}"
+        return f"SUBTOTAL(9,{span})" if nested else f"SUM({span})"
+
     def compare(self, label_cols: list[str], rows: list[tuple[tuple[str, ...], int, int]],
-                cur_h: str, prev_h: str, total: bool = True) -> None:
-        """Labels, current, previous, Change and % change -- the last two as formulas."""
+                cur_h: str, prev_h: str, total: bool = True, nest: str | None = None,
+                intros=None) -> None:
+        """Labels, current, previous, Change and % change -- the last two as
+        formulas. `nest` groups the rows by their first label (see _body).
+        `intros(labels)` adds the introducers behind a row's counts, current and
+        previous; it is given the first label alone for a summary row and none
+        for the total, since an introducer in several rows counts once there."""
         ws, nl = self.ws, len(label_cols)
         cc, pc = nl + 1, nl + 2
-        self.header(label_cols + [cur_h, prev_h, "Change", "% change"], height=30)
+        ic = pc + 3
+        extra = [f"{cur_h} introducers", f"{prev_h} introducers"] if intros else []
+        self.header(label_cols + [cur_h, prev_h, "Change", "% change"] + extra, height=30, alt={ic, ic + 1})
         first = self.r
 
         def tail(r: int, cv: int, pv: int, tot: bool) -> None:
@@ -312,49 +407,70 @@ class Writer:
             ws.set(r, pc + 1, Formula(f"{C}-{P}", cv - pv), _trend(DLT, cv - pv, tot))
             ws.set(r, pc + 2, Formula(f'IF({P}=0,"",({C}-{P})/{P})', _pct(cv, pv)), _trend(PCT, _pct(cv, pv), tot))
 
-        for labels, cv, pv in rows:
-            for k, lab in enumerate(labels, 1):
-                ws.set(self.r, k, lab, _st())
-            ws.set(self.r, cc, cv, _st(INT))
-            ws.set(self.r, pc, pv, _st(INT))
-            tail(self.r, cv, pv, False)
-            self.r += 1
+        def who(r: int, labels: tuple[str, ...], tot: bool = False) -> None:
+            if intros:
+                for c, v in zip((ic, ic + 1), intros(labels)):
+                    ws.set(r, c, v, _st(INT, total=tot))
+
+        def put(r: int, labels: tuple[str, ...], vals: tuple[int, ...], details: tuple[int, int] | None) -> None:
+            for c, v in ((cc, vals[0]), (pc, vals[1])):
+                ws.set(r, c, Formula(self._sum(c, *details, True), v) if details else v, _st(INT))
+            tail(r, vals[0], vals[1], False)
+            who(r, labels)
+
+        nested = self._body([(labels, (cv, pv)) for labels, cv, pv in rows], nl, nest, put)
         if total:
             sc, sp = sum(x[1] for x in rows), sum(x[2] for x in rows)
             ws.set(self.r, 1, "Total", _st(total=True))
             for k in range(2, nl + 1):
                 ws.set(self.r, k, "", _st(total=True))
             for c, v in ((cc, sc), (pc, sp)):
-                ws.set(self.r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{max(first, self.r - 1)})", v), _st(INT, total=True))
+                ws.set(self.r, c, Formula(self._sum(c, first, self.r - 1, nested), v), _st(INT, total=True))
             tail(self.r, sc, sp, True)
+            who(self.r, (), True)
             self.r += 1
         self.r += 1
 
-    def share(self, label_cols: list[str], rows: list[tuple[tuple[str, ...], int]], value_h: str) -> None:
-        """Counts with each row's share of the total."""
+    def share(self, label_cols: list[str], rows: list[tuple[tuple[str, ...], int]], value_h: str,
+              nest: str | None = None, intros=None) -> None:
+        """Counts with each row's share of the total. `nest` groups the rows by
+        their first label (see _body); `intros(labels)` adds the introducers
+        behind a row's count, as in compare."""
         ws, nl = self.ws, len(label_cols)
         vc = nl + 1
-        self.header(label_cols + [value_h, "Share"], height=30)
-        first, last = self.r, self.r + len(rows) - 1
+        self.header(label_cols + [value_h, "Share"] + (["Introducers"] if intros else []), height=30,
+                    alt={vc + 2})
+        groups = self._groups([(labels, (v,)) for labels, v in rows], nest)
+        first = self.r
+        last = first + sum(len(m) + (len(m) > 1) for m in groups) - 1
         tot = sum(v for _, v in rows)
-        for labels, v in rows:
-            for k, lab in enumerate(labels, 1):
-                ws.set(self.r, k, lab, _st())
-            ws.set(self.r, vc, v, _st(INT))
-            ws.set(self.r, vc + 1, Formula(f"IF({L(vc)}${last + 1}=0,0,{L(vc)}{self.r}/{L(vc)}${last + 1})",
-                                           v / tot if tot else 0), _st(SHARE))
-            self.r += 1
+
+        def put(r: int, labels: tuple[str, ...], vals: tuple[int, ...], details: tuple[int, int] | None) -> None:
+            if intros:
+                ws.set(r, vc + 2, intros(labels), _st(INT))
+            v = vals[0]
+            ws.set(r, vc, Formula(self._sum(vc, *details, True), v) if details else v, _st(INT))
+            ws.set(r, vc + 1, Formula(f"IF({L(vc)}${last + 1}=0,0,{L(vc)}{r}/{L(vc)}${last + 1})",
+                                      v / tot if tot else 0), _st(SHARE))
+
+        nested = self._body([(labels, (v,)) for labels, v in rows], nl, nest, put)
         ws.set(self.r, 1, "Total", _st(total=True))
         for k in range(2, nl + 1):
             ws.set(self.r, k, "", _st(total=True))
-        ws.set(self.r, vc, Formula(f"SUM({L(vc)}{first}:{L(vc)}{max(first, last)})", tot), _st(INT, total=True))
+        ws.set(self.r, vc, Formula(self._sum(vc, first, last, nested), tot), _st(INT, total=True))
         ws.set(self.r, vc + 1, Formula(f"IF({L(vc)}{self.r}=0,0,1)", 1 if tot else 0), _st(SHARE, total=True))
+        if intros:
+            ws.set(self.r, vc + 2, intros(()), _st(INT, total=True))
         self.r += 2
 
-    def grid(self, label_cols: list[str], rows: list[tuple[tuple[str, ...], list[int]]], value_h: list[str]) -> None:
-        """Several counts per row, each column summed in a total row."""
+    def grid(self, label_cols: list[str], rows: list[tuple[tuple[str, ...], list[int]]], value_h: list[str],
+             given: dict[int, int] | None = None) -> None:
+        """Several counts per row, each column summed in a total row -- except
+        the columns in `given` (by index into `value_h`), whose total is the
+        value there, shown in the lighter header shade."""
         ws, nl = self.ws, len(label_cols)
-        self.header(label_cols + value_h, height=30)
+        given = given or {}
+        self.header(label_cols + value_h, height=30, alt={nl + 1 + j for j in given})
         first = self.r
         for labels, values in rows:
             for k, lab in enumerate(labels, 1):
@@ -367,6 +483,9 @@ class Writer:
             ws.set(self.r, k, "", _st(total=True))
         for j in range(len(value_h)):
             c = nl + 1 + j
+            if j in given:
+                ws.set(self.r, c, given[j], _st(INT, total=True))
+                continue
             ws.set(self.r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{max(first, self.r - 1)})",
                                       sum(v[j] for _, v in rows)), _st(INT, total=True))
         self.r += 2
@@ -379,6 +498,17 @@ def _grouped(cur: pl.DataFrame, prev: pl.DataFrame, keys: list[str]) -> list[tup
     df = c.join(p, on=keys, how="full", coalesce=True).with_columns(pl.col("c", "p").fill_null(0))
     df = df.sort(["c", "p", *keys], descending=[True, True] + [False] * len(keys))
     return [(tuple(r[k] for k in keys), r["c"], r["p"]) for r in df.iter_rows(named=True)]
+
+
+def _introducers(df: pl.DataFrame, keys: list[str]):
+    """How many introducers (`key`) have a row in `df` matching the labels
+    given for the first of `keys`: all of them, a prefix, or none (every row)."""
+    def count(labels: tuple[str, ...]) -> int:
+        f = df
+        for k, v in zip(keys, labels):
+            f = f.filter(pl.col(k) == v)
+        return f["key"].n_unique()
+    return count
 
 
 def _counts(df: pl.DataFrame, keys: list[str]) -> list[tuple[tuple[str, ...], int]]:
@@ -396,10 +526,17 @@ def build(introducers: Export, logs: Export, applications: Export, p: Periods) -
     wb = Workbook()
     d = _deposits(applications, introducers, p)
     _ytd(wb.add_sheet(YTD_SHEET), applications, p)
-    _onboarding(wb.add_sheet("Onboarding"), introducers, p)
-    _activity(wb.add_sheet("Activity"), logs, introducers, p)
-    _sales(wb.add_sheet("Sales & Retention"), d, applications, p)
-    _last_week(wb.add_sheet("Last week"), d, introducers, logs, applications, Periods.last_week_of(p.today))
+    _ytd(wb.add_sheet(YTD_LANGUAGE_SHEET), applications, p, "Year to date summary, Language and Pre-sessional",
+         levels=LANGUAGE)
+    nxt = Periods(date(p.cy + 1, 1, 1))
+    _ytd(wb.add_sheet(f"{nxt.cy} sales sheet"), applications, nxt, f"{nxt.cy} sales")
+    _funnel(wb.add_sheet(FUNNEL_SHEET), applications, p)
+    _same_time(wb.add_sheet(SAME_TIME_SHEET), applications, p)
+    _lost(wb.add_sheet(LOST_SHEET), applications, p)
+    _onboarding(_b2b(wb, "B2B - Onboarding"), introducers, p)
+    _activity(_b2b(wb, "B2B - Activity Logs"), logs, introducers, p)
+    _sales(_b2b(wb, "B2B - Sales and Retention"), d, applications, p)
+    _last_week(_b2b(wb, "B2B Summary Last Week"), d, introducers, logs, applications, Periods.last_week_of(p.today))
     return wb.save()
 
 
@@ -417,7 +554,7 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
           (("ytd", p.ytd), ("lytd", p.lytd), ("wk", p.week), ("pwk", p.last_week))}
     bc_max = i["bc"].max()
 
-    ws.set(1, 1, "Onboarding — introducers by Became Customer Date", H1)
+    ws.set(1, 1, "B2B - Onboarding — introducers by Became Customer Date", H1)
     ws.set(2, 1, f"Source: introducers master, {_source_note(introducers)}. Latest Became Customer Date in "
                  f"the file: {_fmt(bc_max)}. SRM, business team (BusinessTeam), business region (BusinessRegion) and country are the introducer's current values "
                  "on the master.", NOTE)
@@ -432,7 +569,7 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
     w.section("A2. By business team")
     w.compare(["Business team"], _grouped(on["ytd"], on["lytd"], ["team"]), yh, lyh)
     w.section("A3. By SRM (with business team)")
-    w.compare(["SRM", "Business team"], _grouped(on["ytd"], on["lytd"], ["srm", "team"]), yh, lyh)
+    w.compare(["SRM", "Business team"], _grouped(on["ytd"], on["lytd"], ["srm", "team"]), yh, lyh, nest="teams")
     w.section("A4. By country")
     w.compare(["Country"], _grouped(on["ytd"], on["lytd"], ["country"]), yh, lyh)
 
@@ -450,7 +587,7 @@ def _onboarding(ws: Sheet, introducers: Export, p: Periods) -> None:
     w.section("B2. By business team")
     w.compare(["Business team"], _grouped(on["wk"], on["pwk"], ["team"]), wh, pwh)
     w.section("B3. By SRM (with business team)")
-    w.compare(["SRM", "Business team"], _grouped(on["wk"], on["pwk"], ["srm", "team"]), wh, pwh)
+    w.compare(["SRM", "Business team"], _grouped(on["wk"], on["pwk"], ["srm", "team"]), wh, pwh, nest="teams")
     w.section("B4. By country")
     w.compare(["Country"], _grouped(on["wk"], on["pwk"], ["country"]), wh, pwh)
     w.section(f"B5. Introducers onboarded {p.cur.lower()} ({on['wk'].height})")
@@ -495,7 +632,7 @@ def _activity(ws: Sheet, logs: Export, introducers: Export, p: Periods) -> None:
     log_max = lg["day"].max()
     lc, lp = lg.filter(_between("day", p.week)), lg.filter(_between("day", p.last_week))
 
-    ws.set(1, 1, f"Activity — introducer logs, {p.cur.lower()} vs {p.prev.lower()}", H1)
+    ws.set(1, 1, f"B2B - Activity Logs — introducer logs, {p.cur.lower()} vs {p.prev.lower()}", H1)
     ws.set(2, 1, f"Source: introducer logs, {_source_note(logs)}; latest log {_fmt(log_max)}. "
                  "Week = Saturday – Friday, dated by Log Time in UTC as the Logs dashboard does. "
                  f"{p.cur} {_span(p.week)} is {'the whole week' if p.closed else 'to date'}; "
@@ -520,6 +657,9 @@ def _activity(ws: Sheet, logs: Export, introducers: Export, p: Periods) -> None:
         for m in metrics:
             cols += [f"{m}\n{p.cur.lower()}", f"{m}\n{p.prev.lower()}", f"{m}\nchange"]
         w.header(cols, height=42)
+        for j in range(1, len(metrics), 2):
+            for c in range(2 + 3 * j, 5 + 3 * j):
+                ws.set(w.r - 1, c, cols[c - 1], HDR_ALT)
         both = pl.concat([lc.with_columns(pl.lit("c").alias("wk")), lp.with_columns(pl.lit("p").alias("wk"))])
         totals = both.group_by(key).agg((pl.col("wk") == "c").sum().alias("c"), (pl.col("wk") == "p").sum().alias("p"))
         keys = [r[key] for r in totals.sort(["c", "p", key], descending=[True, True, False]).iter_rows(named=True)]
@@ -606,9 +746,13 @@ class Deposits:
     non_acad: dict[int, int]
     non_b2b: dict[int, int]
 
-    def n(self, state: str, year: int, mon: str | None = None) -> int:
+    def n(self, state: str, year: int, q: int | None = None) -> tuple[int, int]:
+        """The applications in `state` for `year`'s intake, in quarter `q` (0: no
+        intake month) or all, and the introducers behind them."""
         f = self.held.filter((pl.col("state") == state) & (pl.col("year") == year))
-        return f.height if mon is None else f.filter(pl.col("month") == mon).height
+        if q is not None:
+            f = f.filter(pl.col("q") == q)
+        return f.height, f["key"].n_unique()
 
 
 def _deposits(applications: Export, introducers: Export, p: Periods) -> Deposits:
@@ -643,19 +787,20 @@ def _deposits(applications: Export, introducers: Export, p: Periods) -> Deposits
     held = held.filter(pl.col("academic"))
     non_b2b = {r["year"]: r["len"] for r in held.filter((pl.col("state") == "Active") & ~pl.col("b2b"))
                .group_by("year").len().iter_rows(named=True)}
-    held = held.filter(pl.col("b2b"))
-    dep = held.filter(pl.col("state") == "Active")
-
     # The introducer is the CRM id where the application carries one, its name
     # where it does not; either way it is looked up on the master for its
     # country and Became Customer Date.
-    dep = dep.with_columns(
+    held = held.filter(pl.col("b2b")).with_columns(
         pl.coalesce(clean(pl.col("introducer_id")), pl.lit("name:") + pl.col("introducer_name")).alias("key"),
+        pl.col("month").replace_strict(QUARTER_OF, default=0, return_dtype=pl.Int8).alias("q"),
+    )
+    dep = held.filter(pl.col("state") == "Active")
+    dep = dep.with_columns(
         _label("srm"), _team("team"), _label("region"), _label("amt"), _label("institution"),
         _label("destination"),
     ).join(master.select(pl.col("id").alias("key"), "country", "bc", pl.lit(True).alias("in_master")),
            on="key", how="left").with_columns(
-        pl.col("country").fill_null("(not in introducer master)"),
+        pl.col("country").fill_null("Country missing in DB"),
         pl.col("in_master").fill_null(False),
     ).with_columns(
         pl.when(~pl.col("in_master")).then(pl.lit("Introducer not in master file"))
@@ -688,20 +833,23 @@ def _cohorts(p: Periods) -> list[str]:
     return order
 
 
-YTD_SHEET = "YTD - Year to Date Summary"
+YTD_SHEET = "YTD - Academic"
+YTD_LANGUAGE_SHEET = "YTD - Language"
 MEASURES = [("Deposits", "Active"), ("PD", "PD"), ("DAA", "DAA")]
 QUARTERS = ["Q1 (Jan–Mar)", "Q2 (Apr–Jun)", "Q3 (Jul–Sep)", "Q4 (Oct–Dec)"]
 QUARTER_OF = {m: i // 3 + 1 for i, m in enumerate(MONTHS)}
 YTD_TOP = 20
 
 
-def _ytd_frame(applications: Export, p: Periods) -> tuple[pl.DataFrame, dict[str, dict[int, int]]]:
-    """Active, DAA and PD applications for this year's and last year's intake,
-    in every business area and with or without an introducer, each with the
-    quarter of its intake month (0 when the month is blank). Also what was
-    left out, per reason and intake year."""
+def _ytd_frame(applications: Export, p: Periods,
+               levels: list[str] = ACADEMIC) -> tuple[pl.DataFrame, dict[str, dict[int, int]]]:
+    """Active, DAA and PD applications on the course `levels` for this year's
+    and last year's intake, in every business area and with or without an
+    introducer, each with the quarter of its intake month (0 when the month is
+    blank). Also what was left out, per reason and intake year."""
     a = applications.frame.with_columns(
-        _state(), _year(), _month(), _academic(), clean(pl.col("business_area")).alias("area"),
+        _state(), _year(), _month(), clean(pl.col("business_area")).alias("area"),
+        _letters("course_level").is_in([c.lower() for c in levels]).alias("academic"),
     ).filter(pl.col("state").is_not_null() & pl.col("year").is_in([p.cy, p.ly]))
 
     def per_year(df: pl.DataFrame) -> dict[int, int]:
@@ -712,16 +860,19 @@ def _ytd_frame(applications: Export, p: Periods) -> tuple[pl.DataFrame, dict[str
     a = a.filter(pl.col("academic") & pl.col("area").is_not_null()).with_columns(
         pl.col("month").replace_strict(QUARTER_OF, default=0, return_dtype=pl.Int8).alias("q"),
         _label("region"), _label("destination"), _label("nationality"),
+        _letters("course_level").replace_strict(LEVEL_NAMES, default=None, return_dtype=pl.String)
+        .fill_null(clean(pl.col("course_level"))).alias("level"),
     )
     return a, left_out
 
 
 def _ytd_table(w: Writer, label: str, df: pl.DataFrame, key: str, p: Periods, title: str,
-               top: int | None = None, totals: bool = True) -> None:
+               top: int | None = None, totals: bool = True, split: str | None = None) -> None:
     """Deposits, PD and DAA per `key`, one block of rows each: the full intake
     year and each quarter, this year against last. Under it, a chart of the
     deposits per key. `top` keeps the biggest keys and folds the rest into one
-    row, which the chart leaves out."""
+    row, which the chart leaves out. `split` names a column to break each key's
+    row down by: one grouped row per value under it, collapsed."""
     ws, cy, ly = w.ws, p.cy, p.ly
     cyh, lyh = f"{cy} intake", f"{ly} intake"
     order = df.group_by(key).agg(
@@ -740,6 +891,13 @@ def _ytd_table(w: Writer, label: str, df: pl.DataFrame, key: str, p: Periods, ti
         n[(r[0], r[1], r[2], 0)] = r[3]
     for r in df.filter(pl.col("q") > 0).group_by(key, "state", "year", "q").len().iter_rows():
         n[(r[0], r[1], r[2], r[3])] = r[4]
+    parts: list[str] = []
+    if split:
+        parts = sorted(df[split].unique().to_list())
+        for r in df.group_by(key, split, "state", "year").len().iter_rows():
+            n[(r[0], r[1], r[2], r[3], 0)] = r[4]
+        for r in df.filter(pl.col("q") > 0).group_by(key, split, "state", "year", "q").len().iter_rows():
+            n[(r[0], r[1], r[2], r[3], r[4])] = r[5]
 
     # two header rows: the period over its columns, then the years
     h = w.r
@@ -749,10 +907,11 @@ def _ytd_table(w: Writer, label: str, df: pl.DataFrame, key: str, p: Periods, ti
         ws.set(h, c, name, HDR)
         ws.set(h + 1, c, "", HDR)
         ws.merges.append(f"{L(c)}{h}:{L(c)}{h + 1}")
-    for name, start, subs in groups:
+    for j, (name, start, subs) in enumerate(groups):
+        st = HDR_ALT if j % 2 else HDR
         for k, sub in enumerate(subs):
-            ws.set(h, start + k, name if k == 0 else "", HDR)
-            ws.set(h + 1, start + k, sub, HDR)
+            ws.set(h, start + k, name if k == 0 else "", st)
+            ws.set(h + 1, start + k, sub, st)
         ws.merges.append(f"{L(start)}{h}:{L(start + len(subs) - 1)}{h}")
     ws.heights[h + 1] = 30
     w.r += 2
@@ -775,22 +934,35 @@ def _ytd_table(w: Writer, label: str, df: pl.DataFrame, key: str, p: Periods, ti
             continue
         first = w.r
         for k in rows:
-            ws.set(w.r, 2, k, _st())
-            for cc, pc, q in pairs:
-                cv, pv = n.get((k, state, cy, q), 0), n.get((k, state, ly, q), 0)
-                ws.set(w.r, cc, cv, _st(INT))
-                ws.set(w.r, pc, pv, _st(INT))
-                tail(w.r, cc, pc, cv, pv, q == 0, False)
+            # the key's own row, then one grouped under it per part it has
+            under = [s for s in parts if n.get((k, s, state, cy, 0), 0) or n.get((k, s, state, ly, 0), 0)]
+            head = w.r
+            for i, s in enumerate([None] + under):
+                r = head + i
+                ws.set(r, 2, k if s is None else s, _st(bold=bool(under)) if s is None else replace(_st(), indent=1))
+                for cc, pc, q in pairs:
+                    at = (k, state) if s is None else (k, s, state)
+                    cv, pv = n.get((*at, cy, q), 0), n.get((*at, ly, q), 0)
+                    for c, v in ((cc, cv), (pc, pv)):
+                        ws.set(r, c, Formula(f"SUBTOTAL(9,{L(c)}{head + 1}:{L(c)}{head + len(under)})", v)
+                               if s is None and under else v, _st(INT, bold=s is None and bool(under)))
+                    tail(r, cc, pc, cv, pv, q == 0, False)
+                if s is not None:
+                    ws.outline[r] = 1
+            if under:
+                ws.collapsed.add(head)
             if state == "Active" and (top is None or k != keys[-1] or len(keys) <= top):
-                deposits.append(w.r)
-            w.r += 1
+                deposits.append(head)
+            w.r += 1 + len(under)
         if totals:
             ws.set(w.r, 2, "Total", _st(total=True))
             for cc, pc, q in pairs:
                 cv = sum(n.get((k, state, cy, q), 0) for k in rows)
                 pv = sum(n.get((k, state, ly, q), 0) for k in rows)
                 for c, v in ((cc, cv), (pc, pv)):
-                    ws.set(w.r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{w.r - 1})", v), _st(INT, total=True))
+                    # SUBTOTAL passes over the key rows that are themselves subtotals of their parts
+                    ws.set(w.r, c, Formula(f"{'SUBTOTAL(9,' if parts else 'SUM('}{L(c)}{first}:{L(c)}{w.r - 1})", v),
+                           _st(INT, total=True))
                 tail(w.r, cc, pc, cv, pv, q == 0, True)
             w.r += 1
         ws.set(first, 1, mname, measure)
@@ -805,64 +977,665 @@ def _ytd_table(w: Writer, label: str, df: pl.DataFrame, key: str, p: Periods, ti
     cats = (top_row, end - 1, 1) if not totals else (deposits[0], deposits[-1], 2) if deposits else None
     if end == top_row or cats is None:
         return
-    shown = cats[1] - cats[0] + 1
+    shown = sum(r not in ws.outline for r in range(cats[0], cats[1] + 1))
     many = shown > 6
     height = max(15, round(1.4 * shown) + 6) if many else 15
     ws.charts.append(Chart(title, cats, [(cyh, 3), (lyh, 4)], at=(w.r, 2), size=(height, 10), horizontal=many))
     w.r += height + 2
 
 
-def _ytd(ws: Sheet, applications: Export, p: Periods) -> None:
-    """Deposits, PD and DAA by Actual Intake Year, this year's against last,
-    for the full year and each quarter: overall, by business area, by region
-    within each area, by destination country and by student nationality."""
+def _ytd(ws: Sheet, applications: Export, p: Periods, title: str = "Year to date summary",
+         levels: list[str] = ACADEMIC) -> None:
+    """Deposits, PD and DAA by Actual Intake Year, `p`'s year against the one
+    before, for the full year and each quarter: overall, by business area, by
+    region within each area, by destination country and by student nationality.
+    The next year's sales sheet is this with `p` a year on; the Language sheet,
+    this on the Language and Pre-sessional course `levels`."""
     cy, ly = p.cy, p.ly
-    df, left_out = _ytd_frame(applications, p)
+    df, left_out = _ytd_frame(applications, p, levels)
+    split = None if levels is ACADEMIC else "level"
+    only = "Academic course levels" if levels is ACADEMIC else f"Application Course Level {' and '.join(levels)}"
     blank_month = {y: df.filter((pl.col("year") == y) & (pl.col("q") == 0)).height for y in (cy, ly)}
 
     def per_year(d: dict[int, int]) -> str:
         return f"{d.get(cy, 0):,} for {cy}, {d.get(ly, 0):,} for {ly}"
 
-    ws.set(1, 1, f"Year to date summary — deposits, PD and DAA, {cy} intake vs {ly} intake", H1)
+    ws.set(1, 1, f"{title} — deposits, PD and DAA, {cy} intake vs {ly} intake", H1)
     ws.set(2, 1, f"Source: applications, {_source_note(applications)}. Deposits = active deposits: Deposit Paid "
                  "Status FullyPaid or fullyPaidWaitingForApproval, with Deferred Initiated and Deferred Approved "
                  "both No or both Yes. DAA = paid in full with those two differing. PD = PartiallyPaid. None Closed "
-                 "Lost; Academic course levels only. Unlike the other sheets, every business area counts, with or "
+                 f"Lost; {only} only. Unlike the other sheets, every business area counts, with or "
                  "without an introducer; a blank Business Area is left out "
-                 f"({per_year(left_out['no_area'])}), as are non-Academic levels ({per_year(left_out['non_acad'])}). "
+                 f"({per_year(left_out['no_area'])}), as is every other course level ({per_year(left_out['non_acad'])}). "
                  "Intake = Actual Intake Year; quarters by Actual Intake Month, and an application with no month "
                  f"counts in the full year but in no quarter ({per_year(blank_month)}). The {cy} intake year is "
-                 "still in progress.", NOTE_WRAP)
+                 "still in progress."
+                 + (" Expand a row for its Language and Pre-sessional counts." if split else ""), NOTE_WRAP)
     ws.merges.append("A2:R2")
     ws.heights[2] = 54
     w = Writer(ws)
 
     w.section("A. Headline — all business areas")
     _ytd_table(w, "Business areas", df.with_columns(pl.lit("All business areas").alias("all")), "all", p,
-               f"Deposits, PD and DAA — {cy} vs {ly} intake", totals=False)
+               f"Deposits, PD and DAA — {cy} vs {ly} intake", totals=False, split=split)
 
     w.section("B. By Business Area")
-    _ytd_table(w, "Business area", df, "area", p, "Deposits by business area")
+    _ytd_table(w, "Business area", df, "area", p, "Deposits by business area", split=split)
 
     areas = df.filter(pl.col("state") == "Active").group_by("area").len().sort(["len", "area"], descending=[True, False])
     areas = areas["area"].to_list() + sorted(set(df["area"].to_list()) - set(areas["area"].to_list()))
     for i, area in enumerate(areas, 1):
         w.section(f"C{i}. {area} — by Business Region")
         _ytd_table(w, "Business region", df.filter(pl.col("area") == area), "region", p,
-                   f"{area} deposits by business region")
+                   f"{area} deposits by business region", split=split)
 
     w.section("D. By application destination country",
               f"The {YTD_TOP} with the most {cy} deposits; the chart shows them, the table folds any others into one row.")
     _ytd_table(w, "Application Destination Country", df, "destination", p,
-               "Deposits by application destination country", top=YTD_TOP)
+               "Deposits by application destination country", top=YTD_TOP, split=split)
 
     w.section("E. By student nationality",
               f"The {YTD_TOP} with the most {cy} deposits; the chart shows them, the table folds any others into one row.")
-    _ytd_table(w, "Student Nationality", df, "nationality", p, "Deposits by student nationality", top=YTD_TOP)
+    _ytd_table(w, "Student Nationality", df, "nationality", p, "Deposits by student nationality", top=YTD_TOP,
+               split=split)
 
     ws.widths.update({1: 12, 2: 32, 3: 11, 4: 11, 5: 9, 6: 9})
     ws.widths.update({c: 8 for c in range(7, 19)})
     ws.freeze = "C4"
+
+
+FUNNEL_SHEET = "Deposit funnel movement"
+STAGES = ["Offered", "CoE Received", "Visa Applied", "Visa Granted", "Enrolled"]
+
+
+def _stage() -> pl.Expr:
+    """Where an application stands now, by its Application Status -- Visa split
+    by its Sub-Status into applied and granted. Anything else is Other."""
+    status = clean(pl.col("status")).str.to_lowercase()
+    sub = clean(pl.col("sub_status")).str.to_lowercase()
+    return (pl.when(status == "offered").then(pl.lit("Offered"))
+            .when(status == "coe received").then(pl.lit("CoE Received"))
+            .when((status == "visa") & (sub == "granted")).then(pl.lit("Visa Granted"))
+            .when((status == "visa") & (sub == "applied")).then(pl.lit("Visa Applied"))
+            .when(status == "enrolled").then(pl.lit("Enrolled"))
+            .otherwise(pl.lit("Other")).alias("stage"))
+
+
+def _funnel_rows(w: Writer, label: str, groups: list[tuple[str, pl.DataFrame]], p: Periods,
+                 stages: list[str]) -> None:
+    """Per group: this year's active deposits by stage, last year's, and the
+    % change; the total the sum of its stages. The group's name spans its rows."""
+    ws, cy, ly = w.ws, p.cy, p.ly
+    tc, sc = 3, 4                       # the total, then the stages from here
+    w.header([label, "Intake", "Active deposits"] + stages, height=30,
+             alt={sc + j for j in range(0, len(stages), 2)})
+    measure = Style(bold=True, border=True, wrap=True, valign="center")
+    for name, df in groups:
+        first = w.r
+        n = {(r[0], r[1]): r[2] for r in df.group_by("year", "stage").len().iter_rows()}
+        for y in (cy, ly):
+            ws.set(w.r, 2, f"{y} intake", _st())
+            vals = [n.get((y, st), 0) for st in stages]
+            for j, v in enumerate(vals):
+                ws.set(w.r, sc + j, v, _st(INT))
+            ws.set(w.r, tc, Formula(f"SUM({L(sc)}{w.r}:{L(sc + len(stages) - 1)}{w.r})", sum(vals)), _st(INT, bold=True))
+            w.r += 1
+        ws.set(w.r, 2, "% change", _st(total=True))
+        for c in range(tc, sc + len(stages)):
+            st = stages[c - sc] if c >= sc else None
+            cv = sum(n.get((cy, s_), 0) for s_ in stages) if st is None else n.get((cy, st), 0)
+            pv = sum(n.get((ly, s_), 0) for s_ in stages) if st is None else n.get((ly, st), 0)
+            C, P = ref(first, c), ref(first + 1, c)
+            ws.set(w.r, c, Formula(f'IF({P}=0,"",({C}-{P})/{P})', _pct(cv, pv)), _trend(PCT, _pct(cv, pv), True))
+        w.r += 1
+        ws.set(first, 1, name, measure)
+        for r in range(first + 1, w.r):
+            ws.set(r, 1, "", measure)
+        ws.merges.append(f"A{first}:A{w.r - 1}")
+    w.r += 1
+
+
+def _funnel(ws: Sheet, applications: Export, p: Periods) -> None:
+    """Active deposits by the stage each stands at now -- Offered, CoE
+    Received, Visa Applied, Visa Granted, Enrolled -- this intake year against
+    last: for the full year, each quarter and each business area, on the YTD
+    sheet's footing (every business area, Academic levels)."""
+    cy, ly = p.cy, p.ly
+    cyh, lyh = f"{cy} intake", f"{ly} intake"
+    df, _ = _ytd_frame(applications, p)
+    df = df.filter(pl.col("state") == "Active").with_columns(_stage())
+    # Other appears only if some deposit stands somewhere else
+    stages = STAGES + (["Other"] if df.filter(pl.col("stage") == "Other").height else [])
+
+    ws.set(1, 1, f"Deposit funnel movement — active deposits by stage, {cy} intake vs {ly} intake", H1)
+    ws.set(2, 1, f"Source: applications, {_source_note(applications)}. Active deposits as on the YTD sheet: Deposit "
+                 "Paid Status FullyPaid or fullyPaidWaitingForApproval, Deferred Initiated and Deferred Approved both "
+                 "No or both Yes, not Closed Lost, Academic course levels, every business area but a blank one. Each "
+                 "deposit counts once, at the stage it stands at now by its Application Status; Visa splits by "
+                 "Application Sub-Status into Visa Applied and Visa Granted"
+                 + (", and Other is any other status" if "Other" in stages else "") +
+                 ". The stages add up to the total. Intake = Actual Intake Year; quarters by Actual Intake Month, "
+                 f"and a deposit with no month counts in the full year but in no quarter. The {cy} intake year is "
+                 "still in progress, so its deposits sit earlier in the funnel.", NOTE_WRAP)
+    ws.merges.append(f"A2:{L(3 + len(stages))}2")
+    ws.heights[2] = 66
+    w = Writer(ws)
+
+    w.section("A. Funnel — full intake year, all business areas",
+              "Share = the stage's part of that year's active deposits.")
+    n = {(r[0], r[1]): r[2] for r in df.group_by("year", "stage").len().iter_rows()}
+    w.header(["Stage", cyh, lyh, "Change", "% change", f"{cy} share", f"{ly} share"], height=30, alt={6, 7})
+    first = w.r
+    last = first + len(stages) - 1
+    tot = {y: sum(n.get((y, st), 0) for st in stages) for y in (cy, ly)}
+    for i, st in enumerate(stages + ["Total active deposits"]):
+        r, tr = first + i, st == "Total active deposits"
+        cv = tot[cy] if tr else n.get((cy, st), 0)
+        pv = tot[ly] if tr else n.get((ly, st), 0)
+        ws.set(r, 1, st, _st(total=tr))
+        for c, v in ((2, cv), (3, pv)):
+            ws.set(r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{last})", v) if tr else v, _st(INT, total=tr))
+        ws.set(r, 4, Formula(f"B{r}-C{r}", cv - pv), _trend(DLT, cv - pv, tr))
+        ws.set(r, 5, Formula(f'IF(C{r}=0,"",(B{r}-C{r})/C{r})', _pct(cv, pv)), _trend(PCT, _pct(cv, pv), tr))
+        for c, (src, v, t) in ((6, ("B", cv, tot[cy])), (7, ("C", pv, tot[ly]))):
+            ws.set(r, c, Formula(f'IF({src}${last + 1}=0,"",{src}{r}/{src}${last + 1})', v / t if t else ""),
+                   _st(SHARE, total=tr))
+    w.r = last + 3
+    ws.charts.append(Chart(f"Active deposits by stage — {cy} vs {ly} intake", (first, last, 1),
+                           [(cyh, 2), (lyh, 3)], at=(w.r, 1), size=(16, 7)))
+    w.r += 18
+
+    w.section("B. By Actual Intake Quarter", "Quarters by Actual Intake Month; the full year leads.")
+    groups = [("Full year", df)] + [(q, df.filter(pl.col("q") == i)) for i, q in enumerate(QUARTERS, 1)]
+    _funnel_rows(w, "Period", groups, p, stages)
+
+    w.section("C. By Business Area", "Full intake year.")
+    areas = df.group_by("area").len().sort(["len", "area"], descending=[True, False])["area"].to_list()
+    _funnel_rows(w, "Business area", [(a, df.filter(pl.col("area") == a)) for a in areas], p, stages)
+
+    ws.widths.update({1: 26, 2: 14, 3: 14, **{c: 13 for c in range(4, 4 + len(stages))}})
+    ws.freeze = "A3"
+
+
+NO_TEAM = "(No business team)"
+SAME_TIME_SHEET = "Sametime Last Year"
+MILESTONES = [("Applied", "applied_at"), ("Offered", "offer_at"), ("Deposit", "paid_at"),
+              ("CoE Received", "coe_at"), ("Visa Applied", "visa_applied_at"),
+              ("Visa Granted", "visa_granted_at"), ("Enrolled", "enrolled_at")]
+TOTAL = "Total on the date"
+
+
+def _milestones(applications: Export, p: Periods, cuts: dict[int, date]) -> pl.DataFrame:
+    """Every application for this year's and last year's intake (Academic
+    levels, a business area), with whether it had reached each stage by its
+    intake year's cut-off -- a stage with no timestamp counts as passed when a
+    later one was reached by then -- the furthest it had reached (`at`, null if
+    not yet applied) and whether it was closed by then."""
+    a = applications.frame.with_columns(
+        _year(), _month(), _academic(), clean(pl.col("business_area")).alias("area"),
+    ).filter(pl.col("year").is_in([p.cy, p.ly]) & pl.col("academic") & pl.col("area").is_not_null())
+    cut = pl.lit(None, dtype=pl.Date)
+    for y, d in cuts.items():
+        cut = pl.when(pl.col("year") == y).then(pl.lit(d)).otherwise(cut)
+    on = [(_date(c) <= cut).fill_null(False) for _, c in MILESTONES]
+    a = a.with_columns(
+        pl.col("month").replace_strict(QUARTER_OF, default=0, return_dtype=pl.Int8).alias("q"),
+        *[pl.any_horizontal(on[k:]).alias(name) for k, (name, _) in enumerate(MILESTONES)],
+        # closed by then: Closed Lost now, marked closed on or before the date
+        # (with no timestamp, all along). One reopened since counts as open.
+        (clean(pl.col("closed_lost")).str.to_lowercase().eq("yes")
+         & (_date("closed_at").is_null() | (_date("closed_at") <= cut))).fill_null(False).alias("closed"),
+    )
+    at = pl.lit(None, dtype=pl.Utf8)
+    for name, _ in MILESTONES:
+        at = pl.when(pl.col(name)).then(pl.lit(name)).otherwise(at)
+    return a.with_columns(at.alias("at"))
+
+
+def _same_time_counts(df: pl.DataFrame, years: tuple[int, int]) -> dict[tuple[str, int, str], int]:
+    """("created" | "active" | "closed", year, stage) -> applications: created
+    there by the date (closed or not), standing in it then and open, standing in
+    it then and closed lost; ("active" | "closed", year, TOTAL) every stage together."""
+    n: dict[tuple[str, int, str], int] = {}
+    for y in years:
+        d = df.filter(pl.col("year") == y)
+        for kind, part in (("active", d.filter(~pl.col("closed"))), ("closed", d.filter(pl.col("closed")))):
+            at = {r[0]: r[1] for r in part.group_by("at").len().iter_rows()}
+            for name, _ in MILESTONES:
+                n[(kind, y, name)] = at.get(name, 0)
+            n[(kind, y, TOTAL)] = sum(at.get(name, 0) for name, _ in MILESTONES)
+        for name, _ in MILESTONES:
+            n[("created", y, name)] = int(d[name].sum())
+    return n
+
+
+def _rate(closed: int, created: int) -> float | str:
+    return closed / created if created else ""
+
+
+def _two_headers(w: Writer, lead: list[str], groups: list[tuple[str, list[str]]], height: float) -> None:
+    """`lead` columns merged over both rows, then each group's name over its columns."""
+    ws, h = w.ws, w.r
+    for c, name in enumerate(lead, 1):
+        ws.set(h, c, name, HDR)
+        ws.set(h + 1, c, "", HDR)
+        ws.merges.append(f"{L(c)}{h}:{L(c)}{h + 1}")
+    c = len(lead) + 1
+    for j, (name, subs) in enumerate(groups):
+        st = HDR_ALT if j % 2 else HDR
+        for k, sub in enumerate(subs):
+            ws.set(h, c + k, name if k == 0 else "", st)
+            ws.set(h + 1, c + k, sub, st)
+        ws.merges.append(f"{L(c)}{h}:{L(c + len(subs) - 1)}{h}")
+        c += len(subs)
+    ws.heights[h + 1] = height
+    w.r += 2
+
+
+CREATED = "Created by the date (closed lost included)"
+ACTIVE = "Active in the stage on the date"
+LOST = "Closed lost in the stage by the date"
+LOST_RATE = "Closed lost % of created"
+
+
+def _same_time_rows(w: Writer, label: str, groups: list[tuple[str, pl.DataFrame]], p: Periods) -> None:
+    """Per group: this year's applications created at each stage by the date,
+    those standing in it then -- open, and closed lost -- and the closed lost
+    share of those created there; last year's; and the change (% for counts,
+    points for the closed lost share)."""
+    ws, cy, ly = w.ws, p.cy, p.ly
+    names = [m for m, _ in MILESTONES]
+    _two_headers(w, [label, "Intake"], [(CREATED, names), (ACTIVE, names + ["Total open"]),
+                                        (LOST, names + ["Total closed lost"]),
+                                        (LOST_RATE, names + ["All applied"])], 30)
+    cols = ([("created", m) for m in names] + [("active", m) for m in names + [TOTAL]]
+            + [("closed", m) for m in names + [TOTAL]])
+    c_created, c_closed, c_rate = 3, 3 + 15, 3 + 23      # first column of each block
+    measure = Style(bold=True, border=True, wrap=True, valign="center")
+    for name, df in groups:
+        n = _same_time_counts(df, (cy, ly))
+        first = w.r
+        rates: dict[int, list[float | str]] = {}
+        for y in (cy, ly):
+            r = w.r
+            ws.set(r, 2, f"{y} intake", _st())
+            for j, (kind, st) in enumerate(cols):
+                ws.set(r, 3 + j, n[(kind, y, st)], _st(INT, bold=st == TOTAL))
+            # closed lost at the stage over created at it; overall, over everyone who applied
+            rates[y] = []
+            for j, st in enumerate(names + [TOTAL]):
+                k = j if st != TOTAL else 0
+                v = _rate(n[("closed", y, st)], n[("created", y, names[k])])
+                K, X = ref(r, c_created + k), ref(r, c_closed + j)
+                ws.set(r, c_rate + j, Formula(f'IF({K}=0,"",{X}/{K})', v), _st(SHARE, bold=st == TOTAL))
+                rates[y].append(v)
+            w.r += 1
+        ws.set(w.r, 2, "Change", _st(total=True))
+        for j, (kind, st) in enumerate(cols):
+            cv, pv = n[(kind, cy, st)], n[(kind, ly, st)]
+            C, P = ref(first, 3 + j), ref(first + 1, 3 + j)
+            pct, sign = _pct(cv, pv), -1 if kind == "closed" else 1
+            ws.set(w.r, 3 + j, Formula(f'IF({P}=0,"",({C}-{P})/{P})', pct),
+                   _trend(PCT, sign * pct if pct != "" else pct, True))
+        for j in range(len(names) + 1):
+            cv, pv = rates[cy][j], rates[ly][j]
+            d = cv - pv if "" not in (cv, pv) else ""
+            C, P = ref(first, c_rate + j), ref(first + 1, c_rate + j)
+            ws.set(w.r, c_rate + j, Formula(f'IF(OR({C}="",{P}=""),"",{C}-{P})', d), _trend(PCT, -(d or 0), True))   # more lost reads red
+        w.r += 1
+        ws.set(first, 1, name, measure)
+        for r in range(first + 1, w.r):
+            ws.set(r, 1, "", measure)
+        ws.merges.append(f"A{first}:A{w.r - 1}")
+    w.r += 1
+
+
+def _same_time(ws: Sheet, applications: Export, p: Periods) -> None:
+    """A time machine: the funnel for this intake year's applications as it
+    stands today, against last year's on the same date a year ago. Per stage --
+    applied, offered, deposit, CoE, visa applied, visa granted, enrolled -- how
+    many had been created there by then, by the timestamp of each status, and
+    how many stood in it then, not closed."""
+    cy, ly = p.cy, p.ly
+    cuts = {cy: p.today, ly: p.lytd[1]}
+    cyh, lyh = f"{cy} intake\nby {cuts[cy]:%d %b %Y}", f"{ly} intake\nby {cuts[ly]:%d %b %Y}"
+    df = _milestones(applications, p, cuts)
+    names = [m for m, _ in MILESTONES]
+
+    ws.set(1, 1, f"Sametime Last Year — the funnel on {cuts[cy]:%d %b %Y}, {cy} intake vs {ly} intake on "
+                 f"{cuts[ly]:%d %b %Y}", H1)
+    ws.set(2, 1, f"Source: applications, {_source_note(applications)}. A time machine: every {cy}-intake "
+                 f"application as it stands today, against every {ly}-intake one as it stood on the same date a year "
+                 "ago. Created = reached the stage by then: the export's \"Timestamp of ...\" for that status (Applied, "
+                 "Offer, Deposit Fully Paid, COE Received, Visa| Applied, Visa| Granted, Enrolled) on or before the "
+                 "date; a stage with no timestamp counts as passed when a later one was reached by then, so each stage "
+                 "counts everyone who got that far. Active = standing in that stage on the date -- the furthest it had "
+                 "reached -- and not closed by then: Closed Lost, marked closed (Timestamp of Application marked as "
+                 "Closed) on or before the date -- with no timestamp, closed throughout; one reopened since counts as "
+                 "open; the active stages add up to the applications open on the date. Closed lost in the stage = "
+                 "closed by then while standing in it; closed lost % = that over those created at the stage (the "
+                 "total, over everyone who applied); created counts the closed lost too. Deposits are by the date paid in full; later deferrals are not dated in the export, so "
+                 "they do not move a deposit. Academic course levels, every business area but a blank one. Intake = "
+                 "Actual Intake Year; quarters by Actual Intake Month.", NOTE_WRAP)
+    ws.merges.append("A2:P2")
+    ws.heights[2] = 104
+    w = Writer(ws)
+
+    n = _same_time_counts(df, (cy, ly))
+    w.section("A. Funnel — full intake year, all business areas")
+    blocks = [(CREATED, "created"), (ACTIVE, "active"), (LOST, "closed")]
+    _two_headers(w, ["Stage"], [(g, [cyh, lyh, "Change", "% change"]) for g, _ in blocks]
+                 + [(LOST_RATE, [cyh, lyh, "Change (pts)"])], 44)
+    first = w.r
+    for st in names + [TOTAL]:
+        r, tr = w.r, st == TOTAL
+        ws.set(r, 1, st, _st(total=tr))
+        for b, (_, kind) in enumerate(blocks):
+            c0 = 2 + 4 * b
+            if tr and kind == "created":
+                for c in range(c0, c0 + 4):
+                    ws.set(r, c, "", _st(total=True))
+                continue
+            cv, pv = n[(kind, cy, st)], n[(kind, ly, st)]
+            for c, v in ((c0, cv), (c0 + 1, pv)):
+                ws.set(r, c, Formula(f"SUM({L(c)}{first}:{L(c)}{r - 1})", v) if tr else v, _st(INT, total=tr))
+            C, P, pct, sign = ref(r, c0), ref(r, c0 + 1), _pct(cv, pv), -1 if kind == "closed" else 1
+            ws.set(r, c0 + 2, Formula(f"{C}-{P}", cv - pv), _trend(DLT, sign * (cv - pv), tr))
+            ws.set(r, c0 + 3, Formula(f'IF({P}=0,"",({C}-{P})/{P})', pct),
+                   _trend(PCT, sign * pct if pct != "" else pct, tr))
+        # closed lost at the stage over created at it; the total over everyone who applied
+        kr, created = (first, names[0]) if tr else (r, st)
+        v = {}
+        for c, y, kc, xc in ((14, cy, 2, 10), (15, ly, 3, 11)):
+            v[y] = _rate(n[("closed", y, st)], n[("created", y, created)])
+            K, X = ref(kr, kc), ref(r, xc)
+            ws.set(r, c, Formula(f'IF({K}=0,"",{X}/{K})', v[y]), _st(SHARE, total=tr))
+        d = v[cy] - v[ly] if "" not in v.values() else ""
+        ws.set(r, 16, Formula(f'IF(OR({ref(r, 14)}="",{ref(r, 15)}=""),"",{ref(r, 14)}-{ref(r, 15)})', d),
+               _trend(PCT, -(d or 0), tr))
+        w.r += 1
+    last = w.r - 2
+    w.r += 1
+    for title, (c, l), at in ((f"Created by the date — {cy} vs {ly} intake", (2, 3), 1),
+                              (f"Active in the stage on the date — {cy} vs {ly} intake", (6, 7), 6)):
+        ws.charts.append(Chart(title, (first, last, 1), [(f"{cy} intake", c), (f"{ly} intake", l)],
+                               at=(w.r, at), size=(18, 5 if at == 1 else 4)))
+    w.r += 20
+
+    w.section("B. By Actual Intake Quarter", "Quarters by Actual Intake Month; the full year leads.")
+    groups = [("Full year", df)] + [(q, df.filter(pl.col("q") == k)) for k, q in enumerate(QUARTERS, 1)]
+    _same_time_rows(w, "Period", groups, p)
+
+    w.section("C. By Business Area", "Full intake year.")
+    areas = df.group_by("area").len().sort(["len", "area"], descending=[True, False])["area"].to_list()
+    _same_time_rows(w, "Business area", [(a, df.filter(pl.col("area") == a)) for a in areas], p)
+
+    ws.widths.update({1: 24, 2: 14, **{c: 12 for c in range(3, 34)}})
+    ws.freeze = "A3"
+
+
+LOST_SHEET = "Closed Lost Deposits"
+
+
+def _lost_frame(applications: Export, p: Periods) -> pl.DataFrame:
+    """This year's intake applications in the deposit stage -- paid in full or
+    partially paid, closed lost or not -- on the Academic course levels and a
+    business area. Each has its measure (Deposits, DAA, PD as _state has them),
+    whether it is closed lost, and the stage it stands in: for a closed lost
+    one, the stage it was closed in, which its status keeps."""
+    di = clean(pl.col("deferral_initiated")).fill_null("No")
+    da = clean(pl.col("deferral_approved")).fill_null("No")
+    status = _letters("deposit_paid_status")
+    a = applications.frame.with_columns(
+        _year(), _academic(), clean(pl.col("business_area")).alias("area"),
+        pl.when(status.is_in(PAID_IN_FULL) & di.eq(da)).then(pl.lit("Deposits"))
+        .when(status.is_in(PAID_IN_FULL)).then(pl.lit("DAA"))
+        .when(status == "partiallypaid").then(pl.lit("PD")).alias("measure"),
+        clean(pl.col("closed_lost")).fill_null("No").ne("No").alias("lost"),
+        _stage(),
+    ).filter((pl.col("year") == p.cy) & pl.col("academic") & pl.col("area").is_not_null()
+             & pl.col("measure").is_not_null())
+    # a visa with some other sub-status (a deferral in progress, say) sits at
+    # granted if it was ever granted, at applied if not
+    visa = (clean(pl.col("status")).str.to_lowercase() == "visa") & (pl.col("stage") == "Other")
+    return a.with_columns(
+        pl.when(visa & _date("visa_granted_at").is_not_null()).then(pl.lit("Visa Granted"))
+        .when(visa).then(pl.lit("Visa Applied")).otherwise(pl.col("stage")).alias("stage"),
+        _label("region"), _label("destination"), _label("nationality"), _label("institution"),
+        _team("team"), _label("srm"), _label("closure_reason").alias("reason"),
+        clean(pl.col("introducer_name")).alias("introducer"),
+        _month().replace_strict(QUARTER_OF, default=0, return_dtype=pl.Int8).alias("q"),
+    )
+
+
+# the full year (q None, blank intake months included), then each quarter
+LOST_PERIODS: list[tuple[str, int | None]] = [("Full year", None)] + [(q, k) for k, q in enumerate(QUARTERS, 1)]
+AMBER = "BF8F00"
+
+
+def _lost_rate(value, st: Style) -> Style:
+    """A closed lost %: green under 20%, amber to 50%, red from there."""
+    if not isinstance(value, (int, float)):
+        return st
+    return replace(st, color=UP if value < 0.2 else AMBER if value < 0.5 else DOWN)
+
+
+def _lost_keys(df: pl.DataFrame, key: str, top: int | None) -> tuple[pl.DataFrame, list[str]]:
+    """`key`'s values, the most closed lost first; past `top`, folded into one."""
+    order = df.group_by(key).agg(pl.col("lost").sum().alias("x"), pl.len().alias("n")) \
+        .sort(["x", "n", key], descending=[True, True, False])
+    keys = order[key].to_list()
+    if top is not None and len(keys) > top:
+        other = f"All others ({len(keys) - top})"
+        df = df.with_columns(pl.when(pl.col(key).is_in(keys[:top])).then(pl.col(key))
+                             .otherwise(pl.lit(other)).alias(key))
+        keys = keys[:top] + [other]
+    return df, keys
+
+
+def _lost_blocks(w: Writer, df: pl.DataFrame, key: str, keys: list[str], values, totals: bool,
+                 subs: dict[str, str], per_measure: bool = False) -> None:
+    """One block of rows per measure: each key's row opening onto the stages
+    under it, then the measure's Total. `values(r, k, m, s, head, under,
+    total)` fills row r from column 3 on; `s` is None on a key's row, `k`
+    on the Total. `per_measure` ranks the keys within each measure, by its
+    closed lost, rather than across them all."""
+    ws = w.ws
+    # Other appears only if some application stands somewhere else
+    stages = STAGES + (["Other"] if (df["stage"] == "Other").any() else [])
+    present = {r[:3] for r in df.group_by(key, "measure", "stage").len().iter_rows()}
+    measure = Style(bold=True, border=True, wrap=True, valign="center")
+    for mname, _ in MEASURES:
+        rows = [k for k in keys if any((k, mname, s) in present for s in stages)]
+        if per_measure:
+            lost = dict(df.filter(pl.col("measure") == mname).group_by(key).agg(pl.col("lost").sum()).iter_rows())
+            rows.sort(key=lambda k: -lost.get(k, 0))      # stable: ties keep the overall order
+        if not rows:
+            continue
+        first = w.r
+        under = {k: [s for s in stages if (k, mname, s) in present] for k in rows}
+        total = first + sum(1 + len(u) for u in under.values()) if totals else None
+        for k in rows:
+            # the key's own row, then one grouped under it per stage it has
+            head = w.r
+            for i, s in enumerate([None] + under[k]):
+                r = head + i
+                if s is None:
+                    sub = subs.get(k)
+                    if sub:
+                        # the team and SRM on a line of their own under the name
+                        ws.set(r, 2, Rich(((k, Style(bold=True)), (f"\n{sub}", SUBTEXT))),
+                               replace(_st(bold=True), wrap=True))
+                        ws.heights[r] = 25
+                    else:
+                        ws.set(r, 2, k, _st(bold=True))
+                else:
+                    ws.set(r, 2, s, replace(_st(), indent=1))
+                    ws.outline[r] = 1
+                values(r, k, mname, s, head, len(under[k]), total)
+            ws.collapsed.add(head)
+            w.r += 1 + len(under[k])
+        if totals:
+            ws.set(w.r, 2, "Total", _st(total=True))
+            values(w.r, None, mname, None, first - 1, w.r - first, total)
+            w.r += 1
+        ws.set(first, 1, mname, measure)
+        for r in range(first + 1, w.r):
+            ws.set(r, 1, "", measure)
+        if w.r - 1 > first:
+            ws.merges.append(f"A{first}:A{w.r - 1}")
+    w.r += 1
+
+
+SUBTEXT = Style(size=8, color="808080")
+
+
+def _rollup(df: pl.DataFrame, key: str) -> dict[tuple, int]:
+    """Counts by (key, measure, stage, closed lost, quarter), with None in the
+    key, stage or quarter for all of them together."""
+    out: dict[tuple, int] = {}
+    for k, m, s, x, q, v in df.group_by(key, "measure", "stage", "lost", "q").len().iter_rows():
+        for kk in (k, None):
+            for ss in (s, None):
+                for qq in (q, None):
+                    out[(kk, m, ss, x, qq)] = out.get((kk, m, ss, x, qq), 0) + v
+    return out
+
+
+def _lost_table(w: Writer, label: str, df: pl.DataFrame, key: str, top: int | None = None,
+                totals: bool = True, subs: dict[str, str] | None = None) -> None:
+    """Deposits, PD and DAA per `key`, one block of rows each: created, active,
+    closed lost and the closed lost % of created, for the full year and each
+    quarter. Each key's row opens onto the stages its applications stand in.
+    `top` keeps the keys with the most closed lost and folds the rest into one
+    row; `subs` adds a line in small grey type after a key."""
+    ws = w.ws
+    df, keys = _lost_keys(df, key, top)
+    n = _rollup(df, key)
+
+    def count(k: str | None, m: str, s: str | None, q: int | None) -> tuple[int, int, int]:
+        """(created, active, closed lost) for `k` (None: every key) in measure
+        `m`, at stage `s` (None: every stage), in quarter `q` (None: the year)."""
+        active, lost = n.get((k, m, s, False, q), 0), n.get((k, m, s, True, q), 0)
+        return active + lost, active, lost
+
+    def values(r, k, m, s, head, under, total) -> None:
+        for j, (_, q) in enumerate(LOST_PERIODS):
+            c0 = 3 + 4 * j
+            vals = count(k, m, s, q)
+            bold, tr = s is None and k is not None, k is None
+            for c, v in zip((c0, c0 + 1, c0 + 2), vals):
+                # a key's row subtotals its stages; the Total, the key rows over theirs
+                ws.set(r, c, Formula(f"SUBTOTAL(9,{L(c)}{head + 1}:{L(c)}{head + under})", v)
+                       if s is None else v, _st(INT, bold=bold, total=tr))
+            v = _rate(vals[2], vals[0])
+            C, X = ref(r, c0), ref(r, c0 + 2)
+            ws.set(r, c0 + 3, Formula(f'IF({C}=0,"",{X}/{C})', v), _lost_rate(v, _st(SHARE, bold=bold, total=tr)))
+
+    _two_headers(w, ["Measure", label], [(name, ["Created", "Active", "Closed lost", "Closed lost %"])
+                                         for name, _ in LOST_PERIODS], 30)
+    _lost_blocks(w, df, key, keys, values, totals, subs or {})
+
+
+def _lost_reasons(w: Writer, df: pl.DataFrame) -> None:
+    """The closed lost alone, per measure, by the reason they were closed:
+    how many, and their share of the measure's closed lost, for the full year
+    and each quarter; each reason opening onto the stages they were closed in."""
+    ws = w.ws
+    df, keys = _lost_keys(df.filter(pl.col("lost")), "reason", None)
+    n = _rollup(df, "reason")
+
+    def count(k, m, s, q) -> int:
+        return n.get((k, m, s, True, q), 0)
+
+    def values(r, k, m, s, head, under, total) -> None:
+        for j, (_, q) in enumerate(LOST_PERIODS):
+            c0 = 3 + 2 * j
+            v, all_ = count(k, m, s, q), count(None, m, None, q)
+            bold, tr = s is None and k is not None, k is None
+            ws.set(r, c0, Formula(f"SUBTOTAL(9,{L(c0)}{head + 1}:{L(c0)}{head + under})", v)
+                   if s is None else v, _st(INT, bold=bold, total=tr))
+            T = f"{L(c0)}${total}"
+            share, st = _rate(v, all_), _st(SHARE, bold=bold, total=tr)
+            # coloured as the closed lost % is; the Total, always 100%, is not
+            ws.set(r, c0 + 1, Formula(f'IF({T}=0,"",{ref(r, c0)}/{T})', share), st if tr else _lost_rate(share, st))
+
+    _two_headers(w, ["Measure", "Closure reason"], [(name, ["Closed lost", "Share of closed lost"])
+                                                    for name, _ in LOST_PERIODS], 30)
+    _lost_blocks(w, df, "reason", keys, values, True, {}, per_measure=True)
+
+
+def _introducer_lines(df: pl.DataFrame) -> dict[str, str]:
+    """Each introducer's business team and SRM, the ones most of its
+    applications carry, as "Team · SRM"."""
+    out: dict[str, list[str]] = {}
+    for col in ("team", "srm"):
+        top = df.filter(pl.col(col) != BLANK).group_by("introducer", col).len() \
+            .sort(["introducer", "len", col], descending=[False, True, False]) \
+            .unique("introducer", keep="first", maintain_order=True)
+        for name, v, _ in top.iter_rows():
+            out.setdefault(name, []).append(v)
+    return {k: " ".join(" · ".join(v).split()) for k, v in out.items()}    # the CRM's double spaces too
+
+
+def _lost(ws: Sheet, applications: Export, p: Periods) -> None:
+    """Closed lost in the deposit stage, this intake year alone: per measure,
+    the applications created there, still active and closed lost, with the
+    closed lost %, for the full year and each quarter, each row opening onto
+    the stages they were closed in; in the YTD sheet's sections, then by
+    introducer, by institution and by the reason they were closed."""
+    cy = p.cy
+    df = _lost_frame(applications, p)
+
+    ws.set(1, 1, f"Closed lost deposits — Deposits, PD and DAA closed lost, {cy} intake", H1)
+    ws.set(2, 1, f"Source: applications, {_source_note(applications)}. Every {cy}-intake application in the deposit "
+                 "stage, closed lost or not: Deposits = Deposit Paid Status FullyPaid or "
+                 "fullyPaidWaitingForApproval with Deferred Initiated and Deferred Approved both No or both Yes; "
+                 "DAA = paid in full with those two differing; PD = PartiallyPaid. Created = all of them, Active = "
+                 "not Closed Lost, Closed lost = Application Closed Lost Yes; closed lost % = closed lost over "
+                 "created, green under 20%, amber from 20% to under 50%, red from 50%. Expand a row for the stage by its Application Status -- for a closed lost one, the stage "
+                 "it was closed in -- Visa split by Application Sub-Status into Visa Applied and Visa Granted (any "
+                 "other sub-status by whether the visa was granted); Other is any other status. Academic course levels, every business area but "
+                 f"a blank one. Intake = Actual Intake Year; quarters by Actual Intake Month, the full year taking "
+                 f"in those with none. Introducers carry the business team and SRM most of their applications have. "
+                 f"The {cy} intake year is still in progress.", NOTE_WRAP)
+    ws.merges.append("A2:N2")
+    ws.heights[2] = 78
+    w = Writer(ws)
+
+    w.section("A. Headline — all business areas")
+    _lost_table(w, "Business areas", df.with_columns(pl.lit("All business areas").alias("all")), "all",
+                totals=False)
+
+    w.section("B. By Business Area")
+    _lost_table(w, "Business area", df, "area")
+
+    areas = df.group_by("area").agg(pl.col("lost").sum()).sort(["lost", "area"], descending=[True, False])
+    for i, area in enumerate(areas["area"].to_list(), 1):
+        w.section(f"C{i}. {area} — by Business Region")
+        _lost_table(w, "Business region", df.filter(pl.col("area") == area), "region")
+
+    most = f"The {YTD_TOP} with the most closed lost; any others fold into one row."
+    w.section("D. By application destination country", most)
+    _lost_table(w, "Application Destination Country", df, "destination", top=YTD_TOP)
+
+    w.section("E. By student nationality", most)
+    _lost_table(w, "Student Nationality", df, "nationality", top=YTD_TOP)
+
+    w.section("F. By introducer", f"{most} Applications with no introducer are left out.")
+    named = df.filter(pl.col("introducer").is_not_null())
+    _lost_table(w, "Introducer", named, "introducer", top=YTD_TOP, subs=_introducer_lines(named))
+
+    w.section("G. By institution", most)
+    _lost_table(w, "Institution", df, "institution", top=YTD_TOP)
+
+    w.section("H. By closure reason", "The closed lost alone, by Application Closure Reason, and each reason's share "
+                                      "of the measure's closed lost, coloured as the closed lost % is; the most in "
+                                      "each measure first.")
+    _lost_reasons(w, df)
+
+    ws.widths.update({1: 12, 2: 46, **{c: 10 for c in range(3, 23)}})
+    ws.freeze = "C3"
 
 
 def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applications: Export,
@@ -887,7 +1660,7 @@ def _last_week(ws: Sheet, d: Deposits, introducers: Export, logs: Export, applic
     fc, fp = paid_in["c"].filter(counted), paid_in["p"].filter(counted)
     dropped = paid_in["c"].height - fc.height + paid_in["p"].height - fp.height
 
-    ws.set(1, 1, f"Last week — {_fmt(p.week[0])} – {_fmt(p.week[1])} against the week before", H1)
+    ws.set(1, 1, f"B2B Summary Last Week — {_fmt(p.week[0])} – {_fmt(p.week[1])} against the week before", H1)
     ws.set(2, 1, f"{p.cur} is the whole Edvoy week {_fmt(p.week[0])} – {_fmt(p.week[1])}; the week before is "
                  f"{_fmt(p.last_week[0])} – {_fmt(p.last_week[1])}. Introducers onboarded: Became Customer Date on "
                  f"the introducers master, {_source_note(introducers)}. Activity logs: Log Time in UTC, one row per "
@@ -954,7 +1727,7 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
     cy, ly = p.cy, p.ly
     held, cur, prev, n = d.held, d.cur, d.prev, d.n
     non_acad, non_b2b, resurrected, missed = d.non_acad, d.non_b2b, d.resurrected, d.missed
-    ws.set(1, 1, "Sales & Retention — active deposits by Actual Intake Year", H1)
+    ws.set(1, 1, "B2B - Sales and Retention — active deposits by Actual Intake Year", H1)
     ws.set(2, 1, f"Source: applications, {_source_note(applications)}; applications with an Application "
                  "Introducer and not Closed Lost only. Active deposit = Deposit Paid Status FullyPaid or "
                  "fullyPaidWaitingForApproval, with Deferred Initiated and Deferred Approved both No or both Yes. "
@@ -964,26 +1737,33 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
                  f"{non_acad.get(cy, 0)}, {ly} {non_acad.get(ly, 0)}. Business Area B2B only; "
                  f"Academic active deposits on other business areas left out: {cy} {non_b2b.get(cy, 0)}, "
                  f"{ly} {non_b2b.get(ly, 0)}. Every table from A2 on counts active "
-                 f"deposits only. The {cy} intake year is still in progress.", NOTE_WRAP)
+                 "deposits only. Introducers = the introducers with at least one of a row's deposits; one in "
+                 "several rows counts in each, and once in the total, so a total can be less than its rows' sum. "
+                 f"The {cy} intake year is still in progress.", NOTE_WRAP)
     ws.merges.append("A2:G2")
-    ws.heights[2] = 96
+    ws.heights[2] = 120
     cyh, lyh = f"{cy} intake", f"{ly} intake"
     w = Writer(ws)
 
     w.section(f"A. Deposits by introducers: {cy} vs {ly}")
-    w.compare(["Deposits"], [((label,), n(st, cy), n(st, ly)) for st, label in
-                             (("Active", "Active deposits"), ("DAA", "DAA — deferral awaiting approval"),
-                              ("PD", "PD — partial deposits"))], cyh, lyh, total=False)
-    w.section("A1. By Actual Intake Month")
-    present = set(held["month"].to_list())
-    w.grid(["Actual Intake Month"],
-           [((m,), [n(st, y, m) for y in (cy, ly) for st in ("Active", "DAA", "PD")])
-            for m in MONTHS + [BLANK] if m in present],
-           [f"{y} {st}" for y in (cy, ly) for st in ("Active", "DAA", "PD")])
+    states = (("Active", "Active deposits"), ("DAA", "DAA — deferral awaiting approval"),
+              ("PD", "PD — partial deposits"))
+    state_of = {label: st for st, label in states}
+    w.compare(["Deposits"], [((label,), n(st, cy)[0], n(st, ly)[0]) for st, label in states], cyh, lyh,
+              total=False, intros=lambda labels: (n(state_of[labels[0]], cy)[1], n(state_of[labels[0]], ly)[1]))
+    w.section("A1. By Actual Intake Quarter", "Quarters by Actual Intake Month.")
+    pairs = [(y, st) for y in (cy, ly) for st in ("Active", "DAA", "PD")]
+    present = set(held["q"].to_list())
+    w.grid(["Actual Intake Quarter"],
+           [((QUARTERS[q - 1] if q else "No intake month",), [x for y, st in pairs for x in n(st, y, q)])
+            for q in (1, 2, 3, 4, 0) if q in present],
+           [h for y, st in pairs for h in (f"{y} {st}", f"{y} {st} introducers")],
+           given={2 * j + 1: n(st, y)[1] for j, (y, st) in enumerate(pairs)})
     w.section("A2. Active deposits by the year the introducer was onboarded (Became Customer Date)")
-    w.compare(["Introducer onboarded in"],
-              [((o,), cur.filter(pl.col("cohort") == o).height, prev.filter(pl.col("cohort") == o).height)
-               for o in _cohorts(p)], cyh, lyh)
+    cohorts = [((o,), cur.filter(pl.col("cohort") == o).height, prev.filter(pl.col("cohort") == o).height)
+               for o in _cohorts(p)]
+    w.compare(["Introducer onboarded in"], [c for c in cohorts if c[1] or c[2]], cyh, lyh,
+              intros=lambda labels: (_introducers(cur, ["cohort"])(labels), _introducers(prev, ["cohort"])(labels)))
 
     w.section(f"B. {cy} active deposits broken down",
               "SRM and AMT counsellor are the Introducer SRM / AMT columns on the application; business team "
@@ -1000,32 +1780,55 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
                                 ("B6. By AMT counsellor", ["AMT counsellor"], ["amt"]),
                                 ("B7. By institution", ["Institution"], ["institution"])):
         w.section(title)
-        w.share(labels, _counts(cur, keys), value_h)
+        w.share(labels, _counts(cur, keys), value_h, nest="teams" if keys == ["srm", "team"] else None,
+                intros=_introducers(cur, keys))
 
     def intro_list(df: pl.DataFrame, title: str, count_label: str, deposits_label: str, deposit_col: int) -> None:
         w.section(title)
         rc = w.r
         ws.set(rc, 1, count_label, Style(bold=True))
         ws.set(rc + 1, 1, deposits_label, Style(bold=True))
-        w.r += 3
-        w.header(["Introducer", "Country", "Business team", "SRM", "Became Customer Date", f"{cy} active deposits",
+        ws.set(rc + 2, 1, "By business team; expand a team for its introducers.", NOTE)
+        value = "cy" if deposit_col == 6 else "ly"
+        w.r += 4
+        w.header(["Business team / Introducer", "Country", "Business team", "SRM", "Became Customer Date", f"{cy} active deposits",
                   f"{ly} active deposits"], height=30)
-        first = w.r
+        # one row per business team, biggest first, its introducers grouped under
+        # it and collapsed: expand a team to see them
+        teams: dict[str, list[dict]] = {}
         for x in df.iter_rows(named=True):
-            for k, v in enumerate([x["introducer_name"], x["country"], x["team"], x["srm"]], 1):
-                ws.set(w.r, k, v, _st())
-            ws.set(w.r, 5, x["bc"], _st(DAY))
-            ws.set(w.r, 6, x["cy"], _st(INT))
-            ws.set(w.r, 7, x["ly"], _st(INT))
-            w.r += 1
+            teams.setdefault(x["team"] or NO_TEAM, []).append(x)
+        order = sorted(teams.items(), key=lambda t: (-sum(x[value] for x in t[1]), -len(t[1]), t[0]))
+        first, team_rows = w.r, []
+        for team, members in order:
+            top, n = w.r, len(members)
+            team_rows.append(top)
+            ws.set(top, 1, team, _st(bold=True))
+            ws.set(top, 2, f"{n} introducer{'s' if n > 1 else ''}", _st(bold=True))
+            for k in range(3, 6):
+                ws.set(top, k, "", _st())
+            for c, key in ((6, "cy"), (7, "ly")):
+                ws.set(top, c, Formula(f"SUBTOTAL(9,{L(c)}{top + 1}:{L(c)}{top + n})", sum(x[key] for x in members)),
+                       _st(INT, bold=True))
+            ws.collapsed.add(top)
+            for r, x in enumerate(members, top + 1):
+                ws.set(r, 1, x["introducer_name"], replace(_st(), indent=1))
+                for k, v in enumerate([x["country"], x["team"], x["srm"]], 2):
+                    ws.set(r, k, v, _st())
+                ws.set(r, 5, x["bc"], _st(DAY))
+                ws.set(r, 6, x["cy"], _st(INT))
+                ws.set(r, 7, x["ly"], _st(INT))
+                ws.outline[r] = 1
+            w.r = top + n + 1
         tot = w.r
         ws.set(tot, 1, "Total", _st(total=True))
         for k in range(2, 6):
             ws.set(tot, k, "", _st(total=True))
         sums = {6: int(df["cy"].sum()), 7: int(df["ly"].sum())}
-        for c, v in sums.items():
-            ws.set(tot, c, Formula(f"SUM({L(c)}{first}:{L(c)}{max(first, tot - 1)})", v), _st(INT, total=True))
-        ws.set(rc, 2, Formula(f"COUNTA(A{first}:A{max(first, tot - 1)})" if df.height else "0", df.height),
+        for c, v in sums.items():   # SUBTOTAL skips the team rows, themselves subtotals
+            ws.set(tot, c, Formula(f"SUBTOTAL(9,{L(c)}{first}:{L(c)}{max(first, tot - 1)})", v), _st(INT, total=True))
+        # every row but the team rows is an introducer
+        ws.set(rc, 2, Formula(f"COUNTA(A{first}:A{tot - 1})-{len(team_rows)}" if df.height else "0", df.height),
                Style(bold=True, num_fmt=INT))
         ws.set(rc + 1, 2, Formula(f"{L(deposit_col)}{tot}", sums[deposit_col]), Style(bold=True, num_fmt=INT))
         w.r = tot + 2
@@ -1037,7 +1840,7 @@ def _sales(ws: Sheet, d: Deposits, applications: Export, p: Periods) -> None:
     intro_list(missed,
                f"D. Missed out — introducers with active deposits for the {ly} intake and none for the {cy} intake",
                "Introducers missed out", f"Their {ly} active deposits", 7)
-    ws.widths.update(dict(enumerate([46, 28, 24, 26, 20, 16, 16], 1)))
+    ws.widths.update(dict(enumerate([46, 28, 24, 26, 20, 16, 16, 14, 14, 14, 14, 14, 14], 1)))
     ws.freeze = "A4"
 
 
