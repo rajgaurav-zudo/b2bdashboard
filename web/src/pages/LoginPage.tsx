@@ -1,63 +1,60 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
-import { useAuth } from "../auth";
+import { SIGN_IN_DOMAIN, renderGoogleButton, useAuth } from "../auth";
+
+/** The one card on an otherwise empty page, for every signed-out state. */
+function Frame({ children }: { children: ReactNode }) {
+  return (
+    <div className="login">
+      <div className="login-card">
+        <div className="login-brand">
+          <span className="mark" aria-hidden="true">EB</span>
+          <div>
+            <b>Edvoy B2B</b>
+            <span>Dashboards</span>
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function LoginPage() {
   const { signIn } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const button = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await signIn(email.trim(), password);
-    } catch (err) {
-      // Supabase returns the same message for a wrong password and an unknown
-      // address, deliberately: distinguishing them tells an attacker which
-      // addresses exist. Passing it through keeps that property.
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  useEffect(() => {
+    if (!button.current) return;
+    renderGoogleButton(button.current, (credential) => {
+      setBusy(true);
+      setError(null);
+      // The API's answer is shown as it is: for an account that has not been
+      // added it says who to ask, which is the one thing the person can act on.
+      signIn(credential)
+        .catch((err: Error) => setError(err.message))
+        .finally(() => setBusy(false));
+    }).catch((err: Error) => setError(err.message));
+  }, [signIn]);
 
   return (
-    <>
-      <header className="top">
-        <div className="top-in">
-          <p className="eyebrow">Edvoy B2B</p>
-          <h1>Dashboards</h1>
-        </div>
-      </header>
-      <div className="wrap">
-        <form className="signin" onSubmit={submit}>
-          <h2>Sign in</h2>
-          <p>These dashboards carry partner commission terms. Access is by invitation.</p>
+    <Frame>
+      <h1>Sign in</h1>
+      <p>Use your <b>@{SIGN_IN_DOMAIN}</b> Google account.</p>
 
-          <label htmlFor="email">Email</label>
-          <input
-            id="email" type="email" autoComplete="username" required
-            value={email} onChange={(e) => setEmail(e.target.value)}
-          />
+      <div className="google" ref={button} />
 
-          <label htmlFor="password">Password</label>
-          <input
-            id="password" type="password" autoComplete="current-password" required
-            value={password} onChange={(e) => setPassword(e.target.value)}
-          />
+      {busy ? <p className="status">Signing in…</p> : null}
+      {error ? <p className="status err" role="alert">{error}</p> : null}
 
-          {error ? <p className="status err">{error}</p> : null}
-
-          <button type="submit" className="btn" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-      </div>
-    </>
+      <p className="login-foot">
+        Access is by invitation. If Google signs you in but the dashboard does not, ask an admin to
+        add you.
+      </p>
+    </Frame>
   );
 }
 
@@ -67,24 +64,13 @@ export function NotPermitted({ email, detail, onSignOut }: {
   email: string | null; detail: string; onSignOut: () => void;
 }) {
   return (
-    <>
-      <header className="top">
-        <div className="top-in">
-          <p className="eyebrow">Edvoy B2B</p>
-          <h1>Dashboards</h1>
-        </div>
-      </header>
-      <div className="wrap">
-        <div className="signin">
-          <h2>No access</h2>
-          <p>
-            You are signed in as <b>{email}</b>, but that account is not permitted to use these
-            dashboards. {detail}
-          </p>
-          <p>Ask whoever administers the project to add your address, then sign in again.</p>
-          <button type="button" className="btn" onClick={onSignOut}>Sign out</button>
-        </div>
-      </div>
-    </>
+    <Frame>
+      <h1>No access</h1>
+      <p>
+        You are signed in as <b>{email}</b>, but that account is not permitted to use these
+        dashboards. {detail}
+      </p>
+      <button type="button" className="btn" onClick={onSignOut}>Sign out</button>
+    </Frame>
   );
 }

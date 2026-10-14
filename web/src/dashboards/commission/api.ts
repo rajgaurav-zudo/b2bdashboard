@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { accessToken } from "../../auth";
+import { accessToken, sessionRejected } from "../../auth";
 
 /** The commission module's own endpoints, mounted at /api/modules/commission.
  *  Kept apart from api/client.ts because its errors carry structure -- a
@@ -29,6 +29,7 @@ async function call<T>(method: string, path: string, body?: unknown,
   }
   const res = await fetch(url, { method, headers, body: payload });
   if (!res.ok) {
+    if (res.status === 401) sessionRejected();
     let message = res.statusText;
     let detail: Record<string, unknown> = {};
     try {

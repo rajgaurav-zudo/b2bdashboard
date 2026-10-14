@@ -225,28 +225,48 @@ the half-open state directly and asserts both halves.
 
 ## Auth
 
-The browser signs in with Supabase Auth and sends the resulting JWT to the API,
-which verifies it against the project's published JWKS (ES256 -- the API holds a
-public key and nothing that could mint a token). PostgREST stays switched off:
-`core` and `dash_*` are not in `api.schemas`, so the dashboard-owned SQL view
-models remain the only way to read the data, and RLS is defence in depth rather
-than the access control itself.
+Sign in with Google, limited to the `edvoy.com` Workspace. The login page draws
+Google's own button (Google Identity Services); the ID token it yields is posted
+to `POST /api/auth/google`, which verifies it against Google's published JWKS
+(RS256, audience = `GOOGLE_CLIENT_ID`) and answers with a session token the API
+signs itself (HS256, `AUTH_SESSION_SECRET`, 12 hours). Every other request
+carries that session token as a bearer. There is no client secret anywhere: the
+flow never exchanges an authorization code.
 
-**Authentication is not authorization.** A Supabase project takes public
-sign-ups by default, so a valid signature proves only that someone found the
-sign-up form. `AUTH_ALLOWED_DOMAINS` / `AUTH_ALLOWED_EMAILS` decide who actually
-gets in, and the API refuses to start with auth on and neither set -- looking
-protected while admitting everyone is the worst of the three states.
+**Authentication is not authorization.** Anyone with a Google account can get a
+correctly signed ID token for this client, so a valid signature proves only that
+someone clicked the button. `AUTH_ALLOWED_DOMAINS` (default `["edvoy.com"]`)
+decides who gets in, and the API checks it three ways: `email_verified`, the
+address's domain, and `hd` -- the Workspace that manages the account. `hd` is
+the one that matters, because a personal Google account can be registered under
+a company address and carries none. The `hd` the browser passes to Google only
+narrows the account chooser; it is a hint, never the check. The domain is
+re-checked on every request, so narrowing it ends outstanding sessions at once.
 
-The Supabase project that issued these tokens is no longer part of this repo
-(its CLI config and the hosting files were removed while hosting is undecided).
-Sign-in still only works against a Supabase Auth project, so choosing a host
-means either pointing `SUPABASE_URL` at one again, with sign-ups off and
-confirmations on, or replacing this layer.
+**Being in the domain is not enough either.** `core.users` (migration 004) is
+the list of who may sign in, with one of three roles. The **owner** comes from
+`AUTH_OWNER_EMAIL`: the API writes that row at every boot (switching it back on
+if needed, and keeping a previous owner as an admin), and a unique index allows
+only one. The owner manages everyone from the Users page (`/users`, under Admin
+in the side bar; `GET/POST/PATCH/DELETE /api/users`). An **admin** adds,
+switches off and removes members, but cannot make admins or touch another admin.
+A **member** uses the dashboards. Nobody can change the owner's row or their own
+access from the app, and only addresses in the allowed domains can be added.
+
+The session token carries no role. Every request looks the user up again, so
+switching someone off or removing them ends their session at their next click,
+and a role change applies without signing in again.
+
+The API refuses to start with auth on and any of the client ID, the session
+secret or the domain list missing, or with an owner outside the domain -- looking protected while admitting everyone
+is the worst of the three states.
 
 Auth is off in local development (`AUTH_REQUIRED=false` in compose.yml) so the
 stack runs without an account. The default in `config.py` is on, and the API
-prints a conspicuous line at boot when it is off.
+prints a conspicuous line at boot when it is off. To try sign-in locally, set
+`GOOGLE_CLIENT_ID`, `AUTH_SESSION_SECRET` and `AUTH_REQUIRED=true` in `.env`,
+and list `http://localhost:5173` under the client's Authorized JavaScript
+origins.
 
 ## Storage
 

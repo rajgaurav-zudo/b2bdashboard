@@ -1,16 +1,15 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { accessToken } from "../auth";
+import { accessToken, sessionRejected } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  DatasetState, Downloads, LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
+  DatasetState, Downloads, LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow, UserRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
 const BASE = "/api";
 
-/** Every request carries the Supabase token when there is one. Read per request
- *  rather than cached: supabase-js rotates it before expiry. */
+/** Every request carries the session token when there is one. */
 async function authHeaders(extra?: HeadersInit): Promise<Headers> {
   const headers = new Headers(extra);
   const token = await accessToken();
@@ -35,6 +34,9 @@ async function get<T>(path: string, params?: Record<string, string | number | un
 }
 
 async function detail(res: Response): Promise<string> {
+  // every failed call comes through here, so this is where a session the API
+  // no longer accepts is noticed and the sign-in page brought back
+  if (res.status === 401) sessionRejected();
   try {
     const body = await res.json();
     return typeof body?.detail === "string" ? body.detail : res.statusText;
@@ -230,5 +232,32 @@ export function useDownload() {
       URL.revokeObjectURL(url);
       return name;
     },
+  });
+}
+
+/* --------------------------------------------------------------------------
+   Users. Owners and admins only; the API refuses everyone else.
+   -------------------------------------------------------------------------- */
+
+export function useUsers(enabled = true) {
+  return useQuery({ queryKey: ["users"], queryFn: () => get<UserRow[]>("/users"), enabled });
+}
+
+/** Add, change or remove a user; the list is fetched again either way. */
+export function useUserChange() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ method, email, body }: {
+      method: "POST" | "PATCH" | "DELETE"; email?: string; body?: object;
+    }) => {
+      const path = email ? `${BASE}/users/${encodeURIComponent(email)}` : `${BASE}/users`;
+      const res = await fetch(path, {
+        method,
+        headers: await authHeaders(body ? { "Content-Type": "application/json" } : undefined),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) throw new ApiError(await detail(res), res.status);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["users"] }),
   });
 }

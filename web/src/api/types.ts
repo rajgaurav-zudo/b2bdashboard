@@ -646,3 +646,14 @@ export interface PipelineOverview {
   stages: PipelineStage[];
   data: { app_rows: number; no_intake: number; no_student_ref: number; no_stage: number; undated_deposit: number };
 }
+
+export interface UserRow {
+  email: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+  active: boolean;
+  added_by: string | null;
+  created_at: string;
+  updated_at: string;
+  last_sign_in_at: string | null;
+}

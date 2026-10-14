@@ -70,6 +70,8 @@ function TopBar() {
     trail = ["Data", "Changelog"];
   } else if (pathname === "/downloads") {
     trail = ["Data", "Downloads"];
+  } else if (pathname === "/users") {
+    trail = ["Admin", "Users"];
   } else {
     trail = ["Dashboards"];
   }
@@ -95,7 +97,7 @@ function TopBar() {
 
 function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
   const { data, isLoading, error } = useDashboards();
-  const { email, signOut } = useAuth();
+  const { email, session, isAdmin, signOut } = useAuth();
 
   return (
     <aside className="sidenav">
@@ -140,11 +142,21 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
           <Row to="/downloads" rail={rail} mark="↓" label="Downloads"
                hint="This week's summary as an Excel workbook" />
         </div>
+
+        {authRequired && isAdmin ? (
+          <div className="nav-group">
+            <p className="nav-lbl">Admin</p>
+            <Row to="/users" rail={rail} mark="@" label="Users" hint="Who can sign in, and what they can do" />
+          </div>
+        ) : null}
       </nav>
 
       {authRequired && email ? (
         <div className="nav-foot">
-          <span className="em" title={email}>{email}</span>
+          <span className="em" title={email}>
+            {session?.name || email}
+            {session?.role && session.role !== "member" ? <i> · {session.role}</i> : null}
+          </span>
           <button
             type="button"
             className="out"

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { ApiError } from "./api/client";
-import { authRequired, supabase, useAuth } from "./auth";
+import { authConfigured, authRequired, useAuth } from "./auth";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { DashboardShell } from "./pages/DashboardShell";
 import { DataPage } from "./pages/DataPage";
@@ -10,11 +10,11 @@ import { DownloadsPage } from "./pages/DownloadsPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage, NotPermitted } from "./pages/LoginPage";
 import { OverviewPage } from "./pages/OverviewPage";
-import { Spinner } from "./ui/Primitives";
+import { UsersPage } from "./pages/UsersPage";
 import { AppLayout } from "./ui/SideNav";
 
 export function App() {
-  const { session, email, ready, signOut } = useAuth();
+  const { session, email, signOut } = useAuth();
   const [forbidden, setForbidden] = useState<string | null>(null);
 
   // A 403 anywhere means the token is good but this account is not on the API's
@@ -29,20 +29,19 @@ export function App() {
   }, []);
 
   if (authRequired) {
-    if (!supabase) {
+    if (!authConfigured) {
       return (
         <div className="wrap">
           <div className="signin">
             <h2>Not configured</h2>
             <p>
-              Auth is switched on but <code>VITE_SUPABASE_URL</code> and{" "}
-              <code>VITE_SUPABASE_ANON_KEY</code> are not set, so there is no way to sign in.
+              Auth is switched on but <code>GOOGLE_CLIENT_ID</code> is not set, so there is no
+              way to sign in.
             </p>
           </div>
         </div>
       );
     }
-    if (!ready) return <Spinner label="Checking your session…" />;
     if (!session) return <LoginPage />;
     if (forbidden) {
       return <NotPermitted email={email} detail={forbidden} onSignOut={() => {
@@ -64,6 +63,7 @@ export function App() {
         <Route path="/uploads" element={<DataPage />} />
         <Route path="/changelog" element={<ChangelogPage />} />
         <Route path="/downloads" element={<DownloadsPage />} />
+        <Route path="/users" element={<UsersPage />} />
         <Route path="/d/:slug" element={<DashboardShell />}>
           <Route index element={<OverviewPage />} />
         </Route>

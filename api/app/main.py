@@ -7,11 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from . import auth, migrate, registry, storage
+from . import auth, migrate, registry, storage, users
 from .config import settings
 from .db import pool
 from .ingest.service import reconcile_interrupted
 from .routers import api
+from .routers import users as users_router
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ async def lifespan(_: FastAPI):
     pool.open()
     pool.wait(timeout=30)
     migrate.run()                       # dev convenience; in prod run `make migrate` as a release step
+    owner = users.ensure_owner()
     with pool.connection() as conn:
         registry.sync(conn)
     if stranded := reconcile_interrupted():
@@ -29,7 +31,8 @@ async def lifespan(_: FastAPI):
         raise RuntimeError("auth misconfigured -- " + "; ".join(problems))
     print(f"storage: {storage.storage().label}")
     if settings.auth_required:
-        print(f"auth: verifying Supabase tokens, {auth.warmup()}")
+        print(f"auth: Google sign-in for {', '.join(settings.auth_allowed_domains)}, owner {owner}, "
+              f"{auth.warmup()}")
     else:
         print("auth: DISABLED (AUTH_REQUIRED=false) -- every endpoint is open")
     yield
@@ -47,6 +50,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api.router, prefix="/api")
+app.include_router(auth.router, prefix="/api/auth")
+app.include_router(users_router.router, prefix="/api/users")
 
 # A dashboard that is an application rather than a set of views (commission)
 # ships its own router.py; it is mounted under /api/modules/<slug> behind the
