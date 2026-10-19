@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from . import auth, migrate, registry, storage, users
+from . import access, auth, migrate, registry, storage, users
 from .config import settings
 from .db import pool
 from .ingest.service import reconcile_interrupted
@@ -55,11 +55,11 @@ app.include_router(users_router.router, prefix="/api/users")
 
 # A dashboard that is an application rather than a set of views (commission)
 # ships its own router.py; it is mounted under /api/modules/<slug> behind the
-# same auth dependency as /api.
+# same auth dependency as /api, and only for users given that dashboard.
 for _dash in registry.discover():
     if (_dash.dir / "router.py").is_file():
         app.include_router(_dash.load_module("router").router, prefix=f"/api/modules/{_dash.slug}",
-                           dependencies=[Depends(auth.current_user)])
+                           dependencies=[Depends(auth.current_user), Depends(access.require(_dash.slug))])
 
 
 @app.get("/healthz")

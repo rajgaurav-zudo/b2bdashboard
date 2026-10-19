@@ -7,7 +7,7 @@ from .config import settings
 from .db import pool
 
 ROLES = ("owner", "admin", "member")
-COLUMNS = "email, name, role, active, added_by, created_at, updated_at, last_sign_in_at"
+COLUMNS = "email, name, role, active, modules, added_by, created_at, updated_at, last_sign_in_at"
 
 
 def normalise(email: str) -> str:
@@ -31,24 +31,26 @@ def list_all() -> list[dict]:
         return cur.fetchall()
 
 
-def add(email: str, role: str, added_by: str | None) -> dict | None:
+def add(email: str, role: str, added_by: str | None, modules: list[str] | None = None) -> dict | None:
     """The new row, or None when the address is already on the list."""
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
-            f"""insert into core.users (email, role, added_by) values (%s, %s, %s)
+            f"""insert into core.users (email, role, added_by, modules) values (%s, %s, %s, %s)
                 on conflict (email) do nothing returning {COLUMNS}""",
-            (normalise(email), role, added_by),
+            (normalise(email), role, added_by, sorted(set(modules or []))),
         )
         return cur.fetchone()
 
 
-def update(email: str, *, role: str | None = None, active: bool | None = None) -> dict | None:
+def update(email: str, *, role: str | None = None, active: bool | None = None,
+           modules: list[str] | None = None) -> dict | None:
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
             f"""update core.users
-                   set role = coalesce(%s, role), active = coalesce(%s, active), updated_at = now()
+                   set role = coalesce(%s, role), active = coalesce(%s, active),
+                       modules = coalesce(%s, modules), updated_at = now()
                  where email = %s returning {COLUMNS}""",
-            (role, active, normalise(email)),
+            (role, active, None if modules is None else sorted(set(modules)), normalise(email)),
         )
         return cur.fetchone()
 

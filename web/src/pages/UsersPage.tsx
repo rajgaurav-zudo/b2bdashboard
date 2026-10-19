@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { FormEvent } from "react";
 
-import { useUserChange, useUsers } from "../api/client";
-import type { UserRow } from "../api/types";
+import { useModules, useUserChange, useUsers } from "../api/client";
+import type { ModuleInfo, UserRow } from "../api/types";
 import { SIGN_IN_DOMAIN, authRequired, useAuth } from "../auth";
 import type { Role } from "../auth";
 import { when } from "../format";
@@ -18,7 +18,9 @@ const ROLE_LABEL: Record<Role, string> = { owner: "Owner", admin: "Admin", membe
 export function UsersPage() {
   const { email: me, role, isAdmin } = useAuth();
   const list = useUsers(authRequired && isAdmin);
+  const modules = useModules(authRequired && isAdmin);
   const change = useUserChange();
+  const [editing, setEditing] = useState<string | null>(null);
 
   const header = (
     <header className="top">
@@ -27,7 +29,8 @@ export function UsersPage() {
         <p className="sub">
           Only the people listed here can sign in, with their @{SIGN_IN_DOMAIN} Google account.{" "}
           <b>Owner</b>: manages everyone; set in the server's settings, so it cannot be changed here.{" "}
-          <b>Admin</b>: adds and removes members. <b>Member</b>: uses the dashboards.
+          <b>Admin</b>: adds and removes members, opens everything. <b>Member</b>: opens only the
+          dashboards and Data pages ticked for them.
         </p>
       </div>
     </header>
@@ -68,7 +71,7 @@ export function UsersPage() {
       {header}
       <div className="wrap">
         <Section title="Add someone">
-          <AddUser canMakeAdmin={role === "owner"} />
+          <AddUser canMakeAdmin={role === "owner"} modules={modules.data ?? []} />
         </Section>
 
         <Section
@@ -85,6 +88,7 @@ export function UsersPage() {
                   <tr>
                     <th className="txt">Person</th>
                     <th className="txt">Role</th>
+                    <th className="txt">Can open</th>
                     <th className="txt">Status</th>
                     <th className="txt">Last signed in</th>
                     <th className="txt">Added by</th>
@@ -93,7 +97,8 @@ export function UsersPage() {
                 </thead>
                 <tbody>
                   {list.data.map((u) => (
-                    <tr key={u.email} className={u.active ? undefined : "off"}>
+                    <Fragment key={u.email}>
+                    <tr className={u.active ? undefined : "off"}>
                       <td className="txt">
                         <b>{u.name || u.email}</b>
                         {u.name ? <span className="em">{u.email}</span> : null}
@@ -114,6 +119,18 @@ export function UsersPage() {
                         ) : (
                           <span className={`role ${u.role}`}>{ROLE_LABEL[u.role]}</span>
                         )}
+                      </td>
+                      <td className="txt can">
+                        {u.role !== "member" ? (
+                          <span className="all">Everything</span>
+                        ) : (
+                          <span>{opens(u, modules.data ?? [])}</span>
+                        )}
+                        {u.role === "member" && editable(u) && editing !== u.email ? (
+                          <button type="button" className="link" onClick={() => { change.reset(); setEditing(u.email); }}>
+                            Change
+                          </button>
+                        ) : null}
                       </td>
                       <td className="txt">{u.active ? "Active" : "Switched off"}</td>
                       <td className="txt">{u.last_sign_in_at ? when(u.last_sign_in_at) : "Never"}</td>
@@ -143,6 +160,23 @@ export function UsersPage() {
                         ) : null}
                       </td>
                     </tr>
+                    {editing === u.email ? (
+                      <tr className="pick-row">
+                        <td colSpan={7}>
+                          <ModuleEditor
+                            user={u}
+                            modules={modules.data ?? []}
+                            busy={change.isPending}
+                            onCancel={() => setEditing(null)}
+                            onSave={(next) => change.mutate(
+                              { method: "PATCH", email: u.email, body: { modules: next } },
+                              { onSuccess: () => setEditing(null) },
+                            )}
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -154,15 +188,84 @@ export function UsersPage() {
   );
 }
 
-function AddUser({ canMakeAdmin }: { canMakeAdmin: boolean }) {
+/** "Pipeline, Commission, Downloads", or "Nothing yet". Keys whose dashboard
+ *  has since gone are left out. */
+function opens(u: UserRow, modules: ModuleInfo[]): string {
+  const names = modules.filter((m) => u.modules.includes(m.key)).map((m) => m.name);
+  return names.length ? names.join(", ") : "Nothing yet";
+}
+
+/** Checkboxes for every module, grouped as the menu groups them. */
+function ModulePicker({ modules, value, onChange }: {
+  modules: ModuleInfo[]; value: string[]; onChange: (next: string[]) => void;
+}) {
+  const toggle = (key: string) =>
+    onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
+  const groups = ["Dashboards", "Data"] as const;
+  return (
+    <div className="pick">
+      {groups.map((group) => {
+        const inGroup = modules.filter((m) => m.group === group);
+        const all = inGroup.every((m) => value.includes(m.key));
+        return (
+          <fieldset key={group}>
+            <legend>
+              {group}{" "}
+              <button
+                type="button"
+                className="link"
+                onClick={() => onChange(all
+                  ? value.filter((k) => !inGroup.some((m) => m.key === k))
+                  : [...new Set([...value, ...inGroup.map((m) => m.key)])])}
+              >
+                {all ? "none" : "all"}
+              </button>
+            </legend>
+            {inGroup.map((m) => (
+              <label key={m.key}>
+                <input type="checkbox" checked={value.includes(m.key)} onChange={() => toggle(m.key)} />
+                {m.name}
+              </label>
+            ))}
+          </fieldset>
+        );
+      })}
+    </div>
+  );
+}
+
+function ModuleEditor({ user, modules, busy, onSave, onCancel }: {
+  user: UserRow; modules: ModuleInfo[]; busy: boolean;
+  onSave: (next: string[]) => void; onCancel: () => void;
+}) {
+  const [value, setValue] = useState<string[]>(user.modules);
+  return (
+    <div className="pick-edit">
+      <p>What <b>{user.name || user.email}</b> can open:</p>
+      <ModulePicker modules={modules} value={value} onChange={setValue} />
+      <div className="pick-act">
+        <button type="button" className="btn" disabled={busy} onClick={() => onSave(value)}>
+          {busy ? "Saving…" : "Save"}
+        </button>{" "}
+        <button type="button" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function AddUser({ canMakeAdmin, modules }: { canMakeAdmin: boolean; modules: ModuleInfo[] }) {
   const add = useUserChange();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
+  const [picked, setPicked] = useState<string[]>([]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const address = email.trim().toLowerCase();
-    add.mutate({ method: "POST", body: { email: address, role } }, { onSuccess: () => setEmail("") });
+    add.mutate(
+      { method: "POST", body: { email: address, role, modules: role === "member" ? picked : [] } },
+      { onSuccess: () => { setEmail(""); setPicked([]); } },
+    );
   };
 
   return (
@@ -182,6 +285,14 @@ function AddUser({ canMakeAdmin }: { canMakeAdmin: boolean }) {
       <button type="submit" className="btn" disabled={add.isPending} aria-busy={add.isPending}>
         {add.isPending ? "Adding…" : "Add"}
       </button>
+      {role === "member" ? (
+        <div className="user-add-pick">
+          <p>Can open{picked.length === 0 ? " (nothing ticked: they can sign in but see no dashboards)" : ""}:</p>
+          <ModulePicker modules={modules} value={picked} onChange={(next) => { setPicked(next); add.reset(); }} />
+        </div>
+      ) : (
+        <p className="status">Admins open every dashboard and Data page.</p>
+      )}
       {add.isError ? <p className="status err">{add.error.message}</p> : null}
       {add.isSuccess ? <p className="status ok">Added. They can sign in now.</p> : null}
     </form>

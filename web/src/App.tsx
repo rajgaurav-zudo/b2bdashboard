@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import type { ReactNode } from "react";
 
 import { ApiError } from "./api/client";
 import { authConfigured, authRequired, useAuth } from "./auth";
@@ -12,6 +13,7 @@ import { LoginPage, NotPermitted } from "./pages/LoginPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { UsersPage } from "./pages/UsersPage";
 import { AppLayout } from "./ui/SideNav";
+import { Empty } from "./ui/Primitives";
 
 export function App() {
   const { session, email, signOut } = useAuth();
@@ -60,11 +62,11 @@ export function App() {
         {/* uploads and their changelog are platform-level: one file feeds every
             dashboard that declares its source, so there is one place to put it
             and one log of what it did */}
-        <Route path="/uploads" element={<DataPage />} />
-        <Route path="/changelog" element={<ChangelogPage />} />
-        <Route path="/downloads" element={<DownloadsPage />} />
+        <Route path="/uploads" element={<Gate module="uploads"><DataPage /></Gate>} />
+        <Route path="/changelog" element={<Gate module="changelog"><ChangelogPage /></Gate>} />
+        <Route path="/downloads" element={<Gate module="downloads"><DownloadsPage /></Gate>} />
         <Route path="/users" element={<UsersPage />} />
-        <Route path="/d/:slug" element={<DashboardShell />}>
+        <Route path="/d/:slug" element={<DashboardGate />}>
           <Route index element={<OverviewPage />} />
         </Route>
         {/* these were tabs inside a dashboard until the move; a bookmark still
@@ -75,6 +77,23 @@ export function App() {
       </Route>
     </Routes>
   );
+}
+
+/** A module this user was not given. Saying so beats a page of failed calls:
+ *  the API refuses them all anyway. */
+function Gate({ module, children }: { module: string; children: ReactNode }) {
+  const { can } = useAuth();
+  if (can(module)) return <>{children}</>;
+  return (
+    <div className="wrap">
+      <Empty title="You do not have access to this">Ask an admin to give it to you on the Users page.</Empty>
+    </div>
+  );
+}
+
+function DashboardGate() {
+  const { slug = "" } = useParams();
+  return <Gate module={slug}><DashboardShell /></Gate>;
 }
 
 function MovedToPlatform({ page }: { page: "uploads" | "changelog" }) {

@@ -257,6 +257,17 @@ The session token carries no role. Every request looks the user up again, so
 switching someone off or removing them ends their session at their next click,
 and a role change applies without signing in again.
 
+**Module access.** A member opens only the modules ticked for them on the Users
+page: each dashboard (keyed by its slug) and the Data pages Uploads, Changelog
+and Downloads (`core.users.modules`, migration 005; the catalogue is
+`GET /api/users/modules`, built in `app/access.py`). Owners and admins open
+everything. The API enforces it -- each route carries `access.require(key)` or
+`require_dashboard`, module routers are mounted behind their own slug, and
+`GET /api/dashboards` lists only what the person may open -- and
+`tests/test_access.py` fails if a new `/api` route is added without a gate. The
+web app hides what is not granted, but only as a courtesy. Like roles, a change
+applies at the person's next request.
+
 The API refuses to start with auth on and any of the client ID, the session
 secret or the domain list missing, or with an owner outside the domain -- looking protected while admitting everyone
 is the worst of the three states.

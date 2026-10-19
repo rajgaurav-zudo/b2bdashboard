@@ -97,7 +97,8 @@ function TopBar() {
 
 function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
   const { data, isLoading, error } = useDashboards();
-  const { email, session, isAdmin, signOut } = useAuth();
+  const { email, session, isAdmin, can, signOut } = useAuth();
+  const anyData = ["uploads", "changelog", "downloads"].some(can);
 
   return (
     <aside className="sidenav">
@@ -131,17 +132,25 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
         </div>
 
         {/* one place for every file, whichever dashboard reads it */}
-        <div className="nav-group">
-          <p className="nav-lbl">Data</p>
-          <Row to="/uploads" rail={rail} mark="↑" label="Uploads"
-               hint="Send a file to every dashboard that reads it" />
-          {/* a delta, not a cycle glyph: Figtree has no arrow-circle and the
-              fallback rendered as a dot */}
-          <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
-               hint="What every upload changed, in every dashboard" />
-          <Row to="/downloads" rail={rail} mark="↓" label="Downloads"
-               hint="This week's summary as an Excel workbook" />
-        </div>
+        {anyData ? (
+          <div className="nav-group">
+            <p className="nav-lbl">Data</p>
+            {can("uploads") ? (
+              <Row to="/uploads" rail={rail} mark="↑" label="Uploads"
+                   hint="Send a file to every dashboard that reads it" />
+            ) : null}
+            {/* a delta, not a cycle glyph: Figtree has no arrow-circle and the
+                fallback rendered as a dot */}
+            {can("changelog") ? (
+              <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
+                   hint="What every upload changed, in every dashboard" />
+            ) : null}
+            {can("downloads") ? (
+              <Row to="/downloads" rail={rail} mark="↓" label="Downloads"
+                   hint="This week's summary as an Excel workbook" />
+            ) : null}
+          </div>
+        ) : null}
 
         {authRequired && isAdmin ? (
           <div className="nav-group">

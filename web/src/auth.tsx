@@ -34,6 +34,9 @@ export interface Session {
   /** as of sign-in; refreshed from /api/auth/me on load, since an admin may
    *  have changed it since */
   role: Role;
+  /** the modules a member was given (dashboard slugs, "uploads", "changelog",
+   *  "downloads"); owners and admins open everything. Refreshed like the role. */
+  modules?: string[];
   /** seconds since the epoch, as the API reports it */
   expires_at: number;
 }
@@ -82,6 +85,9 @@ interface AuthState {
   role: Role | null;
   /** may open the Users page. The API checks again on every call. */
   isAdmin: boolean;
+  /** may open this module -- which only decides what to show: the API refuses
+   *  the module's calls regardless */
+  can: (module: string) => boolean;
   signIn: (credential: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -107,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // the role may have changed since sign-in; ask once per page load
+  // the role and modules may have changed since sign-in; ask once per page load
   const token = session?.token;
   useEffect(() => {
     if (!token) return;
@@ -116,8 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (stale || !current || current.token !== token) return;
       if (res.status === 401) return sessionRejected();
       if (!res.ok) return;
-      const me = await res.json() as { name: string; role: Role };
-      if (current.role !== me.role || current.name !== me.name) setCurrent({ ...current, ...me });
+      const me = await res.json() as { name: string; role: Role; modules: string[] };
+      if (current.role !== me.role || current.name !== me.name
+          || (current.modules ?? []).join() !== me.modules.join()) setCurrent({ ...current, ...me });
     });
     return () => { stale = true; };
   }, [token]);
@@ -129,11 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [session]);
 
-  const value = useMemo<AuthState>(() => ({
+  const value = useMemo<AuthState>(() => {
+    const isAdmin = session?.role === "owner" || session?.role === "admin";
+    return {
     session,
     email: session?.email ?? null,
     role: session?.role ?? null,
-    isAdmin: session?.role === "owner" || session?.role === "admin",
+    isAdmin,
+    can: (module) => !authRequired || isAdmin || (session?.modules ?? []).includes(module),
     signIn: async (credential) => {
       const res = await fetch("/api/auth/google", {
         method: "POST",
@@ -149,7 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.google?.accounts.id.disableAutoSelect();
       setCurrent(null);
     },
-  }), [session]);
+    };
+  }, [session]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

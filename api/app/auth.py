@@ -46,10 +46,15 @@ class User:
     email: str
     name: str = ""
     role: str = ""
+    # the modules a member was given; owners and admins open everything
+    modules: frozenset[str] = frozenset()
 
     @property
     def is_admin(self) -> bool:
         return self.role in ("owner", "admin")
+
+    def can(self, module: str) -> bool:
+        return self.is_admin or module in self.modules
 
     @property
     def label(self) -> str:
@@ -133,7 +138,8 @@ def admit(user: User) -> User:
         raise AuthError(f"{user.email} has not been given access yet. Ask {owner or 'an admin'} to add you.", 403)
     if not row["active"]:
         raise AuthError(f"access for {user.email} has been switched off. Ask {owner or 'an admin'}.", 403)
-    return User(sub=user.sub, email=user.email, name=user.name or row["name"], role=row["role"])
+    return User(sub=user.sub, email=user.email, name=user.name or row["name"], role=row["role"],
+                modules=frozenset(row.get("modules") or ()))
 
 
 def _domain_list() -> str:
@@ -179,7 +185,8 @@ def verify(token: str) -> User:
         # browser drops it and the sign-in page explains why on the next try
         raise AuthError("your access has been removed, sign in again")
 
-    return User(sub=str(claims["sub"]), email=email, name=str(claims.get("name") or ""), role=row["role"])
+    return User(sub=str(claims["sub"]), email=email, name=str(claims.get("name") or ""), role=row["role"],
+                modules=frozenset(row.get("modules") or ()))
 
 
 _bearer = HTTPBearer(auto_error=False)
@@ -270,12 +277,13 @@ def sign_in_with_google(body: GoogleSignIn):
     user = admit(verify_google(body.credential))
     users.signed_in(user.email, user.name)
     token, expires = issue_session(user)
-    return {"token": token, "email": user.email, "name": user.name, "role": user.role, "expires_at": expires}
+    return {"token": token, "email": user.email, "name": user.name, "role": user.role,
+            "modules": sorted(user.modules), "expires_at": expires}
 
 
 @router.get("/me")
 def me(user: User | None = Depends(current_user)):
-    """Who the session belongs to, and their role as of now."""
+    """Who the session belongs to, with their role and modules as of now."""
     if user is None:
         raise HTTPException(404, "sign-in is switched off (AUTH_REQUIRED=false)")
-    return {"email": user.email, "name": user.name, "role": user.role}
+    return {"email": user.email, "name": user.name, "role": user.role, "modules": sorted(user.modules)}

@@ -3,7 +3,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { accessToken, sessionRejected } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  DatasetState, Downloads, LoadRow, Overview, SourceSummary, TileMembers, UploadResult, UploadRow, UserRow,
+  DatasetState, Downloads, LoadRow, ModuleInfo, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
+  UserRow,
 } from "./types";
 
 /** Vite proxies /api to the FastAPI service, so the app has no origin to configure. */
@@ -241,6 +242,11 @@ export function useDownload() {
 
 export function useUsers(enabled = true) {
   return useQuery({ queryKey: ["users"], queryFn: () => get<UserRow[]>("/users"), enabled });
+}
+
+/** Every module that can be given to someone. */
+export function useModules(enabled = true) {
+  return useQuery({ queryKey: ["modules"], queryFn: () => get<ModuleInfo[]>("/users/modules"), enabled });
 }
 
 /** Add, change or remove a user; the list is fetched again either way. */

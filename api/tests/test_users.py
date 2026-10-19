@@ -72,12 +72,15 @@ def test_a_switched_off_owner_is_switched_back_on(db, monkeypatch):
 
 
 def test_add_change_sign_in_and_remove(db):
-    row = users.add("New.Person@edvoy.com", "member", "the.owner@edvoy.com")
+    row = users.add("New.Person@edvoy.com", "member", "the.owner@edvoy.com", ["pipeline", "pipeline", "downloads"])
     assert (row["email"], row["role"], row["active"]) == ("new.person@edvoy.com", "member", True)
+    assert row["modules"] == ["downloads", "pipeline"]
     assert users.add("new.person@edvoy.com", "admin", "x") is None          # already there
 
     assert users.update("new.person@edvoy.com", active=False)["active"] is False
     assert users.update("new.person@edvoy.com", role="admin")["role"] == "admin"
+    assert users.update("new.person@edvoy.com", modules=["commission"])["modules"] == ["commission"]
+    assert users.update("new.person@edvoy.com", active=True)["modules"] == ["commission"]   # left alone
 
     users.signed_in("new.person@edvoy.com", "New Person")
     row = users.get("new.person@edvoy.com")
@@ -108,20 +111,22 @@ def people(monkeypatch):
     rows: dict[str, dict] = {}
 
     def put(email, role="member", active=True):
-        rows[email] = {"email": email, "name": "", "role": role, "active": active, "added_by": None,
+        rows[email] = {"email": email, "name": "", "role": role, "active": active, "modules": [], "added_by": None,
                        "created_at": None, "updated_at": None, "last_sign_in_at": None}
 
-    def add(email, role, added_by):
+    def add(email, role, added_by, modules=None):
         if email in rows:
             return None
         put(email, role)
         rows[email]["added_by"] = added_by
+        rows[email]["modules"] = sorted(set(modules or []))
         return rows[email]
 
-    def update(email, *, role=None, active=None):
+    def update(email, *, role=None, active=None, modules=None):
         row = rows[users.normalise(email)]
         row["role"] = role or row["role"]
         row["active"] = row["active"] if active is None else active
+        row["modules"] = row["modules"] if modules is None else sorted(set(modules))
         return row
 
     monkeypatch.setattr(users, "get", lambda e: rows.get(users.normalise(e)))
@@ -282,3 +287,36 @@ def test_preflight_needs_an_owner_inside_the_domain(people, monkeypatch):
     assert auth.preflight() == []
     monkeypatch.setattr(settings, "auth_owner_email", "raj@gmail.com")
     assert any("AUTH_OWNER_EMAIL" in p for p in auth.preflight())
+
+
+# --- modules ---------------------------------------------------------------------
+
+def test_modules_are_chosen_when_adding_someone(people, client):
+    res = client.post("/api/users", json={"email": "new@edvoy.com", "modules": ["pipeline", "downloads"]},
+                      headers=as_(OWNER))
+    assert res.status_code == 201
+    assert res.json()["modules"] == ["downloads", "pipeline"]
+
+
+def test_an_admin_changes_a_members_modules(people, client):
+    res = client.patch("/api/users/member@edvoy.com", json={"modules": ["commission"]},
+                       headers=as_("admin@edvoy.com"))
+    assert res.status_code == 200 and res.json()["modules"] == ["commission"]
+
+
+def test_an_admin_cannot_change_another_admins_modules(people, client):
+    res = client.patch("/api/users/other.admin@edvoy.com", json={"modules": []}, headers=as_("admin@edvoy.com"))
+    assert res.status_code == 403
+
+
+def test_an_unknown_module_is_refused(people, client):
+    res = client.post("/api/users", json={"email": "new@edvoy.com", "modules": ["nope"]}, headers=as_(OWNER))
+    assert res.status_code == 400
+    assert "nope" in res.json()["detail"]
+
+
+def test_the_module_list_has_every_dashboard_and_the_data_pages(people, client):
+    listed = client.get("/api/users/modules", headers=as_(OWNER)).json()
+    keys = {m["key"] for m in listed}
+    assert {"pipeline", "commission", "uploads", "changelog", "downloads"} <= keys
+    assert client.get("/api/users/modules", headers=as_("member@edvoy.com")).status_code == 403

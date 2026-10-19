@@ -652,8 +652,17 @@ export interface UserRow {
   name: string;
   role: "owner" | "admin" | "member";
   active: boolean;
+  /** what a member may open; ignored for owners and admins */
+  modules: string[];
   added_by: string | null;
   created_at: string;
   updated_at: string;
   last_sign_in_at: string | null;
+}
+
+/** Something a user can be given: a dashboard, or one of the Data pages. */
+export interface ModuleInfo {
+  key: string;
+  name: string;
+  group: "Dashboards" | "Data";
 }

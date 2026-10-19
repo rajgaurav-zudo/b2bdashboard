@@ -252,10 +252,10 @@ button.chip:hover{color:var(--ink);border-color:var(--ink)}
 
 /* ---------- users ---------- */
 .user-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.user-add input,.user-add select,table.users select{font:inherit;font-size:13.5px;min-height:var(--ecrm-control-md);padding:0 10px;
+.user-add input[type=email],.user-add select,table.users select{font:inherit;font-size:13.5px;min-height:var(--ecrm-control-md);padding:0 10px;
   border:1px solid var(--line-strong);border-radius:var(--ecrm-radius-md);background:var(--card);color:var(--ink)}
-.user-add input{flex:1 1 260px;max-width:360px}
-.user-add input:focus,.user-add select:focus{outline:var(--ecrm-focus-ring);outline-offset:1px;border-color:var(--focus)}
+.user-add input[type=email]{flex:1 1 260px;max-width:360px}
+.user-add input[type=email]:focus,.user-add select:focus{outline:var(--ecrm-focus-ring);outline-offset:1px;border-color:var(--focus)}
 .user-add .status{flex-basis:100%;margin:2px 0 0}
 table.users select{min-height:30px;font-size:12.5px;padding:0 6px}
 table.users td .em{display:block;font-size:11.5px;color:var(--muted)}
@@ -263,6 +263,20 @@ table.users td .you{margin-left:6px;font-size:10.5px;color:var(--faint)}
 table.users .role{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:var(--ecrm-radius-pill);background:var(--head);color:var(--muted)}
 table.users .role.owner{background:var(--select-bg);color:var(--action)}
 table.users tr.off td{color:var(--faint)}
+table.users td.can{max-width:280px;font-size:12.5px}
+table.users td.can .all{color:var(--muted)}
+table.users td.can .link{margin-left:8px}
+table.users tr.pick-row td{background:var(--head)}
+.link{background:none;border:0;padding:0;font:inherit;font-size:12px;color:var(--action);cursor:pointer;text-decoration:underline}
+.user-add-pick{flex-basis:100%}
+.user-add-pick > p,.pick-edit > p{margin:6px 0 6px;font-size:12.5px;color:var(--muted)}
+.pick{display:flex;flex-wrap:wrap;gap:12px 28px}
+.pick fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:180px}
+.pick legend{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:0;margin-bottom:4px}
+.pick legend .link{font-size:11px;text-transform:none;letter-spacing:0;margin-left:4px}
+.pick label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;white-space:nowrap}
+.pick input[type=checkbox]{flex:none;width:15px;height:15px;min-height:0;margin:0;padding:0;accent-color:var(--action)}
+.pick-act{margin-top:12px}
 .nav-foot .em i{font-style:normal;color:var(--muted)}
 
 /* ---------- empty state ---------- */
