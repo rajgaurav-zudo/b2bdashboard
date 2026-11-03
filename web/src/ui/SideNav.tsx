@@ -70,6 +70,8 @@ function TopBar() {
     trail = ["Data", "Changelog"];
   } else if (pathname === "/downloads") {
     trail = ["Data", "Downloads"];
+  } else if (pathname === "/users") {
+    trail = ["Admin", "Users"];
   } else {
     trail = ["Dashboards"];
   }
@@ -95,7 +97,8 @@ function TopBar() {
 
 function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
   const { data, isLoading, error } = useDashboards();
-  const { email, signOut } = useAuth();
+  const { email, session, isAdmin, can, signOut } = useAuth();
+  const anyData = ["uploads", "changelog", "downloads"].some(can);
 
   return (
     <aside className="sidenav">
@@ -129,22 +132,40 @@ function SideNav({ rail, onToggle }: { rail: boolean; onToggle: () => void }) {
         </div>
 
         {/* one place for every file, whichever dashboard reads it */}
-        <div className="nav-group">
-          <p className="nav-lbl">Data</p>
-          <Row to="/uploads" rail={rail} mark="↑" label="Uploads"
-               hint="Send a file to every dashboard that reads it" />
-          {/* a delta, not a cycle glyph: Figtree has no arrow-circle and the
-              fallback rendered as a dot */}
-          <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
-               hint="What every upload changed, in every dashboard" />
-          <Row to="/downloads" rail={rail} mark="↓" label="Downloads"
-               hint="This week's summary as an Excel workbook" />
-        </div>
+        {anyData ? (
+          <div className="nav-group">
+            <p className="nav-lbl">Data</p>
+            {can("uploads") ? (
+              <Row to="/uploads" rail={rail} mark="↑" label="Uploads"
+                   hint="Send a file to every dashboard that reads it" />
+            ) : null}
+            {/* a delta, not a cycle glyph: Figtree has no arrow-circle and the
+                fallback rendered as a dot */}
+            {can("changelog") ? (
+              <Row to="/changelog" rail={rail} mark="Δ" label="Changelog"
+                   hint="What every upload changed, in every dashboard" />
+            ) : null}
+            {can("downloads") ? (
+              <Row to="/downloads" rail={rail} mark="↓" label="Downloads"
+                   hint="This week's summary as an Excel workbook" />
+            ) : null}
+          </div>
+        ) : null}
+
+        {authRequired && isAdmin ? (
+          <div className="nav-group">
+            <p className="nav-lbl">Admin</p>
+            <Row to="/users" rail={rail} mark="@" label="Users" hint="Who can sign in, and what they can do" />
+          </div>
+        ) : null}
       </nav>
 
       {authRequired && email ? (
         <div className="nav-foot">
-          <span className="em" title={email}>{email}</span>
+          <span className="em" title={email}>
+            {session?.name || email}
+            {session?.role && session.role !== "member" ? <i> · {session.role}</i> : null}
+          </span>
           <button
             type="button"
             className="out"

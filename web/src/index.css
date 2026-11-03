@@ -223,11 +223,61 @@ button.chip:hover{color:var(--ink);border-color:var(--ink)}
 .signin .btn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--ecrm-control-md);font:inherit;font-size:var(--ecrm-text-body);font-weight:var(--ecrm-weight-bold);background:var(--action);
   color:var(--ecrm-color-text-inverse);border:0;border-radius:var(--ecrm-radius-md);padding:0 var(--ecrm-space-6);cursor:pointer}
 .signin .btn{width:100%}
+/* Google draws its own button in here; the height stops the card jumping as it loads */
+.signin .google{min-height:44px;margin-bottom:14px}
+.signin .status{margin:0}
 .btn:hover:not(:disabled){background:var(--action-hover)}
 .btn:disabled{opacity:.55;cursor:default}
 .btn[aria-busy=true]{cursor:progress}
 .signin code{font-family:var(--font);font-size:12px;background:var(--code-bg);
   padding:1px 5px;border-radius:var(--ecrm-radius-xs)}
+
+/* ---------- login ---------- */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:var(--paper)}
+.login-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius-card);padding:32px 32px 26px;box-shadow:0 12px 32px rgba(15,23,42,.06)}
+.login-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px}
+.login-brand .mark{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;
+  border-radius:var(--ecrm-radius-md);background:var(--action);color:var(--ecrm-color-text-inverse);
+  font-weight:var(--ecrm-weight-bold);font-size:13px;letter-spacing:.02em}
+.login-brand b{display:block;font-size:14px}
+.login-brand span{display:block;font-size:12px;color:var(--muted)}
+.login-card h1{margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:var(--ecrm-tracking-title)}
+.login-card > p{margin:0 0 22px;font-size:13.5px;color:var(--muted);line-height:1.55}
+/* Google draws its own button in here; the height stops the card jumping as it loads */
+.login-card .google{min-height:44px;display:flex;justify-content:center}
+.login-card .status{text-align:center;margin:12px 0 0}
+.login-card .btn{width:100%}
+.login-card p.login-foot{margin:24px 0 0;padding-top:16px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--faint)}
+
+/* ---------- users ---------- */
+.user-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.user-add input[type=email],.user-add select,table.users select{font:inherit;font-size:13.5px;min-height:var(--ecrm-control-md);padding:0 10px;
+  border:1px solid var(--line-strong);border-radius:var(--ecrm-radius-md);background:var(--card);color:var(--ink)}
+.user-add input[type=email]{flex:1 1 260px;max-width:360px}
+.user-add input[type=email]:focus,.user-add select:focus{outline:var(--ecrm-focus-ring);outline-offset:1px;border-color:var(--focus)}
+.user-add .status{flex-basis:100%;margin:2px 0 0}
+table.users select{min-height:30px;font-size:12.5px;padding:0 6px}
+table.users td .em{display:block;font-size:11.5px;color:var(--muted)}
+table.users td .you{margin-left:6px;font-size:10.5px;color:var(--faint)}
+table.users .role{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:var(--ecrm-radius-pill);background:var(--head);color:var(--muted)}
+table.users .role.owner{background:var(--select-bg);color:var(--action)}
+table.users tr.off td{color:var(--faint)}
+table.users td.can{max-width:280px;font-size:12.5px}
+table.users td.can .all{color:var(--muted)}
+table.users td.can .link{margin-left:8px}
+table.users tr.pick-row td{background:var(--head)}
+.link{background:none;border:0;padding:0;font:inherit;font-size:12px;color:var(--action);cursor:pointer;text-decoration:underline}
+.user-add-pick{flex-basis:100%}
+.user-add-pick > p,.pick-edit > p{margin:6px 0 6px;font-size:12.5px;color:var(--muted)}
+.pick{display:flex;flex-wrap:wrap;gap:12px 28px}
+.pick fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:180px}
+.pick legend{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:0;margin-bottom:4px}
+.pick legend .link{font-size:11px;text-transform:none;letter-spacing:0;margin-left:4px}
+.pick label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;white-space:nowrap}
+.pick input[type=checkbox]{flex:none;width:15px;height:15px;min-height:0;margin:0;padding:0;accent-color:var(--action)}
+.pick-act{margin-top:12px}
+.nav-foot .em i{font-style:normal;color:var(--muted)}
 
 /* ---------- empty state ---------- */
 .empty{margin:64px auto;max-width:640px;text-align:center;color:var(--muted)}
@@ -660,6 +710,10 @@ table.leader thead th .swatch{margin-right:5px;vertical-align:1px}
 .i360-when .presets button[aria-pressed=true] span{color:var(--ecrm-color-text-inverse)}
 .i360-when .presets b{display:block;font-size:12.5px;font-weight:600}
 .i360-when .presets span{display:block;font-size:10.5px;color:var(--faint)}
+.i360-when .presets .grp{margin-top:8px}
+.i360-when .presets .gh{display:block;font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 4px 3px}
+.i360-when .presets .row{display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.i360-when .presets .row .head{grid-column:1 / -1}
 .cal-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .cal-h b{flex:1;text-align:center;font-size:12.5px;font-weight:600}
 .cal-h button{
@@ -865,6 +919,48 @@ td.i360-c.tot b{color:var(--ink)}
 .pl-d.up{color:var(--good)}
 .pl-d.down{color:var(--bad)}
 .pl-d.flat{color:var(--faint)}
+
+/* Master Sales: the stage ladder as cards with arrows, Deposit beside it */
+.ms-wrap{display:grid;grid-template-columns:1fr 240px;gap:14px;margin:18px 0 8px;align-items:stretch}
+.ms-ladder{display:flex;align-items:stretch;gap:0;min-width:0}
+.ms-card{flex:1 1 0;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-card);padding:14px 14px 12px;display:flex;flex-direction:column}
+.ms-card .metric{font:var(--ecrm-text-kpi);font-variant-numeric:tabular-nums;letter-spacing:var(--ecrm-tracking-title);font-size:24px}
+.ms-card .nm{font-weight:700;font-size:13.5px;margin-top:6px}
+.ms-card .def{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4;flex:1}
+.ms-card .conv{margin-top:10px;padding-top:8px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted)}
+.ms-card .conv b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.ms-arrow{flex:none;width:22px;display:grid;place-items:center;color:var(--faint);font-size:16px}
+.ms-card.dep{background:var(--ecrm-color-surface-kpi-sel);border-color:var(--ecrm-color-accent-border);box-shadow:inset 0 -3px 0 var(--ecrm-color-accent)}
+.ms-at{list-style:none;margin:0;padding:0;font-size:12px}
+.ms-side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.ms-dep-wrap{position:relative;display:flex;min-width:0;flex:1 1 auto}
+.ms-held{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0 0 8px}
+.ms-scope{margin:14px 0 0;font-size:13px;color:var(--muted)}
+.ms-scope b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.ms-card.dep{width:100%;cursor:pointer}
+.ms-card.dep:hover,.ms-card.dep[aria-expanded="true"]{border-color:var(--ecrm-color-accent)}
+.ms-card.dep .conv{display:flex;justify-content:space-between;gap:8px}
+.ms-more{color:var(--ecrm-color-accent);font-weight:600;white-space:nowrap}
+.ms-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:20;width:240px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:0 8px 24px rgba(0,0,0,.14);padding:12px 14px}
+.ms-pop-h{font-weight:700;font-size:12.5px;margin-bottom:8px}
+.ms-lvl .nm small{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:1px;white-space:normal}
+.ms-pop-note{margin:8px 0 0;font-size:11px;color:var(--muted)}
+.ms-at li{display:flex;justify-content:space-between;gap:8px;padding:2px 0;color:var(--muted)}
+.ms-at li b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.ms-split{list-style:none;margin:10px 0 0;padding:0;font-size:12px}
+.ms-split li{display:flex;justify-content:space-between;gap:8px;padding:1px 0;color:var(--muted)}
+.ms-split li b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.ms-split li.act span::before,.ms-split li.daa span::before,.ms-split li.cls span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.ms-split li.act span::before{background:var(--ecrm-color-accent)}
+.ms-split li.daa span::before{background:var(--warn)}
+.ms-split li.cls span::before{background:var(--faint)}
+@media (max-width:1100px){
+  .ms-wrap{grid-template-columns:1fr}
+  .ms-ladder{flex-wrap:wrap;gap:10px}
+  .ms-card{flex:1 1 calc(33% - 10px)}
+  .ms-arrow{display:none}
+}
+@media (max-width:600px){ .ms-card{flex:1 1 calc(50% - 10px)} .ms-held{grid-template-columns:1fr} }
 
 /* B2B Pulse */
 .pulse-tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}

@@ -13,14 +13,12 @@ RUN npm ci
 
 COPY web/ ./
 # Vite inlines these at build time, so they are baked into the bundle rather than
-# read at boot. Both are public by design: the anon key reaches the sign-in
-# endpoints and nothing else, because every data route verifies the token
-# server-side. The service role key is never named VITE_* and so cannot land here.
-ARG VITE_SUPABASE_URL=""
-ARG VITE_SUPABASE_ANON_KEY=""
+# read at boot. The Google client ID is public by design: it only draws the
+# sign-in button, and the API decides what the resulting sign-in is worth. The
+# session secret is never named VITE_* and so cannot land here.
+ARG VITE_GOOGLE_CLIENT_ID=""
 ARG VITE_AUTH_REQUIRED="true"
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
-    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
     VITE_AUTH_REQUIRED=$VITE_AUTH_REQUIRED
 RUN npm run build
 

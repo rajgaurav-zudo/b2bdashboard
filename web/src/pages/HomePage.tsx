@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 
 import { useDashboards } from "../api/client";
+import { authRequired, useAuth } from "../auth";
 import { Empty, Spinner } from "../ui/Primitives";
 
 export function HomePage() {
   const { data, isLoading, error } = useDashboards();
+  const { isAdmin } = useAuth();
 
   return (
     <>
@@ -20,7 +22,11 @@ export function HomePage() {
       <div className="wrap">
         {isLoading ? <Spinner /> : null}
         {error ? <Empty title="Cannot reach the API">Is the api container running?</Empty> : null}
-        {data?.length === 0 ? <Empty title="No dashboards registered" /> : null}
+        {data?.length === 0 ? (
+          authRequired && !isAdmin ? (
+            <Empty title="No dashboards yet">You have not been given any dashboards. Ask an admin.</Empty>
+          ) : <Empty title="No dashboards registered" />
+        ) : null}
         <div className="cards">
           {data?.map((dashboard) => (
             <Link key={dashboard.slug} to={`/d/${dashboard.slug}`} className="card-link">

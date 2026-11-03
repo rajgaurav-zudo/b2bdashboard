@@ -9,6 +9,10 @@ export interface RangePreset {
   /** the line under the label, e.g. its first day */
   sub: string;
   pressed: boolean;
+  /** presets sharing a group sit together under its name, two to a row */
+  group?: string;
+  /** the group's heading is this preset, a button across the row, in place of the plain name */
+  head?: boolean;
 }
 
 /** The filter bars' date range: presets down the left, two months of days on
@@ -17,8 +21,9 @@ export interface RangePreset {
  *  behaves the same; what a preset or a range means is the caller's business.
  *  Days are plain `YYYY-MM-DD` strings. */
 export function DateRange({
-  value, isSet, onClear, presets, onPreset, from, to, onRange, hint, open, onToggle, onClose,
+  label = "Date range", value, isSet, onClear, presets, onPreset, from, to, onRange, hint, open, onToggle, onClose,
 }: {
+  label?: string;
   value: string; isSet: boolean; onClear: () => void;
   presets: RangePreset[];
   onPreset: (id: string) => void;
@@ -46,23 +51,33 @@ export function DateRange({
 
   return (
     <Control
-      label="Date range" value={value} isSet={isSet}
+      label={label} value={value} isSet={isSet}
       onClear={() => { setPending(null); onClear(); }}
       open={open} onToggle={onToggle} onClose={() => { setPending(null); onClose(); }}
       width={620}
     >
       <div className="i360-when">
         <div className="presets">
-          {presets.map((preset) => (
-            <button
-              key={preset.id} type="button"
-              aria-pressed={preset.pressed}
-              onClick={() => { setPending(null); onPreset(preset.id); }}
-            >
-              <b>{preset.label}</b>
-              <span>{preset.sub}</span>
-            </button>
-          ))}
+          {groups(presets).map(({ group, items }) => {
+            const buttons = items.map((preset) => (
+              <button
+                key={preset.id} type="button" className={preset.head ? "head" : undefined}
+                aria-pressed={preset.pressed}
+                onClick={() => { setPending(null); onPreset(preset.id); }}
+              >
+                <b>{preset.label}</b>
+                <span>{preset.sub}</span>
+              </button>
+            ));
+            return group
+              ? (
+                <div key={group} className="grp">
+                  {items.some((p) => p.head) ? null : <span className="gh">{group}</span>}
+                  <div className="row">{buttons}</div>
+                </div>
+              )
+              : buttons;
+          })}
         </div>
         <div className="cal">
           <div className="cal-h">
@@ -85,6 +100,17 @@ export function DateRange({
       </div>
     </Control>
   );
+}
+
+/** Consecutive presets with the same group, in order; ungrouped ones stand alone. */
+function groups(presets: RangePreset[]): { group?: string; items: RangePreset[] }[] {
+  const out: { group?: string; items: RangePreset[] }[] = [];
+  for (const preset of presets) {
+    const last = out[out.length - 1];
+    if (preset.group && last?.group === preset.group) last.items.push(preset);
+    else out.push({ group: preset.group, items: [preset] });
+  }
+  return out;
 }
 
 function Month({ year, month, from, to, onPick }: {

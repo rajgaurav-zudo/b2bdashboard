@@ -40,17 +40,22 @@ class Settings(BaseSettings):
     # AUTH_REQUIRED=false so development needs no credentials; anything that does
     # not say so explicitly gets the safe answer.
     auth_required: bool = True
-    supabase_url: str = ""
-    # Supabase signs user tokens with `aud: authenticated`.
-    auth_audience: str = "authenticated"
-    # Current projects use ES256 (asymmetric, public JWKS). HS256 is the legacy
-    # shared-secret scheme; listed so an older project still verifies.
-    auth_algorithms: list[str] = ["ES256", "RS256", "HS256"]
+    # The OAuth client ("Web application") the sign-in button belongs to. Public:
+    # it ships in the bundle. An ID token issued to any other client is refused.
+    google_client_id: str = ""
     auth_jwks_ttl: int = 600
-    # Who is allowed in. A valid Supabase token only proves the holder signed up,
-    # and projects accept public sign-ups by default -- one of these must be set.
-    auth_allowed_emails: list[str] = []
-    auth_allowed_domains: list[str] = []
+    # Who is allowed in. A valid Google token only proves the holder has a Google
+    # account, so this is the access control: the Workspace domain an account
+    # must belong to.
+    auth_allowed_domains: list[str] = ["edvoy.com"]
+    # The one owner, written into core.users at every boot so the person who runs
+    # the dashboard cannot be locked out by an admin -- or by an empty table. To
+    # hand ownership over, change this and restart.
+    auth_owner_email: str = "raj@edvoy.com"
+    # Signs the API's own session tokens. Must be the same on every worker and
+    # across restarts, or sessions stop verifying; changing it signs everyone out.
+    auth_session_secret: str = ""
+    auth_session_hours: int = 12
 
     # --- Google Sheet sync -----------------------------------------------------
     # A service account's JSON key and the one sheet it may overwrite (shared

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from fastapi.responses import Response
 
 from .. import registry, views
+from ..access import allowed, require, require_dashboard
 from ..auth import User, audit_actor, current_user
 from ..db import pool
 from ..ingest.reader import IngestError
@@ -13,11 +14,19 @@ from ..storage import StorageError
 
 # Applied to the whole router rather than per route: a new endpoint is then
 # protected by default, and forgetting to add a dependency cannot open a hole.
+# Each route also names the module it belongs to, so a member reaches only the
+# modules they were given; tests/test_access.py fails on a route that does not.
 router = APIRouter(dependencies=[Depends(current_user)])
+
+UPLOADS = [Depends(require("uploads"))]
+CHANGELOG = [Depends(require("changelog"))]
+DOWNLOADS = [Depends(require("downloads"))]
+DASHBOARD = [Depends(require_dashboard)]
 
 
 @router.get("/dashboards")
-def list_dashboards():
+def list_dashboards(user: User | None = Depends(current_user)):
+    """The dashboards this user may open; the menu and the home page list these."""
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
             """select d.slug, d.name, d.version, d.db_schema, d.context_sha,
@@ -29,10 +38,10 @@ def list_dashboards():
                left join core.datasets ds on ds.dashboard_id = d.id
               group by d.id order by d.name"""
         )
-        return cur.fetchall()
+        return [row for row in cur.fetchall() if allowed(user, row["slug"])]
 
 
-@router.get("/dashboards/{slug}")
+@router.get("/dashboards/{slug}", dependencies=DASHBOARD)
 def get_dashboard(slug: str):
     try:
         dash = registry.get(slug)
@@ -67,7 +76,7 @@ def get_dashboard(slug: str):
     }
 
 
-@router.get("/dashboards/{slug}/views/{view}")
+@router.get("/dashboards/{slug}/views/{view}", dependencies=DASHBOARD)
 def view(slug: str, view: str, request: Request):
     """Dashboard-owned read model. Query params are passed through untouched."""
     try:
@@ -84,7 +93,7 @@ def view(slug: str, view: str, request: Request):
 
 # --- sources: files, uploaded once, read by every dashboard that wants them ----
 
-@router.get("/sources")
+@router.get("/sources", dependencies=UPLOADS)
 def list_sources():
     """What can be uploaded, and who reads it.
 
@@ -110,7 +119,7 @@ def list_sources():
     return rows
 
 
-@router.post("/sources/{source}/uploads")
+@router.post("/sources/{source}/uploads", dependencies=UPLOADS)
 async def upload_source(source: str, file: UploadFile = File(...),
                         uploaded_by: str | None = Query(default=None),
                         user: User | None = Depends(current_user)):
@@ -139,7 +148,7 @@ async def upload_source(source: str, file: UploadFile = File(...),
         raise HTTPException(404, str(exc)) from exc
 
 
-@router.get("/uploads")
+@router.get("/uploads", dependencies=UPLOADS)
 def uploads(source: str | None = None, dashboard: str | None = None,
             limit: int = Query(50, le=500)):
     """Every file the platform has been given, with what each dashboard made of it.
@@ -180,7 +189,7 @@ def uploads(source: str | None = None, dashboard: str | None = None,
         return cur.fetchall()
 
 
-@router.post("/uploads/{upload_id}/project")
+@router.post("/uploads/{upload_id}/project", dependencies=UPLOADS)
 def project(upload_id: int, dashboard: str | None = Query(default=None),
             force: bool = Query(default=False)):
     """Build a dashboard's tables from a file already uploaded.
@@ -200,7 +209,7 @@ def project(upload_id: int, dashboard: str | None = Query(default=None),
         raise HTTPException(404, str(exc)) from exc
 
 
-@router.get("/datasets")
+@router.get("/datasets", dependencies=UPLOADS)
 def datasets():
     """Every table on the platform and the file currently behind it.
 
@@ -225,7 +234,7 @@ def datasets():
         return cur.fetchall()
 
 
-@router.post("/dashboards/{slug}/loads/{load_id}/activate")
+@router.post("/dashboards/{slug}/loads/{load_id}/activate", dependencies=UPLOADS)
 def activate_load(slug: str, load_id: int, user: User | None = Depends(current_user)):
     """Roll back to an earlier load. Nothing is deleted; the current flag moves."""
     try:
@@ -235,7 +244,7 @@ def activate_load(slug: str, load_id: int, user: User | None = Depends(current_u
         raise HTTPException(404, str(exc)) from exc
 
 
-@router.get("/changelog")
+@router.get("/changelog", dependencies=CHANGELOG)
 def changelog(dashboard: str | None = None, limit: int = Query(100, le=500)):
     """What every upload changed, for every dashboard.
 
@@ -259,7 +268,7 @@ def changelog(dashboard: str | None = None, limit: int = Query(100, le=500)):
         return cur.fetchall()
 
 
-@router.get("/changelog/{changelog_id}/rows")
+@router.get("/changelog/{changelog_id}/rows", dependencies=CHANGELOG)
 def changelog_rows(changelog_id: int, change_type: str | None = None, limit: int = Query(100, le=2000)):
     sql = """select id, change_type, natural_key, changed_fields, before, after
                from core.changelog_rows where changelog_id = %s"""
@@ -274,7 +283,7 @@ def changelog_rows(changelog_id: int, change_type: str | None = None, limit: int
         return cur.fetchall()
 
 
-@router.get("/loads")
+@router.get("/loads", dependencies=UPLOADS)
 def loads(dashboard: str | None = None, current: bool = False,
           limit: int = Query(100, le=500)):
     """Every load ever made. Nothing is deleted, so this is the whole history."""
@@ -296,7 +305,7 @@ def loads(dashboard: str | None = None, current: bool = False,
         return cur.fetchall()
 
 
-@router.get("/downloads")
+@router.get("/downloads", dependencies=DOWNLOADS)
 def downloads():
     """What each download would be built from, so the page can say so before the click."""
     with pool.connection() as conn:
@@ -335,7 +344,7 @@ def _weekly_summary(now: datetime) -> bytes:
         raise HTTPException(409, str(exc)) from exc
 
 
-@router.get("/downloads/weekly-summary")
+@router.get("/downloads/weekly-summary", dependencies=DOWNLOADS)
 def download_weekly_summary():
     """This week's summary workbook, last week's sheet included, from the latest
     upload of each source.
@@ -350,7 +359,7 @@ def download_weekly_summary():
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
-@router.post("/downloads/weekly-summary/sync")
+@router.post("/downloads/weekly-summary/sync", dependencies=DOWNLOADS)
 def sync_weekly_summary():
     """The same workbook, written over the configured Google Sheet."""
     if not sheets_sync.configured():
