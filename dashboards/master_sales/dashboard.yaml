@@ -1,0 +1,24 @@
+slug: master_sales
+name: Master Sales
+version: 1
+schema: dash_master_sales
+
+description: >
+  Every application in the export, filtered by the business area, region and
+  team the student is assigned to, by when each stage happened and by actual
+  intake. Applied through Enrolled as a pipeline, with Deposit beside it as the
+  parallel stage it is.
+
+dimensions: [business_area, business_region, business_team]
+
+# The applications export is platform-level (sources/sources.yaml). This
+# dashboard reads the student's business assignment and the stage timestamps
+# into its own table and cannot change what any other dashboard takes out of
+# the same file.
+datasets:
+  applications:
+    display_name: Applications
+    source: applications
+    table: applications
+    natural_key: [app_uid]
+    required_columns: ["Student Ref Id", "Application Status"]

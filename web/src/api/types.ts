@@ -666,3 +666,45 @@ export interface ModuleInfo {
   name: string;
   group: "Dashboards" | "Data";
 }
+
+// ---------------------------------------------------------------------------
+// Master Sales
+// ---------------------------------------------------------------------------
+
+/** `n` is created: reached the stage. Of those, `active` still sit at it and are
+ *  open, `closed` sit at it closed lost; the rest moved on. */
+export interface MasterSalesStage { id: string; name: string; help: string; n: number; active: number; closed: number }
+
+export interface MasterSalesOverview {
+  anchor: string;
+  filters: {
+    /** unique: students up to Offered, sales (student + actual intake) from CoE on */
+    unit: "applications" | "unique";
+    from: string | null; to: string | null;
+    /** true when the URL names no range and the view used this week */
+    default_range: boolean;
+    /** Application Course Level group; academic is the default */
+    level: "academic" | "language" | "all";
+    intake_from: string | null; intake_to: string | null;
+    /** quarters of one actual intake year, e.g. ["2026-Q1", "2026-Q3"] */
+    intake_q: string[];
+    areas: string[]; regions: string[]; teams: string[];
+  };
+  options: {
+    areas: { name: string; n: number }[];
+    regions: { name: string; n: number }[];
+    teams: { name: string; n: number }[];
+    /** every area -> region -> team in the export, for pruning picks */
+    tree: { area: string; region: string; team: string }[];
+  };
+  /** applications, and unique students, with any date in the range under the other filters */
+  scope: { applications: number; applicants: number };
+  stages: MasterSalesStage[];
+  /** active are undeferred; daa have a deferral awaiting approval; closed are closed lost */
+  deposit: MasterSalesStage & { daa: number; at: { id: string; name: string; n: number }[] };
+  /** deposits with a deferral initiated, by its date: awaiting approval, approved, closed */
+  daa: Omit<MasterSalesStage, "active"> & { awaiting: number; approved: number };
+  /** part payments, by their date: still part paid (active), since paid in full, closed */
+  pd: MasterSalesStage & { paid: number };
+  data: { app_rows: number; students: number; other_level: number; no_intake: number; no_student_ref: number; no_stage: number; undated_deposit: number };
+}
