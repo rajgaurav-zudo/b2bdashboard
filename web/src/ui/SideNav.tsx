@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useDashboards } from "../api/client";
 import { authRequired, useAuth } from "../auth";
+import { UploadTray } from "./UploadTray";
 
 const STORE = "b2b.nav.rail";
 
@@ -50,6 +51,7 @@ export function AppLayout() {
         <TopBar />
         <Outlet />
       </main>
+      <UploadTray />
     </div>
   );
 }

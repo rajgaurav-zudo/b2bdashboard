@@ -21,3 +21,6 @@ compose.override.yml
 
 # Google service account key for the Sheets sync
 secrets/
+
+# Duplicate Introducers report (tools/run_duplicate_introducers.sh): real data, kept local
+data/Duplicate_Introducers_linked_apps*.xlsx

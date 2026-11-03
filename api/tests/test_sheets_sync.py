@@ -2,6 +2,7 @@
 and what the reader is told when it does not go through."""
 import json
 import sys
+import threading
 
 import pytest
 
@@ -92,3 +93,54 @@ def test_other_failures_pass_on_what_google_said(setup):
     with pytest.raises(sheets_sync.SyncError, match="Could not reach Google: timed out"):
         sheets_sync.push(b"workbook")
     assert sheets_sync.last_synced() is None
+
+
+def wait():
+    """Until the sync's thread has finished."""
+    for t in threading.enumerate():
+        if t.name == "google-sheet-sync":
+            t.join(5)
+    return sheets_sync.status()
+
+
+def test_a_sync_runs_in_the_background_and_counts_its_steps(setup):
+    google = setup(Reply(200, {"id": SHEET}))
+    gate, seen = threading.Event(), []
+
+    def build(progress):
+        progress("Reading")
+        gate.wait(5)
+        seen.append(sheets_sync.status())
+        progress("Writing")
+        return b"workbook"
+
+    started = sheets_sync.start(build, [50, 20])
+    assert started["state"] == "running" and started["total"] == 3
+    with pytest.raises(sheets_sync.SyncError, match="already running") as err:
+        sheets_sync.start(build, [50, 20])
+    assert err.value.status == 409
+    gate.set()
+    done = wait()
+    assert seen[0]["step"] == 0 and seen[0]["label"] == "Reading" and seen[0]["percent"] == 0
+    assert done["state"] == "done" and done["step"] == done["total"] == 3 and done["percent"] == 100
+    assert done["synced_at"] == sheets_sync.last_synced() is not None
+    assert google.calls[0][1]["data"] == b"workbook"
+
+
+def test_a_failed_sync_says_why_and_can_be_run_again(setup):
+    setup(Reply(403))
+
+    def build(progress):
+        progress("Reading")
+        return b"workbook"
+
+    sheets_sync.start(build, [1])
+    failed = wait()
+    assert failed["state"] == "failed" and "Share the sheet with" in failed["error"]
+    assert failed["synced_at"] is None
+
+    def broken(progress):
+        raise ValueError("bad column")
+
+    sheets_sync.start(broken, [1])
+    assert wait()["error"] == "The sync failed: bad column"

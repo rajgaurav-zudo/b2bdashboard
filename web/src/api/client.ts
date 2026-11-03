@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { accessToken, sessionRejected } from "../auth";
 import type {
   ChangelogEntry, ChangelogRow, DashboardDetail, DashboardSummary,
-  DatasetState, Downloads, LoadRow, ModuleInfo, Overview, SourceSummary, TileMembers, UploadResult, UploadRow,
+  DatasetState, Downloads, LoadRow, ModuleInfo, Overview, SheetSyncStatus, SourceSummary, TileMembers, UploadRow,
   UserRow,
 } from "./types";
 
@@ -164,30 +164,11 @@ export function useActivateLoad() {
 /** A file feeds every dashboard that declares its source, so there is no such
  *  thing as an upload that only affects the dashboard you were looking at.
  *  Everything derived from a load is dropped rather than guessing which. */
-function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
+export function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   for (const key of ["view", "changelog", "loads", "uploads", "datasets",
                      "dashboard", "dashboards", "sources", "downloads"]) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
-}
-
-/** Upload goes to a source, not to a dashboard: the file is archived once and
- *  projected into every dashboard that declares it. */
-export function useUpload() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ source, file }: { source: string; file: File }) => {
-      const body = new FormData();
-      body.append("file", file);
-      // no Content-Type header: the browser must set the multipart boundary itself
-      const res = await fetch(`${BASE}/sources/${source}/uploads`, {
-        method: "POST", body, headers: await authHeaders(),
-      });
-      if (!res.ok) throw new ApiError(await detail(res), res.status);
-      return res.json() as Promise<UploadResult>;
-    },
-    onSuccess: () => invalidate(queryClient),
-  });
 }
 
 export function useDownloads() {
@@ -197,7 +178,18 @@ export function useDownloads() {
   });
 }
 
-/** Write the weekly summary over the configured Google Sheet. */
+/** How far the latest Google Sheet sync has got: polled every second while one
+ *  runs, so the bar moves, and picked up again on coming back to the page. */
+export function useSheetSyncStatus() {
+  return useQuery({
+    queryKey: ["sheet-sync"],
+    queryFn: () => get<SheetSyncStatus>("/downloads/weekly-summary/sync/status"),
+    refetchInterval: (q) => (q.state.data?.state === "running" ? 1000 : false),
+  });
+}
+
+/** Start writing the weekly summary over the configured Google Sheet. The API
+ *  answers at once; useSheetSyncStatus follows it from there. */
 export function useSheetSync() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -205,9 +197,9 @@ export function useSheetSync() {
       const res = await fetch(`${BASE}/downloads/weekly-summary/sync`,
         { method: "POST", headers: await authHeaders() });
       if (!res.ok) throw new ApiError(await detail(res), res.status);
-      return res.json() as Promise<{ synced_at: string; sheet_url: string }>;
+      return res.json() as Promise<SheetSyncStatus>;
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["downloads"] }),
+    onSuccess: (status) => queryClient.setQueryData(["sheet-sync"], status),
   });
 }
 

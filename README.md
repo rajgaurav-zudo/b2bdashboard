@@ -12,7 +12,6 @@ is self-contained: its own schema, migrations, ingest rules and spec.
 | Introducer 360 | One introducer end to end: every stage, when, against the same window a year earlier | [context](dashboards/introducer_360/context.md) |
 | Log dashboard | How much contact the team has with its introducers, week by week (Saturday to Friday) | [context](dashboards/logs/context.md) |
 | Pipeline | Every application rolled up to unique students by actual intake, at the furthest stage reached | [context](dashboards/pipeline/context.md) |
-| B2B Pulse | Everything that happened in a date range across all three exports: onboarded, activity logged, applications reaching each stage | [context](dashboards/pulse/context.md) |
 | Commission | Contract terms per institution, imported from the contracts workbook and published by a person | [context](dashboards/commission/context.md) |
 
 Three exports feed them: the introducers master, the introducer logs and the applications
@@ -95,7 +94,7 @@ See [docs/architecture.md](docs/architecture.md) for the design and the decision
 | Metrics API (tiles, funnel, drill-down) | working, 20 tests |
 | Drill-down side pane (group / sort / expand) | working, client-side from `/views/members` |
 | Region and Team filters on every dashboard | working |
-| Introducer 360, Log, Pipeline, B2B Pulse and Commission dashboards | working, each with ingest/metrics or importer tests |
+| Introducer 360, Log, Pipeline and Commission dashboards | working, each with ingest/metrics or importer tests |
 | Weekly summary workbook (Data → Downloads) | working, `api/tests/test_weekly_summary.py` |
 | Google Sheet sync of the weekly summary | working when a service-account key and sheet id are set; off otherwise |
 | React + TypeScript frontend, Edvoy CRM Design System v1.0.0 | working |
