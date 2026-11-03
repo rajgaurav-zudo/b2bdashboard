@@ -209,6 +209,27 @@ button.chip:hover{color:var(--ink);border-color:var(--ink)}
 .drop b{display:block;font-size:13.5px;font-weight:600}
 .drop span{display:block;font-size:12px;color:var(--muted);margin-top:5px}
 .drop .req{display:block;font-size:11px;color:var(--faint);margin-top:4px}
+
+/* upload progress: under each drop zone, and in a tray on every other page */
+.upl{margin-top:10px}
+.upl-head{display:flex;align-items:center;gap:8px}
+.upl-name{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upl-name b{font-weight:600}
+.upl-x{border:0;background:none;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 2px}
+.upl-x:hover{color:var(--ink)}
+.upl-bar{position:relative;height:6px;margin-top:6px;border-radius:3px;background:var(--line-soft);overflow:hidden}
+.upl-bar i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--action);transition:width .2s ease}
+.upl.done .upl-bar i{background:var(--s-good)}
+.upl.failed .upl-bar i{background:var(--s-bad)}
+.upl-bar.indet i{width:35%!important;animation:upl-slide 1.2s ease-in-out infinite}
+@keyframes upl-slide{from{left:-35%}to{left:100%}}
+.upl-lbl{margin:5px 0 0;font-size:12px;color:var(--muted)}
+.upl.done .upl-lbl{color:var(--good)}
+.upl.failed .upl-lbl{color:var(--bad)}
+.upl .status{margin-top:4px}
+.upl-tray{position:fixed;right:16px;bottom:16px;z-index:50;width:min(340px,calc(100vw - 32px));max-height:60vh;overflow:auto;
+  padding:4px 14px 12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+@media (prefers-reduced-motion:reduce){.upl-bar.indet i{animation:none;width:100%!important;opacity:.5}}
 .drop.busy{opacity:.6;pointer-events:none}
 
 /* ---------- sign in ---------- */

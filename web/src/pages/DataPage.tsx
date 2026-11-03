@@ -2,11 +2,13 @@ import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import {
-  useActivateLoad, useDashboards, useDatasets, useLoads, useSources, useUpload, useUploads,
+  useActivateLoad, useDashboards, useDatasets, useLoads, useSources, useUploads,
 } from "../api/client";
-import type { SourceSummary, UploadResult, UploadRow } from "../api/types";
+import type { SourceSummary, UploadRow } from "../api/types";
 import { n0, when } from "../format";
 import { Pill, Section, Spinner } from "../ui/Primitives";
+import { UploadProgress } from "../ui/UploadTray";
+import { useStartUpload, useUploadJobs } from "../uploads";
 
 /** Where every file arrives, for every dashboard.
  *
@@ -285,13 +287,12 @@ function FailedUploads({ rows }: { rows: UploadRow[] }) {
 function Drop({ source }: { source: SourceSummary }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const [result, setResult] = useState<UploadResult | null>(null);
-  const upload = useUpload();
+  const start = useStartUpload();
+  // the jobs live outside this page, so coming back here finds them where they were
+  const jobs = useUploadJobs().filter((job) => job.source === source.slug);
 
   const send = (file: File | undefined) => {
-    if (!file) return;
-    setResult(null);
-    upload.mutate({ source: source.slug, file }, { onSuccess: setResult });
+    if (file) start(source.slug, source.display_name, file);
   };
 
   return (
@@ -319,14 +320,7 @@ function Drop({ source }: { source: SourceSummary }) {
           onChange={(e) => { send(e.target.files?.[0]); e.target.value = ""; }}
         />
       </div>
-      {upload.isPending ? <p className="status busy"><span className="spinner" /> parsing and loading…</p> : null}
-      {upload.error ? <p className="status err">{(upload.error as Error).message}</p> : null}
-      {result?.projections.map((p) => (
-        <p key={`${p.dashboard}.${p.dataset}`}
-           className={`status ${p.status === "failed" ? "err" : p.status === "duplicate" ? "busy" : "ok"}`}>
-          {p.dashboard}: {p.summary ?? p.error ?? p.status}
-        </p>
-      ))}
+      {jobs.map((job) => <UploadProgress key={job.id} job={job} />)}
     </div>
   );
 }
