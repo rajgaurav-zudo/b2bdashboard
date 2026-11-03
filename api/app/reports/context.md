@@ -15,7 +15,8 @@ Downloads page lists which files those are before anyone clicks.
 ```
 GET  /api/downloads                          the sources each report reads, and the Sheet's state
 GET  /api/downloads/weekly-summary           build and download the workbook
-POST /api/downloads/weekly-summary/sync      build it and write it over the Google Sheet
+POST /api/downloads/weekly-summary/sync      start building it and writing it over the Google Sheet
+GET  /api/downloads/weekly-summary/sync/status   how far that has got
 ```
 
 The first build after a new upload reads the full exports (a few seconds); the
@@ -129,6 +130,13 @@ nothing else. Its key is mounted from `./secrets` (git-ignored) as
 `GOOGLE_SERVICE_ACCOUNT_FILE`, and the sheet is `GOOGLE_SHEET_ID`; either unset
 turns the sync off and the Downloads page hides the button. The last successful
 sync time is kept in the upload directory.
+
+A sync runs on a thread of its own, one at a time (a second start is refused
+with 409), and `…/sync/status` reports its state, the step under way and a
+percent with each step weighted by its usual time (`BUILD_WEIGHTS`, and the
+upload's `UPLOAD_WEIGHT`). The Downloads page polls it every second for its
+progress bar, and picks a running sync up again after leaving the page. Adding
+or removing a sheet means adding or removing its weight.
 
 ## The xlsx writer
 

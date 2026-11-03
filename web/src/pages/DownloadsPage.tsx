@@ -1,4 +1,7 @@
-import { useDownload, useDownloads, useSheetSync } from "../api/client";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useDownload, useDownloads, useSheetSync, useSheetSyncStatus } from "../api/client";
 import type { GoogleSheetSync } from "../api/types";
 import { when } from "../format";
 import { Band, Section, Spinner } from "../ui/Primitives";
@@ -47,23 +50,57 @@ function SummaryButton({ label, title, blocked }: { label: string; title: string
 }
 
 /** The same summary, written over one Google Sheet: same link every time,
- *  contents replaced whole. */
+ *  contents replaced whole. The sync runs on the server, so the bar follows
+ *  it from the status endpoint and picks it up again after leaving the page. */
 function SyncButton({ sheet, blocked }: { sheet: GoogleSheetSync; blocked: boolean }) {
+  const queryClient = useQueryClient();
   const sync = useSheetSync();
+  const { data: status } = useSheetSyncStatus();
+  const running = sync.isPending || status?.state === "running";
+  // The bar stays up after a sync this page watched, until the next one; one
+  // that ended before the page opened is just the "Last synced" line.
+  const [watched, setWatched] = useState(false);
+  useEffect(() => {
+    if (status?.state === "running") setWatched(true);
+    else if (watched) void queryClient.invalidateQueries({ queryKey: ["downloads"] });
+  }, [status?.state, watched, queryClient]);
+
+  const tone = status?.state === "done" ? " done" : status?.state === "failed" ? " failed" : "";
   return (
-    <div>
+    <div style={{ minWidth: 280 }}>
       <button
         type="button"
         className="btn"
-        disabled={sync.isPending || blocked}
-        aria-busy={sync.isPending}
-        onClick={() => sync.mutate()}
+        disabled={running || blocked}
+        aria-busy={running}
+        onClick={() => { setWatched(true); sync.mutate(); }}
       >
-        {sync.isPending ? "Syncing…" : "Sync to Google Sheet"}
+        {running ? "Syncing…" : "Sync to Google Sheet"}
       </button>
       {sync.isError ? <Band tone="warn">{sync.error.message}</Band> : null}
+      {watched && !sync.isError && status && status.state !== "idle" ? (
+        <div className={`upl${tone}`}>
+          <div
+            className="upl-bar"
+            role="progressbar"
+            aria-label="Google Sheet sync"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={status.percent}
+            aria-valuetext={status.label ?? undefined}
+          >
+            <i style={{ width: `${status.percent}%` }} />
+          </div>
+          <p className="upl-lbl" aria-live="polite">
+            {status.state === "running"
+              ? `${status.label}… step ${status.step + 1} of ${status.total} · ${status.percent}%`
+              : null}
+            {status.state === "done" ? "Synced." : null}
+            {status.state === "failed" ? status.error : null}
+          </p>
+        </div>
+      ) : null}
       <p className="sub" style={{ marginTop: 8 }}>
-        {sync.isSuccess ? "Synced. " : null}
         {sheet.url ? <a href={sheet.url} target="_blank" rel="noreferrer">Open the sheet</a> : null}
         {sheet.synced_at ? ` · Last synced ${when(sheet.synced_at)}` : " · Not synced yet"}
       </p>

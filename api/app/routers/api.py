@@ -359,13 +359,32 @@ def download_weekly_summary():
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
-@router.post("/downloads/weekly-summary/sync", dependencies=DOWNLOADS)
+@router.post("/downloads/weekly-summary/sync", dependencies=DOWNLOADS, status_code=202)
 def sync_weekly_summary():
-    """The same workbook, written over the configured Google Sheet."""
+    """Start writing the same workbook over the configured Google Sheet; poll
+    `…/sync/status` for how far it has got."""
     if not sheets_sync.configured():
         raise HTTPException(409, "Google Sheet sync is not set up on this server.")
-    content = _weekly_summary(datetime.now(timezone.utc))
+    with pool.connection() as conn:
+        latest = weekly_summary.latest_uploads(conn)
+    missing = [s for s in weekly_summary.SOURCES if s not in latest]
+    if missing:
+        raise HTTPException(409, f"Upload the {', '.join(missing)} export first: the summary reads all three.")
+    periods = weekly_summary.Periods(datetime.now(timezone.utc).date())
+
+    def build(progress):
+        try:
+            return weekly_summary.summary(latest, periods, progress)
+        except (IngestError, StorageError) as exc:
+            raise sheets_sync.SyncError(str(exc), 409) from exc
+
     try:
-        return sheets_sync.push(content)
+        return sheets_sync.start(build, weekly_summary.BUILD_WEIGHTS)
     except sheets_sync.SyncError as exc:
         raise HTTPException(exc.status, str(exc)) from exc
+
+
+@router.get("/downloads/weekly-summary/sync/status", dependencies=DOWNLOADS)
+def sync_weekly_summary_status():
+    """How far the latest sync has got, for the Downloads page's progress bar."""
+    return sheets_sync.status()

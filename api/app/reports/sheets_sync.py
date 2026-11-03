@@ -8,8 +8,15 @@ replaced whole every time, so anything typed into it by hand is lost.
 Access is a service account that has been shared on that one sheet as Editor
 and on nothing else. Its JSON key and the sheet id come from the settings;
 either missing turns the sync off.
+
+A sync runs in the background (`start`), one at a time, and says how far it has
+got (`status`), so the page can show a progress bar and leaving it does not
+stop the sync.
 """
 import json
+import logging
+import threading
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +26,9 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 UPLOAD = "https://www.googleapis.com/upload/drive/v3/files/{id}"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 TIMEOUT = 120
+UPLOAD_WEIGHT = 30   # the upload, against a build's weights: about a third of a sync
+
+log = logging.getLogger(__name__)
 
 
 class SyncError(Exception):
@@ -100,3 +110,70 @@ def push(content: bytes) -> dict:
     except OSError:
         pass   # the sheet is updated; only the "last synced" line goes stale
     return {"synced_at": synced_at, "sheet_url": sheet_url()}
+
+
+# ------------------------------------------------------------------ the running sync
+
+_job: dict = {"state": "idle", "step": 0, "total": 0, "label": None, "error": None,
+              "started_at": None, "finished_at": None}
+_weights: list[int] = []
+_job_lock = threading.Lock()
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def status() -> dict:
+    """Where the latest sync stands: `state` is idle, running, done or failed;
+    `step` of `total` steps are finished, `label` is the one under way, and
+    `percent` is how much of the work that is, each step weighted by its time."""
+    with _job_lock:
+        percent = round(100 * sum(_weights[:_job["step"]]) / sum(_weights)) if _weights else 0
+        return {**_job, "percent": percent, "synced_at": last_synced(), "sheet_url": sheet_url()}
+
+
+def start(build: Callable[[Callable[[str], None]], bytes], weights: Sequence[int]) -> dict:
+    """Build the workbook with `build(progress)`, which reports one step per
+    entry of `weights`, then push it, on a thread of its own. A second start while one runs is
+    refused rather than queued: it would only write the same workbook again."""
+    if not configured():
+        raise SyncError("Google Sheet sync is not set up on this server.", 409)
+    with _job_lock:
+        if _job["state"] == "running":
+            raise SyncError("A sync is already running.", 409)
+        _weights[:] = [*weights, UPLOAD_WEIGHT]
+        _job.update(state="running", step=0, total=len(_weights), label="Starting", error=None,
+                    started_at=_now(), finished_at=None)
+    threading.Thread(target=_run, args=(build,), name="google-sheet-sync", daemon=True).start()
+    return status()
+
+
+def _run(build: Callable[[Callable[[str], None]], bytes]) -> None:
+    started = 0
+
+    def progress(label: str) -> None:
+        nonlocal started
+        with _job_lock:
+            _job.update(step=min(started, _job["total"] - 1), label=label)
+        started += 1
+
+    try:
+        content = build(progress)
+        progress("Uploading to Google Sheet")
+        push(content)
+    except SyncError as exc:
+        _finish(error=str(exc))
+    except Exception as exc:   # anything else would die silently on this thread
+        log.exception("Google Sheet sync failed")
+        _finish(error=f"The sync failed: {exc}")
+    else:
+        _finish()
+
+
+def _finish(error: str | None = None) -> None:
+    with _job_lock:
+        _job.update(state="failed" if error else "done", error=error, finished_at=_now(),
+                    label="Failed" if error else "Synced")
+        if not error:
+            _job["step"] = _job["total"]

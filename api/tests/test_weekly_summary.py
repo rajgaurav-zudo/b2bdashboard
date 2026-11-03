@@ -12,7 +12,7 @@ from datetime import date, datetime
 
 sys.path.insert(0, "/srv/api")
 
-from app.reports.weekly_summary import Periods, Writer, build, read_export  # noqa: E402
+from app.reports.weekly_summary import BUILD_WEIGHTS, Periods, Writer, build, read_export  # noqa: E402
 from app.reports.xlsx import Chart, Formula, Workbook, col_letter  # noqa: E402
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -506,3 +506,14 @@ def test_a_chart_with_a_wide_spread_draws_on_a_log_scale():
     assert "logBase" not in narrow and "log scale" not in narrow
     tiny = chart([1, 1, 0])                      # whole-number steps, not 0.2 rounded to "0"
     assert "logBase" not in tiny and '<c:majorUnit val="1"/>' in tiny
+
+
+def test_build_reports_each_sheet_as_it_starts():
+    heard = []
+    build(read_export("introducers", "i.csv", INTRODUCERS, WHEN),
+          read_export("introducer_logs", "l.csv", LOGS, WHEN),
+          read_export("applications", "a.csv", APPLICATIONS, WHEN),
+          Periods(TODAY), heard.append)
+    assert heard[:-1] == [f"Building {name}" for name in workbook()]
+    assert heard[-1] == "Writing the workbook"
+    assert len(heard) + 1 == len(BUILD_WEIGHTS)    # summary() reports reading the exports first

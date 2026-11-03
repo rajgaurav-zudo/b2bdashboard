@@ -43,6 +43,7 @@ says so, and says which files it was read from.
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
@@ -522,21 +523,34 @@ def _source_note(e: Export) -> str:
 
 # ------------------------------------------------------------------ sheets
 
-def build(introducers: Export, logs: Export, applications: Export, p: Periods) -> bytes:
+def build(introducers: Export, logs: Export, applications: Export, p: Periods,
+          progress: Callable[[str], None] = lambda _: None) -> bytes:
+    """The workbook. `progress` is told of each sheet before it is
+    built, and once more before the file is written."""
     wb = Workbook()
     d = _deposits(applications, introducers, p)
-    _ytd(wb.add_sheet(YTD_SHEET), applications, p)
-    _ytd(wb.add_sheet(YTD_LANGUAGE_SHEET), applications, p, "Year to date summary, Language and Pre-sessional",
-         levels=LANGUAGE)
     nxt = Periods(date(p.cy + 1, 1, 1))
-    _ytd(wb.add_sheet(f"{nxt.cy} sales sheet"), applications, nxt, f"{nxt.cy} sales")
-    _funnel(wb.add_sheet(FUNNEL_SHEET), applications, p)
-    _same_time(wb.add_sheet(SAME_TIME_SHEET), applications, p)
-    _lost(wb.add_sheet(LOST_SHEET), applications, p)
-    _onboarding(_b2b(wb, "B2B - Onboarding"), introducers, p)
-    _activity(_b2b(wb, "B2B - Activity Logs"), logs, introducers, p)
-    _sales(_b2b(wb, "B2B - Sales and Retention"), d, applications, p)
-    _last_week(_b2b(wb, "B2B Summary Last Week"), d, introducers, logs, applications, Periods.last_week_of(p.today))
+    for name, make in (
+        (YTD_SHEET, lambda ws: _ytd(ws, applications, p)),
+        (YTD_LANGUAGE_SHEET, lambda ws: _ytd(ws, applications, p, "Year to date summary, Language and Pre-sessional",
+                                             levels=LANGUAGE)),
+        (f"{nxt.cy} sales sheet", lambda ws: _ytd(ws, applications, nxt, f"{nxt.cy} sales")),
+        (FUNNEL_SHEET, lambda ws: _funnel(ws, applications, p)),
+        (SAME_TIME_SHEET, lambda ws: _same_time(ws, applications, p)),
+        (LOST_SHEET, lambda ws: _lost(ws, applications, p)),
+    ):
+        progress(f"Building {name}")
+        make(wb.add_sheet(name))
+    for name, make in (
+        ("B2B - Onboarding", lambda ws: _onboarding(ws, introducers, p)),
+        ("B2B - Activity Logs", lambda ws: _activity(ws, logs, introducers, p)),
+        ("B2B - Sales and Retention", lambda ws: _sales(ws, d, applications, p)),
+        ("B2B Summary Last Week", lambda ws: _last_week(ws, d, introducers, logs, applications,
+                                                        Periods.last_week_of(p.today))),
+    ):
+        progress(f"Building {name}")
+        make(_b2b(wb, name))
+    progress("Writing the workbook")
     return wb.save()
 
 
@@ -1868,14 +1882,17 @@ _cache: dict[tuple, dict[str, Export]] = {}
 _lock = threading.Lock()
 
 
-def summary(uploads: dict[str, dict], p: Periods) -> bytes:
+def summary(uploads: dict[str, dict], p: Periods,
+            progress: Callable[[str], None] = lambda _: None) -> bytes:
     """The workbook for these three uploads over the periods `p`.
 
     Reading the exports takes seconds and building from them a fraction of
     one, so the read is what is kept: until a new upload, both summaries build
     from it. Only the latest is kept; the lock stops two clicks reading twice.
+    `progress` hears of each step in BUILD_WEIGHTS as it starts.
     """
     key = tuple(uploads[s]["id"] for s in SOURCES)
+    progress("Reading the exports")
     with _lock:
         if key not in _cache:
             ex = {s: read_export(s, uploads[s]["filename"], storage().get(uploads[s]["stored_path"]),
@@ -1883,4 +1900,10 @@ def summary(uploads: dict[str, dict], p: Periods) -> bytes:
             _cache.clear()
             _cache[key] = ex
         ex = _cache[key]
-    return build(ex["introducers"], ex["introducer_logs"], ex["applications"], p)
+    return build(ex["introducers"], ex["introducer_logs"], ex["applications"], p, progress)
+
+
+# Reading the exports, the ten sheets, and writing the file, weighted by how
+# long each takes, so a progress bar moves evenly: the first read of the
+# exports is most of a build, and all ten sheets together a second or two.
+BUILD_WEIGHTS = (60,) + (1,) * 10 + (2,)

@@ -161,6 +161,21 @@ export interface GoogleSheetSync {
   synced_at: string | null;
 }
 
+/** How far the latest Google Sheet sync has got. */
+export interface SheetSyncStatus {
+  state: "idle" | "running" | "done" | "failed";
+  step: number;
+  total: number;
+  /** Of the work, each step weighted by how long it takes. */
+  percent: number;
+  label: string | null;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  synced_at: string | null;
+  sheet_url: string | null;
+}
+
 export interface Downloads {
   weekly_summary: { sources: DownloadSource[]; google_sheet: GoogleSheetSync };
 }
