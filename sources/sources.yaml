@@ -18,6 +18,11 @@
 # refused with a readable reason rather than loading 227k wrong rows. Fragments
 # are matched as substrings of a normalised header (lowercased, punctuation and
 # stray whitespace collapsed) so a renamed column does not break identification.
+#
+# `key` names the column that identifies a row from one upload to the next, so
+# the store's changelog can tell a changed row from one removed and one added.
+# A value that repeats is suffixed with its occurrence (#2, #3); a row with no
+# value is keyed by its content.
 
 introducers:
   display_name: Introducers master
@@ -27,6 +32,7 @@ introducers:
   identified_by:
     - partner name
     - lifecycle stage
+  key: partner name
 
 applications:
   display_name: Applications
@@ -36,6 +42,7 @@ applications:
   identified_by:
     - introducer name
     - deposit paid status
+  key: application ref no
 
 introducer_logs:
   display_name: Introducer activity log
@@ -46,3 +53,4 @@ introducer_logs:
   identified_by:
     - log type
     - log time
+  key: _id

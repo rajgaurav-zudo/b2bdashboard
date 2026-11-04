@@ -236,34 +236,40 @@ def datasets():
 
 @router.post("/dashboards/{slug}/loads/{load_id}/activate", dependencies=UPLOADS)
 def activate_load(slug: str, load_id: int, user: User | None = Depends(current_user)):
-    """Roll back to an earlier load. Nothing is deleted; the current flag moves."""
+    """Roll back to an earlier load: flip to it if its rows are kept, otherwise
+    rebuild it from its upload's file while that file is still kept."""
     try:
         dash = registry.get(slug)
         return activate(dash, load_id, audit_actor(user))
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except IngestError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.get("/changelog", dependencies=CHANGELOG)
-def changelog(dashboard: str | None = None, limit: int = Query(100, le=500)):
-    """What every upload changed, for every dashboard.
+def changelog(source: str | None = None, limit: int = Query(100, le=500)):
+    """What every upload changed, from the store's changelog.
 
-    The entry is per dashboard because the diff is: the same file produces a
-    different changelog in each dashboard that reads it, against that
-    dashboard's own natural key.
+    An upload's entry is per source: the diff is of the file, so it is the same
+    whichever dashboards read it. Rollbacks and restores carry the dashboard
+    they moved, and entries from before the store carry the dashboard whose
+    load they diffed.
     """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
-            """select c.id, d.slug as dashboard, d.name as dashboard_name,
+            """select c.id, s.slug as source, s.display_name as source_name,
+                      d.slug as dashboard, d.name as dashboard_name,
                       c.entity, c.summary, c.rows_added, c.rows_removed, c.rows_changed,
                       c.rows_unchanged, c.rows_sampled, c.occurred_at, c.load_id,
                       c.previous_load_id, u.filename, u.status, u.uploaded_by, c.details
-                 from core.changelog c
-                 join core.dashboards d on d.id = c.dashboard_id
+                 from store.changelog c
+                 left join core.sources s on s.id = c.source_id
+                 left join core.dashboards d on d.id = c.dashboard_id
                  left join core.uploads u on u.id = c.upload_id
-                where (%(dashboard)s::text is null or d.slug = %(dashboard)s)
+                where (%(source)s::text is null or s.slug = %(source)s)
                 order by c.occurred_at desc, c.id desc limit %(limit)s""",
-            {"dashboard": dashboard, "limit": limit},
+            {"source": source, "limit": limit},
         )
         return cur.fetchall()
 
@@ -271,7 +277,7 @@ def changelog(dashboard: str | None = None, limit: int = Query(100, le=500)):
 @router.get("/changelog/{changelog_id}/rows", dependencies=CHANGELOG)
 def changelog_rows(changelog_id: int, change_type: str | None = None, limit: int = Query(100, le=2000)):
     sql = """select id, change_type, natural_key, changed_fields, before, after
-               from core.changelog_rows where changelog_id = %s"""
+               from store.changelog_rows where changelog_id = %s"""
     params: list = [changelog_id]
     if change_type:
         sql += " and change_type = %s"
@@ -286,12 +292,17 @@ def changelog_rows(changelog_id: int, change_type: str | None = None, limit: int
 @router.get("/loads", dependencies=UPLOADS)
 def loads(dashboard: str | None = None, current: bool = False,
           limit: int = Query(100, le=500)):
-    """Every load ever made. Nothing is deleted, so this is the whole history."""
+    """Every load ever made. A replaced load's rows are deleted (`purged_at`)
+    unless its dashboard retains loads; it can be restored while its file is
+    archived or held in the store (`restorable`)."""
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
             """select l.id, d.slug as dashboard, d.name as dashboard_name,
                       ds.slug as dataset, l.row_count, l.is_current,
-                      l.created_at, l.superseded_at,
+                      l.created_at, l.superseded_at, l.purged_at,
+                      l.purged_at is null or u.stored_path is not null
+                        or exists (select 1 from store.snapshots sn where sn.upload_id = u.id)
+                        as restorable,
                       u.filename, u.sha256, u.uploaded_by
                  from core.loads l
                  join core.dashboards d on d.id = l.dashboard_id
