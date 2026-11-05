@@ -36,6 +36,9 @@ class Storage(Protocol):
     def get(self, locator: str) -> bytes:
         """Return the original bytes for a locator produced by put()."""
 
+    def delete(self, locator: str) -> None:
+        """Remove what put() stored. Removing what is already gone is not an error."""
+
     @property
     def label(self) -> str:
         ...
@@ -62,6 +65,12 @@ class LocalStorage:
         if not path.is_file():
             raise StorageError(f"nothing archived at {locator}")
         return _maybe_gunzip(path.read_bytes())
+
+    def delete(self, locator: str) -> None:
+        path = Path(locator)
+        if not path.is_absolute():
+            path = self.root / locator
+        path.unlink(missing_ok=True)
 
     @property
     def label(self) -> str:

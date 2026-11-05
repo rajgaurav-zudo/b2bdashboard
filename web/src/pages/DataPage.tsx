@@ -160,7 +160,7 @@ export function DataPage() {
 
         <Section
           title="Load history"
-          note="Every load ever made, newest first. Rolling back moves the current flag; no rows are deleted."
+          note="Every load ever made, newest first. A dashboard keeps only its current load's rows; an older one is rebuilt from its file while the file is kept (30 days, and always the latest upload)."
         >
           {loads.isLoading ? <Spinner /> : null}
           {activate.error ? <p className="status err">{(activate.error as Error).message}</p> : null}
@@ -193,14 +193,18 @@ export function DataPage() {
                         : <span className="dim">no</span>}
                     </td>
                     <td className="act">
-                      {load.is_current ? null : (
+                      {load.is_current ? null : load.restorable ? (
                         <button
                           type="button"
                           disabled={activate.isPending}
                           onClick={() => activate.mutate({ dashboard: load.dashboard, loadId: load.id })}
                         >
-                          make current
+                          {load.purged_at ? "restore" : "make current"}
                         </button>
+                      ) : (
+                        <span className="dim" title="Its rows were cleared and the file is past the archive window">
+                          file expired
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -216,19 +220,20 @@ export function DataPage() {
 
 /** Shared by both platform pages: narrow the tables to one dashboard without
  *  putting the pages back inside one. */
-export function DashFilter({ value, onChange, options }: {
+export function DashFilter({ value, onChange, options, all = "All dashboards" }: {
   value: string;
   onChange: (next: string) => void;
   options: { value: string; label: string }[];
+  all?: string;
 }) {
   return (
     <select
       className="dash-filter"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      aria-label="Filter by dashboard"
+      aria-label={`Filter: ${all.toLowerCase()}`}
     >
-      <option value="">All dashboards</option>
+      <option value="">{all}</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );

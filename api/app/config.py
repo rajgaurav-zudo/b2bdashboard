@@ -11,9 +11,12 @@ class Settings(BaseSettings):
     # where Vite serves it and proxies /api here.
     web_dist: str = ""
     upload_dir: str = "/srv/data/uploads"
-    # counts in core.changelog are always exact; this caps how many row-level
+    # counts in store.changelog are always exact; this caps how many row-level
     # diffs get stored per entry so one bad export cannot write millions of rows
     changelog_row_limit: int = 10_000
+    # archived files older than this are deleted on the next upload. The upload
+    # record and its changelog stay; restoring from it no longer can.
+    archive_days: int = 30
 
     # --- connection behaviour -------------------------------------------------
     # Off by default because a transaction-mode pooler cannot keep server-side

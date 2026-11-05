@@ -32,6 +32,10 @@ class Source:
     # normalised header fragments that must all be present. Checked before the
     # file is stored, so the wrong export is refused rather than loaded.
     identified_by: list[str] = field(default_factory=list)
+    # the header (matched like a dashboard's Col.exact) whose value identifies a
+    # row across uploads, for the store's changelog. None: rows are keyed by
+    # their content, so an edited row reads as one removed and one added.
+    key: str = ""
 
 
 @dataclass
@@ -81,6 +85,16 @@ class Dashboard:
     def module(self) -> ModuleType:
         return self.load_module("ingest")
 
+    @property
+    def retain_loads(self) -> bool:
+        """Keep every past load's rows rather than only the current one's.
+
+        Off by default: the history of a file lives in the store's changelog,
+        so a dashboard holds just what it serves. A dashboard that rolls back
+        by flipping the current flag opts in with `retain_loads: true`.
+        """
+        return bool(self.manifest.get("retain_loads", False))
+
     def dataset(self, slug: str) -> Dataset:
         if slug not in self.datasets:
             raise KeyError(f"{self.slug} has no dataset '{slug}'")
@@ -126,6 +140,7 @@ def _sources() -> dict[str, Source]:
             display_name=(spec or {}).get("display_name", slug),
             description=((spec or {}).get("description") or "").strip(),
             identified_by=list((spec or {}).get("identified_by") or []),
+            key=(spec or {}).get("key") or "",
         )
         for slug, spec in declared.items()
     }

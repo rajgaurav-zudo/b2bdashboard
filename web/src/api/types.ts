@@ -42,10 +42,14 @@ export interface DashboardDetail extends Omit<DashboardSummary, "db_schema"> {
 
 export interface ChangelogEntry {
   id: number;
-  /** Which dashboard's diff this is: one file produces one entry per dashboard
-   *  that reads it, each against that dashboard's own natural key. */
-  dashboard: string;
-  dashboard_name: string;
+  /** The file's source. An upload's entry is per source: the diff is of the
+   *  file, so it is the same whichever dashboards read it. */
+  source: string | null;
+  source_name: string | null;
+  /** Set on rollbacks and restores, which move one dashboard, and on entries
+   *  from before the store, which diffed one dashboard's load. */
+  dashboard: string | null;
+  dashboard_name: string | null;
   entity: string;
   summary: string;
   rows_added: number | null;
@@ -65,7 +69,9 @@ export interface ChangelogEntry {
 export interface ChangelogRow {
   id: number;
   change_type: "added" | "removed" | "changed";
-  natural_key: Record<string, string>;
+  /** The source's key value for the row (e.g. an application ref no), or
+   *  "~<hash>" for a row keyed by its content. */
+  natural_key: string;
   changed_fields: string[] | null;
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
@@ -80,6 +86,11 @@ export interface LoadRow {
   is_current: boolean;
   created_at: string;
   superseded_at: string | null;
+  /** When the load's rows were deleted on being replaced. */
+  purged_at: string | null;
+  /** Whether "make current" can bring it back: its rows are kept, or its file
+   *  is still archived or held in the store. */
+  restorable: boolean;
   filename: string;
   sha256: string;
   uploaded_by: string | null;

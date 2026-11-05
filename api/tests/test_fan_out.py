@@ -5,15 +5,17 @@ broken without any of that reaching another dashboard -- while they all read the
 same uploaded exports. That is a claim about behaviour under failure, so it is
 asserted here against a real database rather than described in a document.
 
-These tests create and drop their own schemas, so they run against a scratch
-database (the compose stack's local postgres by default), never the configured
-one. Point TEST_DATABASE_URL somewhere else if that is not where you want them.
+These tests create and drop their own schemas, replace the store and purge the
+archive, so they run against a scratch database (b2bdash_test on the compose
+stack's postgres, created if missing), never the configured one. Point
+TEST_DATABASE_URL somewhere else if that is not where you want them.
 """
 import os
 import sys
 import uuid
 from pathlib import Path
 
+import psycopg
 import pytest
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -26,8 +28,16 @@ from app.config import settings  # noqa: E402
 from app.ingest import service  # noqa: E402
 
 TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql://b2b:b2b@db:5432/b2bdash"
+    "TEST_DATABASE_URL", "postgresql://b2b:b2b@db:5432/b2bdash_test"
 )
+
+
+def _ensure_database(url: str) -> None:
+    """Create the scratch database if the server is there but the db is not."""
+    name = url.rsplit("/", 1)[1].split("?")[0]
+    with psycopg.connect(url.rsplit("/", 1)[0] + "/postgres", autocommit=True) as conn:
+        if conn.execute("select 1 from pg_database where datname = %s", (name,)).fetchone() is None:
+            conn.execute(f'create database "{name}"')
 
 CSV = (
     b"Application Id,Application Introducer Name,Deposit Paid Status,Application Status\n"
@@ -111,6 +121,7 @@ def _write_dashboard(root: Path, slug: str, letter: str, status_column: str, upp
 def sandbox(tmp_path, monkeypatch):
     """Two dashboards reading one source, on their own schemas, in a scratch db."""
     try:
+        _ensure_database(TEST_DATABASE_URL)
         pool = ConnectionPool(TEST_DATABASE_URL, min_size=1, max_size=4, open=True,
                               kwargs={"row_factory": dict_row, "prepare_threshold": None},
                               check=ConnectionPool.check_connection, timeout=10)
@@ -145,6 +156,7 @@ def sandbox(tmp_path, monkeypatch):
         cur.execute("delete from core.dashboards where slug like %s", (f"fan_{tag}_%",))
         cur.execute("delete from core.schema_migrations where scope like %s", (f"fan_{tag}_%",))
         cur.execute("delete from core.uploads where filename like %s", (f"{tag}%",))
+        cur.execute("drop table if exists store.applications")
         conn.commit()
     pool.close()
     storage._storage = None

@@ -86,12 +86,12 @@ export function useView<T>(
   });
 }
 
-/** Every dashboard's changelog, or one dashboard's when `dashboard` is given.
+/** Every source's changelog, or one source's when `source` is given.
  *  Uploads are platform-level, so the log of them is too. */
-export function useChangelog(dashboard?: string) {
+export function useChangelog(source?: string) {
   return useQuery({
-    queryKey: ["changelog", dashboard ?? "all"],
-    queryFn: () => get<ChangelogEntry[]>("/changelog", { dashboard, limit: 200 }),
+    queryKey: ["changelog", source ?? "all"],
+    queryFn: () => get<ChangelogEntry[]>("/changelog", { source, limit: 200 }),
   });
 }
 
